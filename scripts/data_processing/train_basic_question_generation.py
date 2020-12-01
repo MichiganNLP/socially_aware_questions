@@ -11,13 +11,10 @@ import sys
 if ('question_generation' not in sys.path):
     sys.path.append('question_generation')
 from data_collator import T2TDataCollator
-from dataclasses import field
-from typing import Optional
-from transformers.training_args import TrainingArguments
 from transformers import AutoModelForSeq2SeqLM
 import os
 from trainer import Trainer
-from data_helpers import DataProcessor
+from data_helpers import DataProcessor, DataArguments
 
 def prepare_question_data(data, out_dir, tokenizer, train_pct=0.8):
     # change to clean source/target format
@@ -64,111 +61,74 @@ def prepare_question_data(data, out_dir, tokenizer, train_pct=0.8):
     tokenizer_out_file = os.path.join(out_dir, 'BART_tokenizer.pt')
     torch.save(tokenizer, tokenizer_out_file)
 
-def main():
-    ## prepare data
-    cnn_article_question_data = pd.read_csv('../../data/CNN_articles/cnn/article_question_data.tsv', sep='\t',
-                                            index_col=False)
+from argparse import ArgumentParser
 
-    out_dir = '../../data/CNN_articles/cnn/'
+def main():
+    parser = ArgumentParser()
+    parser.add_argument('train_data') # ../../data/CNN_articles/cnn/article_question_data.tsv
+    parser.add_argument('out_dir') # ../../data/CNN_articles/cnn/
+    parser.add_argument('--device', default='cpu') # cuda:0 => GPU #0
+    parser.add_argument('--model_type', default='bart')
+    args = vars(parser.parse_args())
+    raw_train_data_file = args['train_data']
+    out_dir = args['out_dir']
+    device_name = args['device']
+    model_type = args['model_type']
+
+    ## prepare data
+    article_question_data = pd.read_csv(raw_train_data_file, sep='\t', index_col=False)
+
     train_pct = 0.8
     tokenizer = BartTokenizer.from_pretrained('facebook/bart-base')
     # TODO: increase vocab size to include named entities?
     # TODO: shrink data to debug training
     # tmp debugging
-    cnn_article_question_data = cnn_article_question_data.copy().head(2000)
-    train_data_out_file = os.path.join(out_dir, 'article_question_generation_train_data.pt')
-    if(not os.path.exists(train_data_out_file)):
-        prepare_question_data(cnn_article_question_data, out_dir, tokenizer=tokenizer,
+    article_question_data = article_question_data.copy().head(2000)
+    train_data_file = os.path.join(out_dir, 'article_question_generation_train_data.pt')
+    val_data_file = os.path.join(out_dir, 'article_question_generation_val_data.pt')
+    if(not os.path.exists(train_data_file)):
+        prepare_question_data(article_question_data, out_dir, tokenizer=tokenizer,
                               train_pct=train_pct)
 
-
     ## train model
-    cache_dir = '../../data/CNN_articles/cnn/model_cache/'
+    cache_dir = os.path.join(out_dir, 'model_cache/')
     ## TODO: why doesn't the earlier torch import work??
     import torch
-    tokenizer = torch.load('../../data/CNN_articles/cnn/BART_tokenizer.pt')
-    # print(len(tokenizer))
+    # tokenizer = torch.load('../../data/CNN_articles/cnn/BART_tokenizer.pt')
+    model_type_path_lookup = {
+        'bart' : 'facebook/bart-base'
+    }
+    model_path = model_type_path_lookup[model_type]
     model = AutoModelForSeq2SeqLM.from_pretrained(
-        'facebook/bart-base',
+        model_path,
         cache_dir=cache_dir,
     )
     model.resize_token_embeddings(len(tokenizer))
-    device = torch.device('cuda:0')
+    device = torch.device(device_name)
     model.to(device)
 
     ## load data
-    data_dir = '../../data/CNN_articles/cnn/'
-    train_file = os.path.join(data_dir, 'article_question_generation_train_data.pt')
-    val_file = os.path.join(data_dir, 'article_question_generation_val_data.pt')
-    train_dataset = torch.load(train_file)
-    val_dataset = torch.load(val_file)
+    train_dataset = torch.load(train_data_file)
+    val_dataset = torch.load(val_data_file)
     train_dataset = train_dataset['train']
     val_dataset = val_dataset['train']
-
     # get max source/target len
     max_source_len = len(train_dataset['source_ids'][0])
     max_target_len = len(train_dataset['target_ids'][0])
-
-    # initialize data collator
-    model_type = 'bart'
+    # data collator
     data_collator = T2TDataCollator(
         tokenizer=tokenizer,
         model_type=model_type,
         mode="training",
         using_tpu=False
     )
-    # #  Initialize Trainer
-    # need data argument class ;_;
-    class DataArguments(TrainingArguments):
-        train_file_path: str = field(
-            metadata={"help": "Path for cached train dataset"},
-        )
-        valid_file_path: str = field(
-            metadata={"help": "Path for cached valid dataset"},
-        )
-        data_dir: Optional[str] = field(
-            default=None,
-            metadata={"help": "Path for data files"},
-        )
-        task: Optional[str] = field(
-            default=None,
-            metadata={
-                "help": "Which task 'qa', 'qg', 'e2e_qg', 'ans_ext', 'multi'. 'multi' means 'qa', 'qg', 'ans_ext' tasks"},
-        )
-        qg_format: Optional[str] = field(
-            default='prepend_qg_format',
-            metadata={"help": "How to format inputs for que generation, 'highlight_qg_format' or 'prepend_qg_format'"},
-        )
-        max_source_length: Optional[int] = field(
-            default=512,
-            metadata={"help": "Max input length for the source text"},
-        )
-        max_target_length: Optional[int] = field(
-            default=32,
-            metadata={"help": "Max input length for the target text"},
-        )
-        n_gpu: Optional[int] = field(
-            default=1,
-        )
-
-    # training_arg_dict = {
-    #     'train_file_path' : 'article_question_generation_train_data.pt',
-    #     'valid_file_path' : 'article_question_generation_val_data.pt',
-    #     'data_dir' : data_dir,
-    #     'task' : 'qg',
-    #     'max_source_length' : max_source_len,
-    #     'max_target_length' : max_target_len,
-    #     'n_gpu' : 1,
-    #     'seed' : 123,
-    # }
-    data_dir = '../../data/CNN_articles/cnn/'
-    out_dir = '../../data/CNN_articles/cnn/question_generation_model/'
-    if (not os.path.exists(out_dir)):
-        os.mkdir(out_dir)
-    training_args = DataArguments(out_dir)
-    training_args.train_file_path = 'article_question_generation_train_data.pt',
-    training_args.valid_file_path = 'article_question_generation_val_data.pt'
-    training_args.data_dir = data_dir
+    model_out_dir = os.path.join(out_dir, 'question_generation_model/')
+    if (not os.path.exists(model_out_dir)):
+        os.mkdir(model_out_dir)
+    training_args = DataArguments(model_out_dir)
+    training_args.train_file_path = train_data_file
+    training_args.valid_file_path = val_data_file
+    training_args.data_dir = out_dir
     training_args.task = 'qg'
     training_args.max_source_length = max_source_len
     training_args.max_target_length = max_target_len
@@ -177,7 +137,7 @@ def main():
     training_args.seed = 123
     training_args.disable_tqdm = False
     training_args.local_rank = -1
-    training_args.output_dir = out_dir
+    training_args.output_dir = model_out_dir
     training_args.num_train_epochs = 20
     # training_args.max_steps = 1
     training_args.fp16 = False
@@ -214,11 +174,9 @@ def main():
     )
 
     ## train
-    import torch
     torch.cuda.empty_cache()
-    model_dir = '../../data/CNN_articles/cnn/question_generation_model/'
     trainer.train(
-        model_path=model_dir,
+        model_path=model_out_dir,
     )
     trainer.save_model()
 
