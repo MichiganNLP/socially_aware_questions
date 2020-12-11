@@ -88,9 +88,10 @@ def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, m
     training_args.learning_rate = 1e-4
     training_args.dataloader_drop_last = False
     training_args.dataloader_num_workers = 8
-    training_args.evaluate_during_training = True
+    # training_args.evaluate_during_training = True
     training_args.do_eval = True
     training_args.evaluation_strategy = 'epoch'
+    training_args.eval_steps = 500
     # default values from here lol https://github.com/huggingface/transformers/blob/49759c0cda29ab614b81e0869972c99f2edba7aa/src/transformers/training_args.py
     training_args.weight_decay = 0.01
     training_args.adam_beta1 = 0.9
@@ -121,9 +122,11 @@ def main():
     tokenizer = BartTokenizer.from_pretrained('facebook/bart-base')
     # TODO: increase vocab size to include named entities?
     # TODO: shrink data to debug training
-    # tmp debugging
+    # tmp debugging: small data
     # article_question_data = article_question_data.copy().head(2000)
     data_name = os.path.basename(raw_train_data_file).replace('.tsv', '')
+    # tmp debugging: small data
+    # data_name = f'mini_{data_name}'
     train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
     val_data_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
     if(not os.path.exists(train_data_file)):
@@ -152,6 +155,7 @@ def main():
     val_dataset = torch.load(val_data_file)
     train_dataset = train_dataset['train']
     val_dataset = val_dataset['train']
+
     # get max source/target len
     max_source_len = len(train_dataset['source_ids'][0])
     max_target_len = len(train_dataset['target_ids'][0])
@@ -162,6 +166,8 @@ def main():
         mode="training",
         using_tpu=False
     )
+    # tmp debugging
+    # model_out_dir = os.path.join(out_dir, 'mini_question_generation_model/')
     model_out_dir = os.path.join(out_dir, 'question_generation_model/')
     if (not os.path.exists(model_out_dir)):
         os.mkdir(model_out_dir)
@@ -180,6 +186,9 @@ def main():
         #     prediction_loss_only=True,
         label_smoothing=model_args['label_smoothing'],
     )
+
+    ## tmp debugging
+    # print(f'evaluation strategy = {trainer.args.eval_steps}')
 
     ## train
     torch.cuda.empty_cache()

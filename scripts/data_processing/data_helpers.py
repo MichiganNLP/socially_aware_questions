@@ -7,6 +7,9 @@ import os
 from transformers.training_args import TrainingArguments
 from dataclasses import field
 from typing import Optional
+import torch
+from tqdm import tqdm
+
 def assign_label_by_cutoff_pct(data, label_var='gender', min_pct=0.75):
     """
     Assign one label per value based on
@@ -172,3 +175,60 @@ class DataArguments(TrainingArguments):
     n_gpu: Optional[int] = field(
         default=1,
     )
+
+## text generation
+
+def generate_predictions(model, data, tokenizer, device_name='cuda:0'):
+    """
+    Generate predicted text from transformer model.
+
+    :param model:
+    :param data:
+    :param device_name:
+    :return:
+    """
+    num_beams = 4
+    max_decoding_length = 64
+    length_penalty = 1
+    device = torch.device(device_name)
+    model.to(device)
+    pred_text = []
+    for batch_i in tqdm(data):
+        source_i = batch_i['source_ids']
+        attention_i = batch_i['attention_mask']
+        # fix type in case of difference
+        if(type(source_i) is list):
+            source_i = torch.LongTensor(source_i)
+        if(type(attention_i) is list):
+            attention_i = torch.Tensor(attention_i)
+        output_i = model.generate(
+            input_ids=source_i.to(device).reshape(1,-1),
+            attention_mask=attention_i.to(device).reshape(1,-1),
+            num_beams=num_beams,
+            max_length=max_decoding_length,
+            length_penalty=length_penalty,
+        )
+        prediction = [tokenizer.decode(ids, skip_special_tokens=True) for ids in output_i]
+        pred_text.extend(prediction)
+    return pred_text
+
+def compare_pred_text_with_target(data, pred_text, tokenizer):
+    """
+    Compare predicted text with target data.
+
+    :param data:
+    :param pred_text:
+    :param tokenizer:
+    :return:
+    """
+    special_tokens = set(['<pad>', '<s>', '</s>'])
+    for i, (batch_i, pred_text_i) in enumerate(zip(data, pred_text)):
+        source_text_i = [tokenizer.decode(x, skip_special_tokens=True) for x in batch_i['source_ids']]
+        target_text_i = [tokenizer.decode(x, skip_special_tokens=True) for x in batch_i['target_ids']]
+        # cleanup
+        source_text_i = ' '.join(list(filter(lambda x: x not in special_tokens, source_text_i)))
+        target_text_i = ' '.join(list(filter(lambda x: x not in special_tokens, target_text_i)))
+        print('*~*~*~*~*~*')
+        print(f'source text = {source_text_i[:300]}...')
+        print(f'target text = {target_text_i}')
+        print(f'pred text = {pred_text_i}')

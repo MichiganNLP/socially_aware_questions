@@ -20,6 +20,7 @@ def load_all_articles(data_dir, data_name):
         article_data = article_data.assign(**{
             'article_id' : article_ids
         })
+        article_data.rename(columns={'text' : 'article_text'}, inplace=True)
     return article_data
 
 def clean_text_body(txt, word_tokenizer, matcher_pairs):
@@ -70,8 +71,7 @@ def load_all_comment_questions(comment_dir, comment_month_years=[('April', '2018
     })
     question_data = question_data[question_data.loc[:, 'question_len'] >= min_question_len]
     ## cleanup columns
-    question_data.rename(columns={'commentBody' : 'article_text'}, inplace=True)
-    question_data = question_data.loc[:, ['article_id', 'article_text', 'question']]
+    question_data = question_data.loc[:, ['article_id', 'commentBody', 'question']]
     return question_data
 
 def main():
