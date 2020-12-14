@@ -18,8 +18,9 @@ from data_helpers import DataProcessor, DataArguments
 
 def prepare_question_data(data, out_dir, data_name, tokenizer, train_pct=0.8):
     # change to clean source/target format
-    clean_data = data.loc[:, ['article_text', 'question']].rename(
+    clean_data = data.loc[:, ['article_text', 'question', 'article_id']].rename(
         columns={'article_text': 'source_text', 'question': 'target_text'})
+    print(clean_data.head())
     # split train/val
     np.random.seed(123)
     N = clean_data.shape[0]
@@ -41,7 +42,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer, train_pct=0.8):
     #     max_source_length = max(source_text_tokens.apply(lambda x: len(x)))
     #     max_target_length = max(target_text_tokens.apply(lambda x: len(x)))
     # tmp debugging: shorten source/target
-    ## TODO: increase max article length!!
+    ## TODO: increase max input length!!
     max_source_length = 1024
     max_target_length = 64
     data_processor = DataProcessor(tokenizer=tokenizer,
@@ -121,7 +122,6 @@ def main():
     train_pct = 0.8
     tokenizer = BartTokenizer.from_pretrained('facebook/bart-base')
     # TODO: increase vocab size to include named entities?
-    # TODO: shrink data to debug training
     # tmp debugging: small data
     # article_question_data = article_question_data.copy().head(2000)
     data_name = os.path.basename(raw_train_data_file).replace('.tsv', '')

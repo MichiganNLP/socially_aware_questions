@@ -10,6 +10,7 @@ from argparse import ArgumentParser
 import pandas as pd
 from nltk.tokenize import WordPunctTokenizer
 from nltk.tokenize import sent_tokenize
+import numpy as np
 
 def load_all_articles(data_dir, data_name):
     article_files = list(map(lambda x: os.path.join(data_dir, x), os.listdir(data_dir)))
@@ -21,6 +22,25 @@ def load_all_articles(data_dir, data_name):
             'article_id' : article_ids
         })
         article_data.rename(columns={'text' : 'article_text'}, inplace=True)
+        # remove null articles??
+        article_data = article_data[~article_data.loc[:, 'article_text'].apply(lambda x: type(x) is float and np.isnan(x))]
+        # clean text
+        matcher_pairs = [(re.compile('<.+>'), ' <HTML> '),
+                         (re.compile('\.{2,}'), '.'),
+                         (re.compile(' \- '), '-'),
+                         (re.compile(' ([\.\?\!,\'\"]+)'), '\\1'),
+                         (re.compile('([\']) (?=[a-z])'), '\\1'),  # fix contraction spacing
+                         (re.compile('(\() '), '\\1'), (re.compile(' (\))'), '\\1'),  # parentheses spacing
+                         (re.compile('[\n\r\t]'), ' '),  # return spaces
+                         (re.compile('Credit\s?: .{8,100}$'), ''),  # remove author credit
+                         ]
+        word_tokenizer = WordPunctTokenizer()
+        article_data = article_data.assign(**{
+            'article_text': article_data.loc[:, 'article_text'].apply(
+                lambda x: clean_text_body(x, word_tokenizer, matcher_pairs))
+        })
+    # remove null data
+    article_data = article_data[article_data.loc[:, 'article_text'] != '']
     return article_data
 
 def clean_text_body(txt, word_tokenizer, matcher_pairs):
@@ -39,18 +59,23 @@ def load_all_comment_questions(comment_dir, comment_month_years=[('April', '2018
     comment_data = pd.concat(comment_data, axis=0)
     # remove duplicates? OK
     comment_data.drop_duplicates(['articleID', 'commentBody'], inplace=True)
-    # clean text => fix punctuation without spaces and HTML
+    # clean comment text
+    # fix punctuation without spaces and HTML
 #     html_matcher = re.compile('<.+>')
     matcher_pairs = [(re.compile('<.+>'), ' <HTML> '),
                      (re.compile('\.{2,}'), '.'),
                      (re.compile(' \- '), '-'),
                      (re.compile(' ([\.\?\!,\'\"]+)'), '\\1'),
                      (re.compile('([\']) (?=[a-z])'), '\\1'), # fix contraction spacing
-                     (re.compile('(\() '), '\\1'), (re.compile(' (\))'), '\\1')]
+                     (re.compile('(\() '), '\\1'), (re.compile(' (\))'), '\\1'), # parentheses spacing
+                     (re.compile('[\n\r\t]'), ' '), # return spaces
+                     ]
     word_tokenizer = WordPunctTokenizer()
     comment_data = comment_data.assign(**{
         'commentBody' : comment_data.loc[:, 'commentBody'].apply(lambda x: clean_text_body(x, word_tokenizer, matcher_pairs))
     })
+    # clean article
+
     # find questions
     question_matcher = re.compile('\?$')
     comment_data = comment_data.assign(**{

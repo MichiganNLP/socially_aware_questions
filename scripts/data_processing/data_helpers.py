@@ -1,6 +1,7 @@
 """
 Data helper functions.
 """
+import numpy as np
 import pandas as pd
 import re
 import os
@@ -9,6 +10,7 @@ from dataclasses import field
 from typing import Optional
 import torch
 from tqdm import tqdm
+from nltk.translate.bleu_score import sentence_bleu
 
 def assign_label_by_cutoff_pct(data, label_var='gender', min_pct=0.75):
     """
@@ -232,3 +234,15 @@ def compare_pred_text_with_target(data, pred_text, tokenizer):
         print(f'source text = {source_text_i[:300]}...')
         print(f'target text = {target_text_i}')
         print(f'pred text = {pred_text_i}')
+
+## model evaluation
+
+def compute_text_bleu(txt_1, txt_2, weights):
+    score = sentence_bleu([txt_1], txt_2, weights=weights)
+    return score
+def compute_max_sent_score(test_questions, gold_question, weights):
+    test_question_text = list(map(lambda x: x['question'].lower(), test_questions))
+    test_question_bleu_scores = np.array(list(map(lambda x: compute_text_bleu(x, gold_question, weights=weights), test_question_text)))
+    max_score = np.max(test_question_bleu_scores)
+    max_score_question = test_question_text[np.where(test_question_bleu_scores == max_score)[0][0]]
+    return max_score, max_score_question
