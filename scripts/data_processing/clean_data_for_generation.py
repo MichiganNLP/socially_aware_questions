@@ -14,6 +14,12 @@ import numpy as np
 
 def load_all_articles(data_dir, data_name):
     article_files = list(map(lambda x: os.path.join(data_dir, x), os.listdir(data_dir)))
+    # tmp debugging for badly-formed files
+    # for article_file in article_files:
+    #     try:
+    #         pd.read_csv(article_file, sep='\t', index_col=False)
+    #     except Exception as e:
+    #         print(article_file)
     article_data = pd.concat(list(map(lambda x: pd.read_csv(x, sep='\t', index_col=False), article_files)), axis=0)
     if(data_name == 'NYT'):
         article_id_matcher = re.compile('(?<=article_)[0-9a-zA-Z]+(?=\.tsv)')
@@ -25,7 +31,7 @@ def load_all_articles(data_dir, data_name):
         # remove null articles??
         article_data = article_data[~article_data.loc[:, 'article_text'].apply(lambda x: type(x) is float and np.isnan(x))]
         # clean text
-        matcher_pairs = [(re.compile('<.+>'), ' <HTML> '),
+        matcher_pairs = [(re.compile('<.+>'), ' '),
                          (re.compile('\.{2,}'), '.'),
                          (re.compile(' \- '), '-'),
                          (re.compile(' ([\.\?\!,\'\"]+)'), '\\1'),
@@ -62,7 +68,7 @@ def load_all_comment_questions(comment_dir, comment_month_years=[('April', '2018
     # clean comment text
     # fix punctuation without spaces and HTML
 #     html_matcher = re.compile('<.+>')
-    matcher_pairs = [(re.compile('<.+>'), ' <HTML> '),
+    matcher_pairs = [(re.compile('<.+>'), ' '),
                      (re.compile('\.{2,}'), '.'),
                      (re.compile(' \- '), '-'),
                      (re.compile(' ([\.\?\!,\'\"]+)'), '\\1'),
@@ -118,7 +124,7 @@ def main():
         comment_dir = args['comment_dir']
         comment_month_year_pairs = list(map(lambda x: x.split('_'), args['comment_month_year_pairs']))
         question_data = load_all_comment_questions(comment_dir, comment_month_year_pairs)
-        article_data = pd.merge(article_data, question_data, on='article_id')
+        article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
 
     ## save to file
     out_dir = args['out_dir']
