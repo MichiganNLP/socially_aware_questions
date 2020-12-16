@@ -1,5 +1,8 @@
 data/*
 scripts/data_processing/generation_model_output/
 scripts/data_processing/old_generation_model_output/*
+scripts/data_processing/question_generation/
 scripts/data_processing/.ipynb_checkpoints/
 scripts/data_processing/*.log
+scripts/data_processing/runs/
+scripts/*/__pycache__/
