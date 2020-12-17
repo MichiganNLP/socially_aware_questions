@@ -83,6 +83,19 @@ def extract_name(text, camel_matcher):
     name = name.lower()
     return name
 
+def clean_text_matchers(txt, word_tokenizer, matcher_pairs):
+    """
+
+    :param txt:
+    :param word_tokenizer:
+    :param matcher_pairs: pairs of regex and string to replace regex with
+    :return:
+    """
+    clean_txt = ' '.join(word_tokenizer.tokenize(txt))
+    for matcher_i, sub_i in matcher_pairs:
+        clean_txt = matcher_i.sub(sub_i, clean_txt)
+    return clean_txt
+
 class DataProcessor:
     """
     Process data for conversion to matrix format.
@@ -180,7 +193,7 @@ class DataArguments(TrainingArguments):
 
 ## text generation
 
-def generate_predictions(model, data, tokenizer, device_name='cuda:0'):
+def generate_predictions(model, data, tokenizer, device_name='cuda:0', generation_method='beam_search', num_beams=4, temperature=1.0, top_p=1.0):
     """
     Generate predicted text from transformer model.
 
@@ -189,7 +202,6 @@ def generate_predictions(model, data, tokenizer, device_name='cuda:0'):
     :param device_name:
     :return:
     """
-    num_beams = 4
     max_decoding_length = 64
     length_penalty = 1
     device = torch.device(device_name)
@@ -203,13 +215,26 @@ def generate_predictions(model, data, tokenizer, device_name='cuda:0'):
             source_i = torch.LongTensor(source_i)
         if(type(attention_i) is list):
             attention_i = torch.Tensor(attention_i)
-        output_i = model.generate(
-            input_ids=source_i.to(device).reshape(1,-1),
-            attention_mask=attention_i.to(device).reshape(1,-1),
-            num_beams=num_beams,
-            max_length=max_decoding_length,
-            length_penalty=length_penalty,
-        )
+        if(generation_method == 'beam_search'):
+            output_i = model.generate(
+                input_ids=source_i.to(device).reshape(1,-1),
+                attention_mask=attention_i.to(device).reshape(1,-1),
+                num_beams=num_beams,
+                temperature=temperature,
+                max_length=max_decoding_length,
+                length_penalty=length_penalty,
+                num_return_sequences=1,
+            )
+        elif(generation_method == 'sample'):
+            output_i = model.generate(
+                input_ids=source_i.to(device).reshape(1, -1),
+                attention_mask=attention_i.to(device).reshape(1, -1),
+                temperature=temperature,
+                top_p=top_p,
+                max_length=max_decoding_length,
+                length_penalty=length_penalty,
+                num_return_sequences=1,
+            )
         prediction = [tokenizer.decode(ids, skip_special_tokens=True) for ids in output_i]
         pred_text.extend(prediction)
     return pred_text
