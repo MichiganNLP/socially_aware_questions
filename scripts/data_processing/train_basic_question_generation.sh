@@ -12,6 +12,9 @@ DEVICE="cuda:0"
 MODEL_TYPE="bart"
 # model with author information
 AUTHOR_DATA=../../data/nyt_comments/author_comment_social_data.tsv
+# sample data for faster training
+#SAMPLE_PCT=1.0
+SAMPLE_PCT=0.25
 # regular model
 #python train_basic_question_generation.py $TRAIN_DATA $OUT_DIR --device $DEVICE --model_type $MODEL_TYPE
-python train_basic_question_generation.py $TRAIN_DATA $OUT_DIR --device $DEVICE --model_type $MODEL_TYPE --author_data $AUTHOR_DATA
+python train_basic_question_generation.py $TRAIN_DATA $OUT_DIR --device $DEVICE --model_type $MODEL_TYPE --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT

@@ -80,8 +80,7 @@ def load_all_comment_questions(comment_dir, comment_month_years=[('April', '2018
     comment_data = comment_data.assign(**{
         'commentBody' : comment_data.loc[:, 'commentBody'].apply(lambda x: clean_text_body(x, word_tokenizer, matcher_pairs))
     })
-    # clean article
-
+    ## clean article
     # find questions
     question_matcher = re.compile('\?$')
     comment_data = comment_data.assign(**{
@@ -103,6 +102,7 @@ def load_all_comment_questions(comment_dir, comment_month_years=[('April', '2018
     })
     question_data = question_data[question_data.loc[:, 'question_len'] >= min_question_len]
     ## cleanup columns
+    # NOTE: we need author ID and post date
     question_data = question_data.loc[:, ['article_id', 'commentBody', 'question', 'userID', 'createDate']]
     # print(f'sample question data {question_data.head(10)}')
     return question_data

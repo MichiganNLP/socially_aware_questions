@@ -16,6 +16,7 @@ import os
 from trainer import Trainer
 from data_helpers import DataProcessor, DataArguments, round_date_to_day
 from datetime import datetime
+np.random.seed(123)
 
 def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None, train_pct=0.8):
     """
@@ -95,7 +96,6 @@ def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None,
                 author_txt_data.append(data_j)
         clean_data = pd.concat(author_txt_data, axis=1).transpose()
     # split train/val
-    np.random.seed(123)
     N = clean_data.shape[0]
     N_train = int(N * train_pct)
     np.random.shuffle(clean_data.values)
@@ -181,15 +181,23 @@ def main():
     parser.add_argument('--device', default='cpu') # cuda:0 => GPU #0
     parser.add_argument('--model_type', default='bart')
     parser.add_argument('--author_data', default=None) # ../../data/nyt_comments/author_comment_social_data.tsv
+    parser.add_argument('--sample_pct', type=float, default=1.0)
     args = vars(parser.parse_args())
     raw_train_data_file = args['train_data']
     out_dir = args['out_dir']
     device_name = args['device']
     model_type = args['model_type']
     author_data = args['author_data']
+    sample_pct = args['sample_pct']
+    if(not os.path.exists(out_dir)):
+        os.mkdir(out_dir)
 
     ## prepare data
     article_question_data = pd.read_csv(raw_train_data_file, sep='\t', index_col=False)
+    if(sample_pct < 1.0):
+        N_sample = int(article_question_data.shape[0] * sample_pct)
+        article_question_data_idx = np.random.choice(article_question_data.index, N_sample, replace=False)
+        article_question_data = article_question_data.loc[article_question_data_idx, :]
     train_pct = 0.8
     tokenizer = BartTokenizer.from_pretrained('facebook/bart-base')
     # TODO: change vocab to include named entities?
