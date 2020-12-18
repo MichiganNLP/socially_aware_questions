@@ -11,6 +11,7 @@ from typing import Optional
 import torch
 from tqdm import tqdm
 from nltk.translate.bleu_score import sentence_bleu
+from datetime import datetime
 
 def assign_label_by_cutoff_pct(data, label_var='gender', min_pct=0.75):
     """
@@ -271,3 +272,10 @@ def compute_max_sent_score(test_questions, gold_question, weights):
     max_score = np.max(test_question_bleu_scores)
     max_score_question = test_question_text[np.where(test_question_bleu_scores == max_score)[0][0]]
     return max_score, max_score_question
+
+## date management
+
+def round_date_to_day(time_stamp):
+    raw_date = datetime.fromtimestamp(time_stamp)
+    round_date = datetime(year=raw_date.year, month=raw_date.month, day=raw_date.day)
+    return round_date

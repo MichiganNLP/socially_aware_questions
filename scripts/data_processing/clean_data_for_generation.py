@@ -60,7 +60,7 @@ def load_all_comment_questions(comment_dir, comment_month_years=[('April', '2018
     comment_files = list(map(lambda x: os.path.join(comment_dir, x), comment_files))
     comment_data = []
     for comment_file_i in comment_files:
-        comment_data_i = pd.read_csv(comment_file_i, sep=',', index_col=False, usecols=['articleID', 'approveDate', 'commentBody', 'commentType', 'parentID', 'userLocation', 'userID', 'userDisplayName'])
+        comment_data_i = pd.read_csv(comment_file_i, sep=',', index_col=False, usecols=['articleID', 'createDate', 'commentBody', 'commentType', 'parentID', 'userLocation', 'userID', 'userDisplayName'])
         comment_data.append(comment_data_i)
     comment_data = pd.concat(comment_data, axis=0)
     # remove duplicates? OK
@@ -89,7 +89,8 @@ def load_all_comment_questions(comment_dir, comment_month_years=[('April', '2018
     })
     # convert to question data (one row/question)
     question_data = []
-    question_cols = ['approveDate', 'articleID', 'commentBody', 'commentType', 'parentID', 'userID', 'userLocation', 'userDisplayName']
+    # print(f'comment data cols {comment_data.columns}')
+    question_cols = ['createDate', 'articleID', 'commentBody', 'commentType', 'parentID', 'userID', 'userLocation', 'userDisplayName']
     for idx_i, data_i in comment_data.iterrows():
         for question_j in data_i.loc['comment_questions']:
             question_data.append(pd.Series(data_i.loc[question_cols].append(pd.Series([question_j], index=['question']))))
@@ -102,7 +103,8 @@ def load_all_comment_questions(comment_dir, comment_month_years=[('April', '2018
     })
     question_data = question_data[question_data.loc[:, 'question_len'] >= min_question_len]
     ## cleanup columns
-    question_data = question_data.loc[:, ['article_id', 'commentBody', 'question']]
+    question_data = question_data.loc[:, ['article_id', 'commentBody', 'question', 'userID', 'createDate']]
+    # print(f'sample question data {question_data.head(10)}')
     return question_data
 
 def main():
