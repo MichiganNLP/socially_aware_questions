@@ -272,7 +272,6 @@ def compute_max_sent_score(test_questions, gold_question, weights):
     max_score = np.max(test_question_bleu_scores)
     max_score_question = test_question_text[np.where(test_question_bleu_scores == max_score)[0][0]]
     return max_score, max_score_question
-
 ## date management
 
 def round_date_to_day(time_stamp):
