@@ -61,8 +61,9 @@ def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None,
             '<COMMENT_COUNT_0_AUTHOR>', '<COMMENT_COUNT_1_AUTHOR>',  # prior comment count
             '<COMMENT_LEN_0_AUTHOR>', '<COMMENT_LEN_1_AUTHOR>',  # prior comment length
         ]
-        for author_token in author_tokens:
-            tokenizer.add_special_tokens({'cls_token': author_token})
+        # for author_token in author_tokens:
+            # tokenizer.add_special_tokens({'cls_token': author_token})
+        tokenizer.add_tokens(author_tokens, special_tokens=True)
         ## add special tokens to all data
         author_location_token_lookup = {
             'US' : '<US_AUTHOR>',
@@ -120,6 +121,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None,
                                    max_target_length=max_target_length)
     train_data = data_processor.process(train_data_set)
     val_data = data_processor.process(val_data_set)
+    # TODO: tmp debugging => are we adding author data to target IDs by accident?
     columns = ["source_ids", "target_ids", "attention_mask"]
     train_data.set_format(type='torch', columns=columns)
     val_data.set_format(type='torch', columns=columns)
@@ -235,6 +237,7 @@ def main():
         cache_dir=cache_dir,
     )
     model.resize_token_embeddings(len(tokenizer))
+    # TODO: save model to cache again to update embedding size
     device = torch.device(device_name)
     model.to(device)
 
