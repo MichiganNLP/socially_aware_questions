@@ -249,7 +249,7 @@ def compare_pred_text_with_target(data, pred_text, tokenizer):
     :param tokenizer:
     :return:
     """
-    special_tokens = set(['<pad>', '<s>', '</s>'])
+    special_tokens = {'<pad>', '<s>', '</s>'}
     for i, (batch_i, pred_text_i) in enumerate(zip(data, pred_text)):
         source_text_i = [tokenizer.decode(x, skip_special_tokens=True) for x in batch_i['source_ids']]
         target_text_i = [tokenizer.decode(x, skip_special_tokens=True) for x in batch_i['target_ids']]
@@ -272,9 +272,30 @@ def compute_max_sent_score(test_questions, gold_question, weights):
     max_score = np.max(test_question_bleu_scores)
     max_score_question = test_question_text[np.where(test_question_bleu_scores == max_score)[0][0]]
     return max_score, max_score_question
+
 ## date management
 
 def round_date_to_day(time_stamp):
     raw_date = datetime.fromtimestamp(time_stamp)
     round_date = datetime(year=raw_date.year, month=raw_date.month, day=raw_date.day)
     return round_date
+
+## question analysis
+
+def extract_questions(text, word_tokenizer, sent_tokenizer, question_matcher, min_question_len=5):
+    """
+    Extract all questions from a span of text.
+
+    :param text:
+    :param word_tokenizer:
+    :param sent_tokenizer:
+    :param question_matcher:
+    :param min_question_len:
+    :return:
+    """
+    questions = []
+    for sent_i in sent_tokenizer.tokenize(text):
+        words_i = word_tokenizer.tokenize(sent_i)
+        if(len(words_i) >= min_question_len and question_matcher.match(sent_i)):
+            questions.append(sent_i)
+    return questions
