@@ -194,7 +194,9 @@ class DataArguments(TrainingArguments):
 
 ## text generation
 
-def generate_predictions(model, data, tokenizer, device_name='cuda:0', generation_method='beam_search', num_beams=4, temperature=1.0, top_p=1.0):
+def generate_predictions(model, data, tokenizer, device_name='cuda:0',
+                         generation_method='beam_search', num_beams=4,
+                         temperature=1.0, top_p=1.0):
     """
     Generate predicted text from transformer model.
 
@@ -235,29 +237,46 @@ def generate_predictions(model, data, tokenizer, device_name='cuda:0', generatio
                 max_length=max_decoding_length,
                 length_penalty=length_penalty,
                 num_return_sequences=1,
+                do_sample=True,
             )
         prediction = [tokenizer.decode(ids, skip_special_tokens=True) for ids in output_i]
         pred_text.extend(prediction)
     return pred_text
 
-def compare_pred_text_with_target(data, pred_text, tokenizer):
+def cleanup_transformer_tokens(tokens, tokenizer, special_tokens, space_token):
+    tokens = list(filter(lambda x: x not in special_tokens, tokens))
+    ## TODO: why does convert_tokens_to_string fail with OOV chars?
+    # tokens = list(map(lambda x: x.    replace(' ', space_token), tokens))
+    # token_txt = tokenizer.convert_tokens_to_string(tokens)
+    token_txt = ' '.join(tokens)
+    return token_txt
+
+def compare_pred_text_with_target(data, pred_text, tokenizer, max_txt_len=300):
     """
     Compare predicted text with target data.
 
     :param data:
     :param pred_text:
     :param tokenizer:
+    :param max_txt_len:
     :return:
     """
     special_tokens = {'<pad>', '<s>', '</s>'}
+    space_token = 'Ġ'
     for i, (batch_i, pred_text_i) in enumerate(zip(data, pred_text)):
-        source_text_i = [tokenizer.decode(x, skip_special_tokens=True) for x in batch_i['source_ids']]
-        target_text_i = [tokenizer.decode(x, skip_special_tokens=True) for x in batch_i['target_ids']]
+        source_text_i = [tokenizer.decode(x, skip_special_tokens=False) for x in batch_i['source_ids']]
+        target_text_i = [tokenizer.decode(x, skip_special_tokens=True) for x in batch_i['target_ids']] # retain special tokens for e.g. author identity
         # cleanup
-        source_text_i = ' '.join(list(filter(lambda x: x not in special_tokens, source_text_i)))
-        target_text_i = ' '.join(list(filter(lambda x: x not in special_tokens, target_text_i)))
+        source_text_i = cleanup_transformer_tokens(source_text_i, tokenizer, special_tokens, space_token)
+        target_text_i = cleanup_transformer_tokens(target_text_i, tokenizer, special_tokens, space_token)
+        # source_text_i = list(filter(lambda x: x not in special_tokens, source_text_i))
+        # target_text_i = list(filter(lambda x: x not in special_tokens, target_text_i))
+        # source_text_i = list(map(lambda x: x.replace(' ', space_token), source_text_i))
+        # target_text_i = list(map(lambda x: x.replace(' ', space_token), target_text_i))
+        # source_text_i = tokenizer.convert_tokens_to_string(source_text_i)
+        # target_text_i = tokenizer.convert_tokens_to_string(target_text_i)
         print('*~*~*~*~*~*')
-        print(f'source text = {source_text_i[:300]}...')
+        print(f'source text = {source_text_i[:max_txt_len]}...')
         print(f'target text = {target_text_i}')
         print(f'pred text = {pred_text_i}')
 

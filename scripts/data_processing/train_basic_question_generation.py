@@ -76,12 +76,13 @@ def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None,
         author_vars = ['location_region', 'prior_comment_count_bin', 'prior_comment_len_bin']
         author_txt_data = []
         source_text_var = 'source_text'
+        pad_space = 1 # need to remove tokens from start and end to make space for pads
         # add author variable value to each source text
         for data_idx, data_i in clean_data.iterrows():
             # tokenize, fit to max length
             source_text_i = data_i.loc[source_text_var]
             source_text_tokens_i = tokenizer.tokenize(source_text_i)
-            source_text_tokens_i = source_text_tokens_i[:(max_source_length-1)]
+            source_text_tokens_i = source_text_tokens_i[pad_space:(max_source_length-1-pad_space)]
             for author_var in author_vars:
                 data_j = data_i.copy()
                 source_text_tokens_j = list(source_text_tokens_i)
@@ -92,16 +93,32 @@ def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None,
                     # convert bin value to token e.g. "0" + "prior_comment_count_bin" = <COMMENT_COUNT_0_AUTHOR>
                     author_token_val_i = author_var_template_lookup[author_var]%(author_val_i)
                 source_text_tokens_j.append(author_token_val_i)
+                # tmp debugging
+                # if(len(source_text_tokens_j) > max_source_length):
+                #     print(f'error: {len(source_text_tokens_j)} tokens generated in input')
+                # else:
+                #     print(f'correct: {len(source_text_tokens_j)} tokens generated in input')
                 source_text_j = tokenizer.convert_tokens_to_string(source_text_tokens_j)
                 data_j.loc[source_text_var] = source_text_j
                 author_txt_data.append(data_j)
         clean_data = pd.concat(author_txt_data, axis=1).transpose()
-    # split train/val
-    N = clean_data.shape[0]
-    N_train = int(N * train_pct)
-    np.random.shuffle(clean_data.values)
-    clean_data_train = clean_data.iloc[:N_train, :]
-    clean_data_val = clean_data.iloc[N_train:, :]
+    # deduplicate article/answer pairs
+    clean_data.drop_duplicates(['source_text', 'target_text'], inplace=True)
+    ## split train/val data
+    # split by articles! to avoid bleeding between train/test
+    article_ids = list(clean_data.loc[:, 'article_id'].unique())
+    N_train = int(len(article_ids) * train_pct)
+    np.random.shuffle(article_ids)
+    train_article_ids = article_ids[:N_train]
+    val_article_ids = article_ids[N_train:]
+    clean_data_train = clean_data[clean_data.loc[:, 'article_id'].isin(train_article_ids)]
+    clean_data_val = clean_data[clean_data.loc[:, 'article_id'].isin(val_article_ids)]
+    ## split train/val data by questions
+    # N = clean_data.shape[0]
+    # N_train = int(N * train_pct)
+    # np.random.shuffle(clean_data.values)
+    # clean_data_train = clean_data.iloc[:N_train, :]
+    # clean_data_val = clean_data.iloc[N_train:, :]
     clean_data_train_out_file = os.path.join(out_dir, f'{data_name}_train_data.csv')
     clean_data_val_out_file = os.path.join(out_dir, f'{data_name}_val_data.csv')
     clean_data_train.to_csv(clean_data_train_out_file, sep=',', index=False)
@@ -121,7 +138,6 @@ def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None,
                                    max_target_length=max_target_length)
     train_data = data_processor.process(train_data_set)
     val_data = data_processor.process(val_data_set)
-    # TODO: tmp debugging => are we adding author data to target IDs by accident?
     columns = ["source_ids", "target_ids", "attention_mask"]
     train_data.set_format(type='torch', columns=columns)
     val_data.set_format(type='torch', columns=columns)
@@ -157,19 +173,20 @@ def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, m
     # training_args.train_batch_size = 32
     # training_args.eval_batch_size = 32
     training_args.gradient_accumulation_steps = 4
+    ## TODO:
     training_args.learning_rate = 1e-4
     training_args.dataloader_drop_last = False
     training_args.dataloader_num_workers = 8
-    # training_args.evaluate_during_training = True
+    training_args.evaluate_during_training = True
     training_args.do_eval = True
-    training_args.evaluation_strategy = 'epoch'
-    training_args.eval_steps = 500
+    training_args.evaluation_strategy = 'steps'
+    training_args.eval_steps = 100
     # default values from here lol https://github.com/huggingface/transformers/blob/49759c0cda29ab614b81e0869972c99f2edba7aa/src/transformers/training_args.py
     training_args.weight_decay = 0.01
     training_args.adam_beta1 = 0.9
     training_args.adam_beta2 = 0.999
     training_args.adam_epsilon = 1e-8
-    training_args.warmup_steps = 0
+    training_args.warmup_steps = 500
     # limits number of checkpoints => 1 GB per optimizer file ;_;
     training_args.save_total_limit = 2
     return training_args
@@ -201,7 +218,6 @@ def main():
         article_question_data_idx = np.random.choice(article_question_data.index, N_sample, replace=False)
         article_question_data = article_question_data.loc[article_question_data_idx, :]
     train_pct = 0.8
-    tokenizer = BartTokenizer.from_pretrained('facebook/bart-base')
     # TODO: change vocab to include named entities?
     # tmp debugging: small data
     # article_question_data = article_question_data.copy().head(2000)
@@ -218,15 +234,21 @@ def main():
     # data_name = f'mini_{data_name}'
     train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
     val_data_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
+    # print(f'train data = {train_data_file}')
     if(not os.path.exists(train_data_file)):
+        tokenizer = BartTokenizer.from_pretrained('facebook/bart-base')
         prepare_question_data(article_question_data, out_dir, data_name,
                               tokenizer=tokenizer, train_pct=train_pct,
                               author_data=author_data)
+    # reload tokenizer with all tokens
+    ## TODO: why doesn't the earlier torch import work??
+    import torch
+
+    tokenizer_file = os.path.join(out_dir, 'BART_tokenizer.pt')
+    tokenizer = torch.load(tokenizer_file)
 
     ## train model
     cache_dir = os.path.join(out_dir, 'model_cache/')
-    ## TODO: why doesn't the earlier torch import work??
-    import torch
     # tokenizer = torch.load('../../data/CNN_articles/cnn/BART_tokenizer.pt')
     model_type_path_lookup = {
         'bart' : 'facebook/bart-base'
@@ -246,7 +268,6 @@ def main():
     val_dataset = torch.load(val_data_file)
     train_dataset = train_dataset['train']
     val_dataset = val_dataset['train']
-
     # get max source/target len
     max_source_len = len(train_dataset['source_ids'][0])
     max_target_len = len(train_dataset['target_ids'][0])
@@ -279,7 +300,7 @@ def main():
     )
 
     ## tmp debugging
-    # print(f'evaluation strategy = {trainer.args.eval_steps}')
+    print(f'evaluation strategy = {trainer.args.evaluation_strategy}')
 
     ## train
     torch.cuda.empty_cache()
