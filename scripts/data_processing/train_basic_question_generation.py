@@ -139,6 +139,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None,
     train_data = data_processor.process(train_data_set)
     val_data = data_processor.process(val_data_set)
     columns = ["source_ids", "target_ids", "attention_mask"]
+    # columns = ["source_ids", "target_ids", "attention_mask", "source_text", "target_text"]
     train_data.set_format(type='torch', columns=columns)
     val_data.set_format(type='torch', columns=columns)
     #     print(f'train data {train_data}')
@@ -240,10 +241,12 @@ def main():
         prepare_question_data(article_question_data, out_dir, data_name,
                               tokenizer=tokenizer, train_pct=train_pct,
                               author_data=author_data)
-    # reload tokenizer with all tokens
+    # tmp debugging
+    # import sys
+    # sys.exit()
+    # reload tokenizer with all processed tokens
     ## TODO: why doesn't the earlier torch import work??
     import torch
-
     tokenizer_file = os.path.join(out_dir, 'BART_tokenizer.pt')
     tokenizer = torch.load(tokenizer_file)
 
