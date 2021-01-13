@@ -11,6 +11,9 @@ import pandas as pd
 from nltk.tokenize import WordPunctTokenizer
 from nltk.tokenize import sent_tokenize
 import numpy as np
+from data_helpers import prepare_question_data
+from transformers import BartTokenizer
+from datetime import datetime
 
 def load_all_articles(data_dir, data_name):
     article_files = list(map(lambda x: os.path.join(data_dir, x), os.listdir(data_dir)))
@@ -114,6 +117,8 @@ def main():
     parser.add_argument('--data_name', default='NYT')
     parser.add_argument('--comment_dir', default=None) # ../../data/nyt_comments/
     parser.add_argument('--comment_month_year_pairs', nargs='+', default=None) # 'April_2018'
+    parser.add_argument('--sample_pct', type=float, default=1.0)
+    parser.add_argument('--author_data', default=None)
     args = vars(parser.parse_args())
 
     ## load raw data
@@ -121,17 +126,45 @@ def main():
     data_name = args['data_name']
     article_data = load_all_articles(data_dir, data_name)
 
-    ## optional: load questions
+    ## optional: get questions from comments
     if(args.get('comment_dir') is not None):
         comment_dir = args['comment_dir']
         comment_month_year_pairs = list(map(lambda x: x.split('_'), args['comment_month_year_pairs']))
         question_data = load_all_comment_questions(comment_dir, comment_month_year_pairs)
         article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
 
-    ## save to file
+    ## prepare data for training
+    sample_pct = args['sample_pct']
+    if (sample_pct < 1.0):
+        N_sample = int(article_data.shape[0] * sample_pct)
+        article_data_idx = np.random.choice(article_data.index, N_sample, replace=False)
+        article_data = article_data.loc[article_data_idx, :]
+    train_pct = 0.8
+    author_data = args['author_data']
+    if (author_data is not None):
+        data_name = f'author_type_{data_name}'
+        author_data = pd.read_csv(author_data, sep='\t', index_col=False)
+        # fix date
+        date_day_fmt = '%Y-%m-%d'
+        author_data = author_data.assign(**{
+            'date_day': author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, date_day_fmt))
+        })
+    # tmp debugging: small data
+    # data_name = f'mini_{data_name}'
     out_dir = args['out_dir']
+    train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
+    if (not os.path.exists(train_data_file)):
+        tokenizer = BartTokenizer.from_pretrained('facebook/bart-base')
+        prepare_question_data(article_data, out_dir, data_name,
+                              tokenizer=tokenizer, train_pct=train_pct,
+                              author_data=author_data)
+
+    ## save full data to file
     out_file_name = os.path.join(out_dir, f'{data_name}_question_data.tsv')
     article_data.to_csv(out_file_name, sep='\t', index=False)
+    # split train/test
+    train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
+    val_data_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
 
 if __name__ == '__main__':
     main()

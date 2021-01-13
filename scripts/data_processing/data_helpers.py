@@ -251,7 +251,7 @@ def cleanup_transformer_tokens(tokens, tokenizer, special_tokens, space_token):
     token_txt = ' '.join(tokens)
     return token_txt
 
-def compare_pred_text_with_target(data, pred_text, tokenizer, max_txt_len=300):
+def compare_pred_text_with_target(data, pred_text, tokenizer, max_txt_len=300, cutoff_idx=0):
     """
     Compare predicted text with target data.
 
@@ -279,6 +279,8 @@ def compare_pred_text_with_target(data, pred_text, tokenizer, max_txt_len=300):
         print(f'source text = {source_text_i[:max_txt_len]}...')
         print(f'target text = {target_text_i}')
         print(f'pred text = {pred_text_i}')
+        if(cutoff_idx  > 0 and i >= cutoff_idx):
+            break
 
 ## model evaluation
 
@@ -318,3 +320,149 @@ def extract_questions(text, word_tokenizer, sent_tokenizer, question_matcher, mi
         if(len(words_i) >= min_question_len and question_matcher.match(sent_i)):
             questions.append(sent_i)
     return questions
+
+
+def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None, train_pct=0.8):
+    """
+    Convert raw article/question pairs to source/target pairs
+    in matrix format.
+
+    :param data:
+    :param out_dir:
+    :param data_name:
+    :param tokenizer:
+    :param author_data:
+    :param train_pct:
+    :return:
+    """
+    data_vars = ['article_text', 'question', 'article_id']
+    # optional: add author data
+    if (author_data is not None):
+        author_var = 'userID'
+        date_var = 'date_day'
+        # fix date variable
+        # print(f'data cols {data.columns}')
+        data = data.assign(**{
+            date_var : data.loc[:, 'createDate'].apply(lambda x: round_date_to_day(x))
+        })
+        data = pd.merge(data, author_data, on=[author_var, date_var])
+        # add author identity to end of source
+        author_vars = ['location_region', 'prior_comment_count_bin', 'prior_comment_len_bin']
+        data_vars.extend(author_vars)
+    # change to clean source/target format
+    clean_data = data.loc[:, data_vars].rename(
+        columns={'article_text': 'source_text', 'question': 'target_text'})
+    # print(clean_data.head())
+    # shorten source/target to fit model
+    ## TODO: increase max input length!! without breaking memory lol
+    max_source_length = 1024
+    max_target_length = 64
+    ## add author var tokens at the end of each source text => helps decoding? TBD
+    if (author_data is not None):
+        ## add special tokens
+        author_tokens = [
+            '<US_AUTHOR>', '<NONUS_AUTHOR>',  # location
+            '<COMMENT_COUNT_0_AUTHOR>', '<COMMENT_COUNT_1_AUTHOR>',  # prior comment count
+            '<COMMENT_LEN_0_AUTHOR>', '<COMMENT_LEN_1_AUTHOR>',  # prior comment length
+        ]
+        # for author_token in author_tokens:
+            # tokenizer.add_special_tokens({'cls_token': author_token})
+        tokenizer.add_tokens(author_tokens, special_tokens=True)
+        ## add special tokens to all data
+        author_location_token_lookup = {
+            'US' : '<US_AUTHOR>',
+            'non_US': '<NONUS_AUTHOR>',
+        }
+        author_var_template_lookup = {
+            'prior_comment_count_bin' : '<COMMENT_COUNT_%d_AUTHOR>',
+            'prior_comment_len_bin': '<COMMENT_LEN_%d_AUTHOR>',
+        }
+        author_vars = ['location_region', 'prior_comment_count_bin', 'prior_comment_len_bin']
+        author_txt_data = []
+        source_text_var = 'source_text'
+        pad_space = 1 # need to remove tokens from start and end to make space for pads
+        # add author variable value to each source text
+        for data_idx, data_i in clean_data.iterrows():
+            # tokenize, fit to max length
+            source_text_i = data_i.loc[source_text_var]
+            source_text_tokens_i = tokenizer.tokenize(source_text_i)
+            source_text_tokens_i = source_text_tokens_i[pad_space:(max_source_length-1-pad_space)]
+            for author_var in author_vars:
+                data_j = data_i.copy()
+                source_text_tokens_j = list(source_text_tokens_i)
+                author_val_i = data_i.loc[author_var]
+                if(author_var == 'location_region'):
+                    author_token_val_i = author_location_token_lookup[author_val_i]
+                else:
+                    # convert bin value to token e.g. "0" + "prior_comment_count_bin" = <COMMENT_COUNT_0_AUTHOR>
+                    author_token_val_i = author_var_template_lookup[author_var]%(author_val_i)
+                source_text_tokens_j.append(author_token_val_i)
+                # tmp debugging
+                # if(len(source_text_tokens_j) > max_source_length):
+                #     print(f'error: {len(source_text_tokens_j)} tokens generated in input')
+                # else:
+                #     print(f'correct: {len(source_text_tokens_j)} tokens generated in input')
+                source_text_j = tokenizer.convert_tokens_to_string(source_text_tokens_j)
+                data_j.loc[source_text_var] = source_text_j
+                author_txt_data.append(data_j)
+        clean_data = pd.concat(author_txt_data, axis=1).transpose()
+    # deduplicate article/answer pairs
+    clean_data.drop_duplicates(['source_text', 'target_text'], inplace=True)
+    ## split train/val data
+    # split by articles! to avoid bleeding between train/test
+    article_ids = list(clean_data.loc[:, 'article_id'].unique())
+    N_train = int(len(article_ids) * train_pct)
+    np.random.shuffle(article_ids)
+    train_article_ids = article_ids[:N_train]
+    val_article_ids = article_ids[N_train:]
+    clean_data_train = clean_data[clean_data.loc[:, 'article_id'].isin(train_article_ids)]
+    clean_data_val = clean_data[clean_data.loc[:, 'article_id'].isin(val_article_ids)]
+    ## split train/val data by questions
+    # N = clean_data.shape[0]
+    # N_train = int(N * train_pct)
+    # np.random.shuffle(clean_data.values)
+    # clean_data_train = clean_data.iloc[:N_train, :]
+    # clean_data_val = clean_data.iloc[N_train:, :]
+    clean_data_train_out_file = os.path.join(out_dir, f'{data_name}_train_data.csv')
+    clean_data_val_out_file = os.path.join(out_dir, f'{data_name}_val_data.csv')
+    clean_data_train.to_csv(clean_data_train_out_file, sep=',', index=False)
+    clean_data_val.to_csv(clean_data_val_out_file, sep=',', index=False)
+    # reload data into correct format lol
+    train_data_set = nlp.load_dataset('csv', data_files=clean_data_train_out_file)
+    val_data_set = nlp.load_dataset('csv', data_files=clean_data_val_out_file)
+    #     tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+    # get max lengths
+    # source_text_tokens = clean_data.loc[:, 'source_text'].apply(lambda x: tokenizer.tokenize(x))
+    # target_text_tokens = clean_data.loc[:, 'target_text'].apply(lambda x: tokenizer.tokenize(x))
+    #     max_source_length = max(source_text_tokens.apply(lambda x: len(x)))
+    #     max_target_length = max(target_text_tokens.apply(lambda x: len(x)))
+    data_processor = DataProcessor(tokenizer=tokenizer,
+                                   model_type='bert',
+                                   max_source_length=max_source_length,
+                                   max_target_length=max_target_length)
+    train_data = data_processor.process(train_data_set)
+    val_data = data_processor.process(val_data_set)
+    columns = ["source_ids", "target_ids", "attention_mask"]
+    # columns = ["source_ids", "target_ids", "attention_mask", "source_text", "target_text"]
+    train_data.set_format(type='torch', columns=columns)
+    val_data.set_format(type='torch', columns=columns)
+    #     print(f'train data {train_data}')
+    train_data_out_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
+    val_data_out_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
+    torch.save(train_data, train_data_out_file)
+    torch.save(val_data, val_data_out_file)
+    # save tokenizer?? yes because we will need to post-process other data
+    tokenizer_out_file = os.path.join(out_dir, 'BART_tokenizer.pt')
+    torch.save(tokenizer, tokenizer_out_file)
+
+def convert_ids_to_clean_str(token_ids, tokenizer):
+    """
+    Convert word token IDs to clean string for comparison.
+
+    :param token_ids:
+    :param tokenizer:
+    :return:
+    """
+    tokens = tokenizer.convert_ids_to_tokens(token_ids, skip_special_tokens=True)
+    token_str = tokenizer.convert_tokens_to_string(tokens)
+    return token_str

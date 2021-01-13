@@ -4,152 +4,22 @@ pre-trained language models (e.g. BART).
 """
 import numpy as np
 import pandas as pd
-import nlp
 import torch
 from transformers import BartTokenizer
 import sys
 if ('question_generation' not in sys.path):
     sys.path.append('question_generation')
+from data_helpers import prepare_question_data
 from data_collator import T2TDataCollator
 from transformers import AutoModelForSeq2SeqLM
 import os
 from trainer import Trainer
-from data_helpers import DataProcessor, DataArguments, round_date_to_day
+from data_helpers import DataArguments
 from datetime import datetime
+from argparse import ArgumentParser
 np.random.seed(123)
+torch.manual_seed(123)
 
-def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None, train_pct=0.8):
-    """
-    Convert raw article/question pairs to source/target pairs
-    in matrix format.
-
-    :param data:
-    :param out_dir:
-    :param data_name:
-    :param tokenizer:
-    :param author_data:
-    :param train_pct:
-    :return:
-    """
-    data_vars = ['article_text', 'question', 'article_id']
-    # optional: add author data
-    if (author_data is not None):
-        author_var = 'userID'
-        date_var = 'date_day'
-        # fix date variable
-        # print(f'data cols {data.columns}')
-        data = data.assign(**{
-            date_var : data.loc[:, 'createDate'].apply(lambda x: round_date_to_day(x))
-        })
-        data = pd.merge(data, author_data, on=[author_var, date_var])
-        # add author identity to end of source
-        author_vars = ['location_region', 'prior_comment_count_bin', 'prior_comment_len_bin']
-        data_vars.extend(author_vars)
-    # change to clean source/target format
-    clean_data = data.loc[:, data_vars].rename(
-        columns={'article_text': 'source_text', 'question': 'target_text'})
-    # print(clean_data.head())
-    # shorten source/target to fit model
-    ## TODO: increase max input length!!
-    max_source_length = 1024
-    max_target_length = 64
-    ## add author var tokens at the end of each source text => helps decoding? TBD
-    if (author_data is not None):
-        ## add special tokens
-        author_tokens = [
-            '<US_AUTHOR>', '<NONUS_AUTHOR>',  # location
-            '<COMMENT_COUNT_0_AUTHOR>', '<COMMENT_COUNT_1_AUTHOR>',  # prior comment count
-            '<COMMENT_LEN_0_AUTHOR>', '<COMMENT_LEN_1_AUTHOR>',  # prior comment length
-        ]
-        # for author_token in author_tokens:
-            # tokenizer.add_special_tokens({'cls_token': author_token})
-        tokenizer.add_tokens(author_tokens, special_tokens=True)
-        ## add special tokens to all data
-        author_location_token_lookup = {
-            'US' : '<US_AUTHOR>',
-            'non_US': '<NONUS_AUTHOR>',
-        }
-        author_var_template_lookup = {
-            'prior_comment_count_bin' : '<COMMENT_COUNT_%d_AUTHOR>',
-            'prior_comment_len_bin': '<COMMENT_LEN_%d_AUTHOR>',
-        }
-        author_vars = ['location_region', 'prior_comment_count_bin', 'prior_comment_len_bin']
-        author_txt_data = []
-        source_text_var = 'source_text'
-        pad_space = 1 # need to remove tokens from start and end to make space for pads
-        # add author variable value to each source text
-        for data_idx, data_i in clean_data.iterrows():
-            # tokenize, fit to max length
-            source_text_i = data_i.loc[source_text_var]
-            source_text_tokens_i = tokenizer.tokenize(source_text_i)
-            source_text_tokens_i = source_text_tokens_i[pad_space:(max_source_length-1-pad_space)]
-            for author_var in author_vars:
-                data_j = data_i.copy()
-                source_text_tokens_j = list(source_text_tokens_i)
-                author_val_i = data_i.loc[author_var]
-                if(author_var == 'location_region'):
-                    author_token_val_i = author_location_token_lookup[author_val_i]
-                else:
-                    # convert bin value to token e.g. "0" + "prior_comment_count_bin" = <COMMENT_COUNT_0_AUTHOR>
-                    author_token_val_i = author_var_template_lookup[author_var]%(author_val_i)
-                source_text_tokens_j.append(author_token_val_i)
-                # tmp debugging
-                # if(len(source_text_tokens_j) > max_source_length):
-                #     print(f'error: {len(source_text_tokens_j)} tokens generated in input')
-                # else:
-                #     print(f'correct: {len(source_text_tokens_j)} tokens generated in input')
-                source_text_j = tokenizer.convert_tokens_to_string(source_text_tokens_j)
-                data_j.loc[source_text_var] = source_text_j
-                author_txt_data.append(data_j)
-        clean_data = pd.concat(author_txt_data, axis=1).transpose()
-    # deduplicate article/answer pairs
-    clean_data.drop_duplicates(['source_text', 'target_text'], inplace=True)
-    ## split train/val data
-    # split by articles! to avoid bleeding between train/test
-    article_ids = list(clean_data.loc[:, 'article_id'].unique())
-    N_train = int(len(article_ids) * train_pct)
-    np.random.shuffle(article_ids)
-    train_article_ids = article_ids[:N_train]
-    val_article_ids = article_ids[N_train:]
-    clean_data_train = clean_data[clean_data.loc[:, 'article_id'].isin(train_article_ids)]
-    clean_data_val = clean_data[clean_data.loc[:, 'article_id'].isin(val_article_ids)]
-    ## split train/val data by questions
-    # N = clean_data.shape[0]
-    # N_train = int(N * train_pct)
-    # np.random.shuffle(clean_data.values)
-    # clean_data_train = clean_data.iloc[:N_train, :]
-    # clean_data_val = clean_data.iloc[N_train:, :]
-    clean_data_train_out_file = os.path.join(out_dir, f'{data_name}_train_data.csv')
-    clean_data_val_out_file = os.path.join(out_dir, f'{data_name}_val_data.csv')
-    clean_data_train.to_csv(clean_data_train_out_file, sep=',', index=False)
-    clean_data_val.to_csv(clean_data_val_out_file, sep=',', index=False)
-    # reload data into correct format lol
-    train_data_set = nlp.load_dataset('csv', data_files=clean_data_train_out_file)
-    val_data_set = nlp.load_dataset('csv', data_files=clean_data_val_out_file)
-    #     tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
-    # get max lengths
-    # source_text_tokens = clean_data.loc[:, 'source_text'].apply(lambda x: tokenizer.tokenize(x))
-    # target_text_tokens = clean_data.loc[:, 'target_text'].apply(lambda x: tokenizer.tokenize(x))
-    #     max_source_length = max(source_text_tokens.apply(lambda x: len(x)))
-    #     max_target_length = max(target_text_tokens.apply(lambda x: len(x)))
-    data_processor = DataProcessor(tokenizer=tokenizer,
-                                   model_type='bert',
-                                   max_source_length=max_source_length,
-                                   max_target_length=max_target_length)
-    train_data = data_processor.process(train_data_set)
-    val_data = data_processor.process(val_data_set)
-    columns = ["source_ids", "target_ids", "attention_mask"]
-    # columns = ["source_ids", "target_ids", "attention_mask", "source_text", "target_text"]
-    train_data.set_format(type='torch', columns=columns)
-    val_data.set_format(type='torch', columns=columns)
-    #     print(f'train data {train_data}')
-    train_data_out_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
-    val_data_out_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
-    torch.save(train_data, train_data_out_file)
-    torch.save(val_data, val_data_out_file)
-    # save tokenizer?? sure
-    tokenizer_out_file = os.path.join(out_dir, 'BART_tokenizer.pt')
-    torch.save(tokenizer, tokenizer_out_file)
 
 def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, max_source_len, max_target_len):
     training_args = DataArguments(model_out_dir)
@@ -192,8 +62,6 @@ def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, m
     training_args.save_total_limit = 2
     return training_args
 
-from argparse import ArgumentParser
-
 def main():
     parser = ArgumentParser()
     parser.add_argument('train_data') # ../../data/CNN_articles/cnn/article_question_data.tsv
@@ -202,6 +70,7 @@ def main():
     parser.add_argument('--model_type', default='bart')
     parser.add_argument('--author_data', default=None) # ../../data/nyt_comments/author_comment_social_data.tsv
     parser.add_argument('--sample_pct', type=float, default=1.0)
+    parser.add_argument('--pretrained_model', default=None)
     args = vars(parser.parse_args())
     raw_train_data_file = args['train_data']
     out_dir = args['out_dir']
@@ -209,6 +78,7 @@ def main():
     model_type = args['model_type']
     author_data = args['author_data']
     sample_pct = args['sample_pct']
+    pretrained_model = args['pretrained_model']
     if(not os.path.exists(out_dir)):
         os.mkdir(out_dir)
 
@@ -219,9 +89,6 @@ def main():
         article_question_data_idx = np.random.choice(article_question_data.index, N_sample, replace=False)
         article_question_data = article_question_data.loc[article_question_data_idx, :]
     train_pct = 0.8
-    # TODO: change vocab to include named entities?
-    # tmp debugging: small data
-    # article_question_data = article_question_data.copy().head(2000)
     data_name = os.path.basename(raw_train_data_file).replace('.tsv', '')
     if(author_data is not None):
         data_name = f'author_type_{data_name}'
@@ -246,7 +113,7 @@ def main():
     # sys.exit()
     # reload tokenizer with all processed tokens
     ## TODO: why doesn't the earlier torch import work??
-    import torch
+    # import torch
     tokenizer_file = os.path.join(out_dir, 'BART_tokenizer.pt')
     tokenizer = torch.load(tokenizer_file)
 
@@ -261,6 +128,9 @@ def main():
         model_path,
         cache_dir=cache_dir,
     )
+    if(pretrained_model is not None):
+        pretrained_model_weights = torch.load(pretrained_model)
+        model.load_state_dict(pretrained_model_weights)
     model.resize_token_embeddings(len(tokenizer))
     # TODO: save model to cache again to update embedding size
     device = torch.device(device_name)
@@ -281,8 +151,6 @@ def main():
         mode="training",
         using_tpu=False
     )
-    # tmp debugging
-    # model_out_dir = os.path.join(out_dir, 'mini_question_generation_model/')
     model_out_dir = os.path.join(out_dir, 'question_generation_model/')
     if (not os.path.exists(model_out_dir)):
         os.mkdir(model_out_dir)
