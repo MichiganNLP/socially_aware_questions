@@ -12,6 +12,7 @@ import torch
 from tqdm import tqdm
 from nltk.translate.bleu_score import sentence_bleu
 from datetime import datetime
+import nlp
 
 def assign_label_by_cutoff_pct(data, label_var='gender', min_pct=0.75):
     """
@@ -465,4 +466,5 @@ def convert_ids_to_clean_str(token_ids, tokenizer):
     """
     tokens = tokenizer.convert_ids_to_tokens(token_ids, skip_special_tokens=True)
     token_str = tokenizer.convert_tokens_to_string(tokens)
+    token_str = token_str.strip() # remove extra white space
     return token_str

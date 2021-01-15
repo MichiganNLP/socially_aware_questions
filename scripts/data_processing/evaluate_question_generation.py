@@ -42,6 +42,7 @@ def main():
     parser.add_argument('test_data')
     parser.add_argument('--model_type', default='bart')
     parser.add_argument('--device_name', default='cpu')
+    parser.add_argument('--model_cache_dir', default=None)
     args = vars(parser.parse_args())
     model_file = args['model_file']
     out_dir = args['out_dir']
@@ -49,6 +50,7 @@ def main():
     test_data_file = args['test_data']
     model_type = args['model_type']
     device_name = args['device_name']
+    model_cache_dir = args['model_cache_dir']
 
     ## load data
     # model
@@ -57,7 +59,8 @@ def main():
     }
     model_path = model_type_path_lookup[model_type]
     model_file_dir = os.path.dirname(os.path.dirname(model_file))
-    model_cache_dir = os.path.join(model_file_dir, 'model_cache')
+    if(model_cache_dir is None):
+        model_cache_dir = os.path.join(model_file_dir, 'model_cache')
     tokenizer_path_lookup = {
         'bart': 'BART_tokenizer.pt'
     }
@@ -98,16 +101,18 @@ def main():
     combined_overlap_scores = pd.DataFrame(combined_overlap_scores, columns=['bleu-1', 'bleu-2', 'rouge-l'])
     mean_overlap_scores = combined_overlap_scores.mean(axis=0)
     ### repetition
-    pred_text_clean = list(map(lambda x: x.lower(), pred_text))
-    target_text_clean = list(map(lambda x: convert_ids_to_clean_str(x, tokenizer).lower(), test_data['target_ids']))
+    pred_text_clean = list(map(lambda x: x.lower().strip(), pred_text))
     unique_question_pct = len(set(pred_text_clean)) / len(pred_text_clean)
     ### copying
-    source_text_clean = list(map(lambda x: convert_ids_to_clean_str((x, tokenizer).lower(), train_data['source_ids'])))
-    exact_match_counts = count_exact_matches(pred_text_clean, source_text_clean)
-    exact_match_pct = sum(exact_match_counts) / len(train_data)
+    target_text_clean = list(map(lambda x: convert_ids_to_clean_str(x, tokenizer).lower(), train_data['target_ids']))
+    print(f'computing match counts:\nexample pred text {pred_text_clean[:10]}\nexample target text {target_text_clean}')
+    exact_match_counts = count_exact_matches(pred_text_clean, target_text_clean)
+    exact_match_pct = sum(list(filter(lambda x: x>0 , exact_match_counts))) / len(train_data)
     ### combine all scores
     eval_scores = mean_overlap_scores.append(pd.Series([unique_question_pct, exact_match_pct], index=['pct_unique', 'pct_match_train_data']))
     ### write to file
+    if(not os.path.exists(out_dir)):
+        os.mkdir(out_dir)
     out_file = os.path.join(out_dir, 'question_scores.tsv')
     eval_scores.to_csv(out_file, sep='\t', index=True)
 
