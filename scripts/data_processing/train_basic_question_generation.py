@@ -5,21 +5,19 @@ pre-trained language models (e.g. BART).
 import numpy as np
 import pandas as pd
 import torch
-from transformers import BartTokenizer
 import sys
 if ('question_generation' not in sys.path):
     sys.path.append('question_generation')
-from data_helpers import prepare_question_data
 from data_collator import T2TDataCollator
 from transformers import AutoModelForSeq2SeqLM
 import os
+# tmp debugging
 from trainer import Trainer
 from data_helpers import DataArguments
 from datetime import datetime
 from argparse import ArgumentParser
 np.random.seed(123)
 torch.manual_seed(123)
-
 
 def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, max_source_len, max_target_len):
     training_args = DataArguments(model_out_dir)
@@ -33,13 +31,14 @@ def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, m
     # training_args.device = 'cuda:1'
     training_args.seed = 123
     training_args.disable_tqdm = False
-    training_args.local_rank = -1
+    training_args.local_rank = -1 # something with parallelization
     training_args.output_dir = model_out_dir
-    training_args.num_train_epochs = 20
+    training_args.num_train_epochs = 5 # 20
     # training_args.max_steps = 1
     training_args.fp16 = False
     training_args.label_names = None
-    training_args.per_device_train_batch_size = 2
+    ## TODO: bigger batches with LongFormer!! training takes too long
+    training_args.per_device_train_batch_size = 1
     training_args.per_device_eval_batch_size = 2
     # training_args.train_batch_size = 32
     # training_args.eval_batch_size = 32
@@ -117,16 +116,21 @@ def main():
     # import sys
     # sys.exit()
     # reload tokenizer with all processed tokens
-    tokenizer_file = os.path.join(out_dir, 'BART_tokenizer.pt')
+    model_type_tokenizer_lookup = {
+        'bart' : 'BART',
+        'longformer': 'LongFormer',
+    }
+    tokenizer_name = model_type_tokenizer_lookup[model_type]
+    tokenizer_file = os.path.join(out_dir, f'{tokenizer_name}_tokenizer.pt')
     tokenizer = torch.load(tokenizer_file)
 
     ## train model
-    ## TODO: put model cache in shared directory!! fewer duplicates please
     if(model_cache_dir is None):
         model_cache_dir = os.path.join(out_dir, 'model_cache/')
     # tokenizer = torch.load('../../data/CNN_articles/cnn/BART_tokenizer.pt')
     model_type_path_lookup = {
-        'bart' : 'facebook/bart-base'
+        'bart' : 'facebook/bart-base',
+        'longformer' : 'allenai/led-base-16384'
     }
     model_path = model_type_path_lookup[model_type]
     model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -138,8 +142,8 @@ def main():
         model.load_state_dict(pretrained_model_weights)
     model.resize_token_embeddings(len(tokenizer))
     # TODO: save model to cache again to update embedding size
-    device = torch.device(device_name)
-    model.to(device)
+    # device = torch.device(device_name)
+    # model.to(device)
 
     ## load data
     # train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
@@ -151,6 +155,7 @@ def main():
     # get max source/target len
     max_source_len = len(train_dataset['source_ids'][0])
     max_target_len = len(train_dataset['target_ids'][0])
+    tokenizer.model_max_length = max_source_len
     # data collator
     data_collator = T2TDataCollator(
         tokenizer=tokenizer,
@@ -166,6 +171,8 @@ def main():
     model_args = {
         'label_smoothing': 0,
     }
+    # tmp debugging
+    # print(f'training device {training_args.device}')
     ## TODO: prevent model from saving optimizer during every 500 training steps!!
     trainer = Trainer(
         model=model,

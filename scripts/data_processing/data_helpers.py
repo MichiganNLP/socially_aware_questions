@@ -6,6 +6,7 @@ import pandas as pd
 import re
 import os
 from transformers.training_args import TrainingArguments
+from transformers import BartTokenizer, LongformerTokenizer
 from dataclasses import field
 from typing import Optional
 import torch
@@ -323,7 +324,7 @@ def extract_questions(text, word_tokenizer, sent_tokenizer, question_matcher, mi
     return questions
 
 
-def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None, train_pct=0.8):
+def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None, train_pct=0.8, max_source_length=1024, max_target_length=64):
     """
     Convert raw article/question pairs to source/target pairs
     in matrix format.
@@ -355,9 +356,6 @@ def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None,
         columns={'article_text': 'source_text', 'question': 'target_text'})
     # print(clean_data.head())
     # shorten source/target to fit model
-    ## TODO: increase max input length!! without breaking memory lol
-    max_source_length = 1024
-    max_target_length = 64
     ## add author var tokens at the end of each source text => helps decoding? TBD
     if (author_data is not None):
         ## add special tokens
@@ -453,7 +451,12 @@ def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None,
     torch.save(train_data, train_data_out_file)
     torch.save(val_data, val_data_out_file)
     # save tokenizer?? yes because we will need to post-process other data
-    tokenizer_out_file = os.path.join(out_dir, 'BART_tokenizer.pt')
+    tokenizer_name_lookup = {
+        BartTokenizer : 'BART',
+        LongformerTokenizer : 'LongFormer'
+    }
+    tokenizer_name = tokenizer_name_lookup[type(tokenizer)]
+    tokenizer_out_file = os.path.join(out_dir, f'{tokenizer_name}_tokenizer.pt')
     torch.save(tokenizer, tokenizer_out_file)
 
 def convert_ids_to_clean_str(token_ids, tokenizer):
