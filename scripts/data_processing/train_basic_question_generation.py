@@ -33,7 +33,7 @@ def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, m
     training_args.disable_tqdm = False
     training_args.local_rank = -1 # something with parallelization
     training_args.output_dir = model_out_dir
-    training_args.num_train_epochs = 5 # 20
+    training_args.num_train_epochs = 5 # 5 = longformer, 20 = BART
     # training_args.max_steps = 1
     training_args.fp16 = False
     training_args.label_names = None
@@ -66,7 +66,6 @@ def main():
     parser.add_argument('train_data')
     parser.add_argument('val_data')
     parser.add_argument('out_dir') # ../../data/CNN_articles/cnn/
-    parser.add_argument('--device', default='cpu') # cuda:0 => GPU #0
     parser.add_argument('--model_type', default='bart')
     parser.add_argument('--model_cache_dir', default=None)
     # parser.add_argument('--author_data', default=None) # ../../data/nyt_comments/author_comment_social_data.tsv
@@ -76,7 +75,6 @@ def main():
     train_data_file = args['train_data']
     val_data_file = args['val_data']
     out_dir = args['out_dir']
-    device_name = args['device']
     model_type = args['model_type']
     # author_data = args['author_data']
     # sample_pct = args['sample_pct']
@@ -120,8 +118,9 @@ def main():
         'bart' : 'BART',
         'longformer': 'LongFormer',
     }
+    data_dir = os.path.dirname(train_data_file)
     tokenizer_name = model_type_tokenizer_lookup[model_type]
-    tokenizer_file = os.path.join(out_dir, f'{tokenizer_name}_tokenizer.pt')
+    tokenizer_file = os.path.join(data_dir, f'{tokenizer_name}_tokenizer.pt')
     tokenizer = torch.load(tokenizer_file)
 
     ## train model

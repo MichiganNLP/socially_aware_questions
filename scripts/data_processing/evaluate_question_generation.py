@@ -55,17 +55,22 @@ def main():
     ## load data
     # model
     model_type_path_lookup = {
-        'bart': 'facebook/bart-base'
+        'bart': 'facebook/bart-base',
+        'longformer' : 'allenai/led-base-16384'
     }
     model_path = model_type_path_lookup[model_type]
     model_file_dir = os.path.dirname(os.path.dirname(model_file))
     if(model_cache_dir is None):
         model_cache_dir = os.path.join(model_file_dir, 'model_cache')
-    tokenizer_path_lookup = {
-        'bart': 'BART_tokenizer.pt'
+    tokenizer_name_lookup = {
+        'bart': 'BART',
+        'longformer' : 'LongFormer'
     }
     data_dir = os.path.dirname(train_data_file)
-    tokenizer_path = os.path.join(data_dir, tokenizer_path_lookup[model_type])
+    tokenizer_path = os.path.join(data_dir, f'{tokenizer_name_lookup[model_type]}_tokenizer.pt')
+    # tokenizer_dir = os.path.abspath(os.path.join(model_file, '../../../'))
+    # tokenizer_path = os.path.join(tokenizer_dir, f'{tokenizer_name}_tokenizer.pt')
+    # print(tokenizer_path)
     tokenizer = torch.load(tokenizer_path)
     model = AutoModelForSeq2SeqLM.from_pretrained(
         model_path,
@@ -78,8 +83,8 @@ def main():
     train_data = torch.load(train_data_file)['train']
     test_data = torch.load(test_data_file)['train']
     ## set device
-    device = torch.device(device_name)
-    model.to(device)
+    # device = torch.device(device_name)
+    # model.to(device)
 
     ## evaluation
     # generate predictions
