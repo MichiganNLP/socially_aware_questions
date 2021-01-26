@@ -11,6 +11,7 @@ from dataclasses import field
 from typing import Optional
 import torch
 from tqdm import tqdm
+from stanza import Pipeline
 from nltk.translate.bleu_score import sentence_bleu
 from datetime import datetime
 import nlp
@@ -303,6 +304,36 @@ def round_date_to_day(time_stamp):
     round_date = datetime(year=raw_date.year, month=raw_date.month, day=raw_date.day)
     return round_date
 
+## named entities
+
+def extract_all_named_entities(text, pipeline, valid_NE_types={'PERSON', 'GPE', 'ORG', 'EVENT'}):
+    """
+    Extract all named entities using stanza NER pipeline.
+
+    :param text:
+    :param pipeline:
+    :param valid_NE_types:
+    :return:
+    """
+    text_doc = pipeline(text)
+    named_entities = []
+    for text_sent_i in text_doc.sentences:
+        NE_tokens_i = []
+        for token_j in text_sent_i.tokens:
+            token_j_NE = token_j.ner
+            token_j_NE_type = token_j_NE.split('-')[-1]
+            if(token_j_NE != 'O' and token_j_NE_type in valid_NE_types):
+                token_j_text = token_j.text
+                # "END" or "SINGLE" token => pop from queue
+                if(token_j_NE.startswith('E') or token_j_NE.startswith('S')):
+                    NE_tokens_i.append(token_j_text)
+                    NE_final = '_'.join(NE_tokens_i)
+                    named_entities.append(NE_final)
+                    NE_tokens_i = []
+                else:
+                    NE_tokens_i.append(token_j_text)
+    return named_entities
+
 ## question analysis
 
 def extract_questions(text, word_tokenizer, sent_tokenizer, question_matcher, min_question_len=5):
@@ -324,7 +355,10 @@ def extract_questions(text, word_tokenizer, sent_tokenizer, question_matcher, mi
     return questions
 
 
-def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None, train_pct=0.8, max_source_length=1024, max_target_length=64):
+def prepare_question_data(data, out_dir, data_name, tokenizer,
+                          author_data=None, train_pct=0.8,
+                          max_source_length=1024, max_target_length=64,
+                          article_question_NE_overlap=False):
     """
     Convert raw article/question pairs to source/target pairs
     in matrix format.
@@ -407,6 +441,28 @@ def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None,
         clean_data = pd.concat(author_txt_data, axis=1).transpose()
     # deduplicate article/answer pairs
     clean_data.drop_duplicates(['source_text', 'target_text'], inplace=True)
+    # optional: filter questions that have
+    # 1+ NEs shared with article
+    if(article_question_NE_overlap):
+        tqdm.pandas()
+        ## extract all NEs from questions, articles
+        nlp_pipeline = Pipeline(lang='en', processors='tokenizer,ner')
+        valid_NE_types = {'PERSON', 'GPE', 'ORG', 'EVENT'}
+        NE_article_data = clean_data.drop_duplicates('article_id', inplace=False).loc[:, ['source_text', 'article_id']]
+        NE_article_data = NE_article_data.assign(**{
+            'article_NEs' :  NE_article_data.loc[:, 'source_text'].progress_apply(lambda x: extract_all_named_entities(x, nlp_pipeline, valid_NE_types=valid_NE_types))
+        })
+        NE_question_data = clean_data.loc[:, ['article_id', 'target_text']]
+        NE_question_data = NE_question_data.assign(**{
+            'question_NEs' : NE_question_data.loc[:, 'target_text'].progress_apply(lambda x: extract_all_named_entities(x, nlp_pipeline, valid_NE_types=valid_NE_types))
+        })
+        NE_question_data = pd.merge(NE_article_data, NE_question_data, on='article_id')
+        NE_question_data = NE_question_data.assign(**{
+            'article_question_NEs' : NE_question_data.apply(lambda x: set(x.loc['article_NEs']) & set(x.loc['question_NEs']))
+        })
+        NE_question_data = NE_question_data[NE_question_data.loc[:, 'article_question_NEs'].apply(lambda x: len(x)) > 0]
+        clean_data = pd.merge(clean_data, NE_question_data.loc[:, ['article_id', 'target_text']],
+                              on=['article_id', 'target_text'], how='inner')
     ## split train/val data
     # split by articles! to avoid bleeding between train/test
     article_ids = list(clean_data.loc[:, 'article_id'].unique())
@@ -424,11 +480,15 @@ def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None,
     # clean_data_val = clean_data.iloc[N_train:, :]
     clean_data_train_out_file = os.path.join(out_dir, f'{data_name}_train_data.csv')
     clean_data_val_out_file = os.path.join(out_dir, f'{data_name}_val_data.csv')
-    clean_data_train.to_csv(clean_data_train_out_file, sep=',', index=False)
-    clean_data_val.to_csv(clean_data_val_out_file, sep=',', index=False)
+    # tmp debugging
+    if(not os.path.exists(clean_data_train_out_file)):
+        clean_data_train.to_csv(clean_data_train_out_file, sep=',', index=False)
+        clean_data_val.to_csv(clean_data_val_out_file, sep=',', index=False)
     # reload data into correct format lol
-    train_data_set = nlp.load_dataset('csv', data_files=clean_data_train_out_file)
-    val_data_set = nlp.load_dataset('csv', data_files=clean_data_val_out_file)
+    data_dir = os.path.dirname(clean_data_train_out_file)
+    # every time we load data, we have to re-download csv loader? yikes
+    train_data_set = nlp.load_dataset('csv', data_files=clean_data_train_out_file, cache_dir=data_dir)
+    val_data_set = nlp.load_dataset('csv', data_files=clean_data_val_out_file, cache_dir=data_dir)
     #     tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
     # get max lengths
     # source_text_tokens = clean_data.loc[:, 'source_text'].apply(lambda x: tokenizer.tokenize(x))

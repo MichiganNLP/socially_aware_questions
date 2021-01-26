@@ -1,14 +1,14 @@
 ## CNN data
 # long data
-#TRAIN_DATA=../../data/CNN_articles/cnn/CNN_long_train_data.pt
-#VAL_DATA=../../data/CNN_articles/cnn/CNN_long_val_data.pt
+TRAIN_DATA=../../data/CNN_articles/cnn/CNN_long_train_data.pt
+VAL_DATA=../../data/CNN_articles/cnn/CNN_long_val_data.pt
 ## NYT data
 # normal data
 #TRAIN_DATA=../../data/nyt_comments/NYT_train_data.pt
 #VAL_DATA=../../data/nyt_comments/NYT_val_data.pt
 # long data
-TRAIN_DATA=../../data/nyt_comments/author_type_NYT_long_input_train_data.pt
-VAL_DATA=../../data/nyt_comments/author_type_NYT_long_input_val_data.pt
+#TRAIN_DATA=../../data/nyt_comments/author_type_NYT_long_input_train_data.pt
+#VAL_DATA=../../data/nyt_comments/author_type_NYT_long_input_val_data.pt
 # regular model
 #OUT_DIR=../../data/nyt_comments/
 # model with author information

@@ -5,14 +5,17 @@
 #OUT_DIR=../../data/CNN_articles/cnn/
 #OUT_DIR=../../data/CNN_articles/cnn/NYT_eval/
 # long data
-MODEL_FILE=../../data/CNN_articles/cnn/longformer_model/question_generation_model/checkpoint-60000/pytorch_model.bin
-OUT_DIR=../../data/CNN_articles/cnn/NYT_eval/longformer_model/
+#MODEL_FILE=../../data/CNN_articles/cnn/longformer_model/question_generation_model/checkpoint-60000/pytorch_model.bin
+#OUT_DIR=../../data/CNN_articles/cnn/NYT_eval/longformer_model/
 ## NYT training
 # w/out author
 #MODEL_FILE=../../data/nyt_comments/question_generation_model/checkpoint-96000/pytorch_model.bin
 #OUT_DIR=../../data/nyt_comments/no_author_data/
 # w/author
 #MODEL_FILE=../../data/nyt_comments/author_data_model/question_generation_model/checkpoint-73500/pytorch_model.bin
+# long data w/ author
+MODEL_FILE=../../data/nyt_comments/longformer_model/question_generation_model/checkpoint-35500/pytorch_model.bin
+OUT_DIR=../../data/nyt_comments/longformer_model/
 ## CNN+NYT model evaluation
 #MODEL_FILE=../../data/nyt_comments/cnn_fine_tune/question_generation_model/checkpoint-141000/pytorch_model.bin
 #OUT_DIR=../../data/nyt_comments/cnn_fine_tune/
@@ -40,9 +43,12 @@ MODEL_TYPE='longformer'
 # w/ author
 #TRAIN_DATA=../../data/nyt_comments/author_data_model/author_type_NYT_question_data_train_data.pt
 #TEST_DATA=../../data/nyt_comments/author_data_model/author_type_NYT_question_data_val_data.pt
+# long w/ author
+TRAIN_DATA=../../data/nyt_comments/author_type_NYT_long_input_train_data.pt
+TEST_DATA=../../data/nyt_comments/author_type_NYT_long_input_val_data.pt
 # long w/out author
-TRAIN_DATA=../../data/nyt_comments/no_author_data/NYT_long_input_train_data.pt
-TEST_DATA=../../data/nyt_comments/no_author_data/NYT_long_input_val_data.pt
+#TRAIN_DATA=../../data/nyt_comments/no_author_data/NYT_long_input_train_data.pt
+#TEST_DATA=../../data/nyt_comments/no_author_data/NYT_long_input_val_data.pt
 
 DEVICE_NAME='cuda:2'
 export CUDA_VISIBLE_DEVICES=2

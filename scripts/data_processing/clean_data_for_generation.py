@@ -121,6 +121,7 @@ def main():
     parser.add_argument('--sample_pct', type=float, default=1.0)
     parser.add_argument('--author_data', default=None)
     parser.add_argument('--model_type', default='bart')
+    parser.add_argument('--NE_overlap', type=bool, default=False)
     args = vars(parser.parse_args())
 
     ## load raw data
@@ -155,6 +156,9 @@ def main():
             'date_day': author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, date_day_fmt))
         })
     out_dir = args['out_dir']
+    NE_overlap = args['NE_overlap']
+    if (NE_overlap):
+        data_name = f'NE_overlap_{data_name}'
     train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
     model_type = args['model_type']
     tokenizer_lookup = {
@@ -164,7 +168,8 @@ def main():
     tokenizer_class, tokenizer_name = tokenizer_lookup[model_type]
     max_len_lookup = {
         'bart' : (1024, 64),
-        'longformer' : (3072, 128), # 4028 => max out memory in training
+        'longformer' : (3072, 128), # 4096 => memory overload in training
+        # 'longformer': (4096, 128),  # ONLY for big GPU server
     }
     max_source_length, max_target_length = max_len_lookup[model_type]
     if (not os.path.exists(train_data_file)):
@@ -177,7 +182,8 @@ def main():
                               tokenizer=tokenizer, train_pct=train_pct,
                               author_data=author_data,
                               max_source_length=max_source_length,
-                              max_target_length=max_target_length)
+                              max_target_length=max_target_length,
+                              article_question_NE_overlap=NE_overlap)
         # if we include author data: also generate "clean" no-author data for comparison
         if(author_data is not None):
             clean_out_dir = os.path.join(out_dir, 'no_author_data/')
@@ -189,13 +195,11 @@ def main():
                                   tokenizer=tokenizer, train_pct=train_pct,
                                   author_data=None,
                                   max_source_length=max_source_length,
-                                  max_target_length=max_target_length)
+                                  max_target_length=max_target_length,
+                                  article_question_NE_overlap=NE_overlap)
     ## save raw data to file
     out_file_name = os.path.join(out_dir, f'{data_name}_question_data.tsv')
     article_data.to_csv(out_file_name, sep='\t', index=False)
-    # split train/test
-    # train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
-    # val_data_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
 
 if __name__ == '__main__':
     main()
