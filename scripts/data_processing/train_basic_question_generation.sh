@@ -1,7 +1,7 @@
 ## CNN data
 # long data
-TRAIN_DATA=../../data/CNN_articles/cnn/CNN_long_train_data.pt
-VAL_DATA=../../data/CNN_articles/cnn/CNN_long_val_data.pt
+#TRAIN_DATA=../../data/CNN_articles/cnn/CNN_long_train_data.pt
+#VAL_DATA=../../data/CNN_articles/cnn/CNN_long_val_data.pt
 ## NYT data
 # normal data
 #TRAIN_DATA=../../data/nyt_comments/NYT_train_data.pt
@@ -9,6 +9,9 @@ VAL_DATA=../../data/CNN_articles/cnn/CNN_long_val_data.pt
 # long data
 #TRAIN_DATA=../../data/nyt_comments/author_type_NYT_long_input_train_data.pt
 #VAL_DATA=../../data/nyt_comments/author_type_NYT_long_input_val_data.pt
+# clean NE data
+TRAIN_DATA=../../data/nyt_comments/author_type_NE_overlap_NYT_long_input_train_data.pt
+VAL_DATA=../../data/nyt_comments/author_type_NE_overlap_NYT_long_input_val_data.pt
 # regular model
 #OUT_DIR=../../data/nyt_comments/
 # model with author information
@@ -16,7 +19,7 @@ VAL_DATA=../../data/CNN_articles/cnn/CNN_long_val_data.pt
 #OUT_DIR=../../data/nyt_comments/cnn_fine_tune/
 # longformer model
 #OUT_DIR=../../data/CNN_articles/cnn/longformer_model/
-OUT_DIR=../../data/nyt_comments/longformer_model/
+OUT_DIR=../../data/nyt_comments/NE_overlap/longformer_model/
 # debug model
 #OUT_DIR=../../data/nyt_comments/debug_model/
 # regular transformer

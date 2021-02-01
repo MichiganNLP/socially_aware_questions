@@ -16,30 +16,227 @@ from transformers.modeling_outputs import Seq2SeqLMOutput, \
     BaseModelOutputWithPastAndCrossAttentions
 import torch
 from torch.nn import CrossEntropyLoss
-from transformers.models.bart.modeling_bart import BartDecoder, _expand_mask
+from transformers.models.bart.modeling_bart import BartDecoder, _expand_mask, \
+    _make_causal_mask, shift_tokens_right
+
 
 # borrowing from here: https://github.com/laihuiyuan/pointer-generator/blob/6a727f4a2f314c2b47df9ce8838dca0de61bfcd4/models/layers.py
-# class CopyDecoder(BartDecoder):
-#
-#     def __init__(self, config):
+class CopyDecoder(BartDecoder):
+
+    def __init__(self, config):
+        super().__init__(config)
+        # add copy layer
+        ## TODO: what is copy layer size??
+        # self.copy_layer = torch.nnLinear(self.config.decoder_output_dim, self.max_source_length)
+        self.copy_layer = torch.nn.Linear(self.config.hidden_dim*4 + self.config.embedding_size, 1)
+
+    def forward(self,
+                input_ids=None,
+                attention_mask=None,
+                encoder_hidden_states=None,
+                encoder_attention_mask=None,
+                past_key_values=None,
+                inputs_embeds=None,
+                use_cache=None,
+                output_attentions=None,
+                output_hidden_states=None,
+                return_dict=None,
+                # selective_weights=None, # from https://github.com/epwalsh/nlp-models/blob/master/nlpete/models/copynet.py
+    ):
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        )
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        # retrieve input_ids and inputs_embeds
+        if input_ids is not None and inputs_embeds is not None:
+            raise ValueError(
+                "You cannot specify both decoder_input_ids and decoder_inputs_embeds at the same time")
+        elif input_ids is not None:
+            input_shape = input_ids.size()
+            input_ids = input_ids.view(-1, input_shape[-1])
+        elif inputs_embeds is not None:
+            input_shape = inputs_embeds.size()[:-1]
+        else:
+            raise ValueError(
+                "You have to specify either decoder_input_ids or decoder_inputs_embeds")
+
+        # past_key_values_length
+        past_key_values_length = past_key_values[0][0].shape[
+            2] if past_key_values is not None else 0
+
+        if inputs_embeds is None:
+            inputs_embeds = self.embed_tokens(input_ids) * self.embed_scale
+
+        # create causal mask
+        # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+        combined_attention_mask = None
+        if input_shape[-1] > 1:
+            combined_attention_mask = _make_causal_mask(
+                input_shape, inputs_embeds.dtype,
+                past_key_values_length=past_key_values_length
+            ).to(self.device)
+
+        if attention_mask is not None and combined_attention_mask is not None:
+            # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+            combined_attention_mask = combined_attention_mask + _expand_mask(
+                attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1]
+            )
+
+        # expand encoder attention mask
+        if encoder_hidden_states is not None and encoder_attention_mask is not None:
+            # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+            encoder_attention_mask = _expand_mask(encoder_attention_mask,
+                                                  inputs_embeds.dtype,
+                                                  tgt_len=input_shape[-1])
+
+        # embed positions
+        positions = self.embed_positions(input_shape, past_key_values_length)
+
+        hidden_states = inputs_embeds + positions
+        hidden_states = self.layernorm_embedding(hidden_states)
+
+        hidden_states = F.dropout(hidden_states, p=self.dropout,
+                                  training=self.training)
+
+        # decoder layers
+        all_hidden_states = () if output_hidden_states else None
+        all_self_attns = () if output_attentions else None
+        all_cross_attentions = () if output_attentions else None
+        next_decoder_cache = () if use_cache else None
+        for idx, decoder_layer in enumerate(self.layers):
+            # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
+            if output_hidden_states:
+                all_hidden_states += (hidden_states,)
+            dropout_probability = torch.random.uniform(0, 1)
+            if self.training and (dropout_probability < self.layerdrop):
+                continue
+
+            past_key_value = past_key_values[
+                idx] if past_key_values is not None else None
+
+            if getattr(self.config, "gradient_checkpointing", False):
+                if use_cache:
+                    raise ValueError(
+                        "When using `gradient_checkpointing, make sure that `use_cache=False` and `config.use_cache=False`."
+                    )
+
+                def create_custom_forward(module):
+                    def custom_forward(*inputs):
+                        # None for past_key_value
+                        return module(*inputs, output_attentions, use_cache)
+
+                    return custom_forward
+
+                layer_outputs = torch.utils.checkpoint.checkpoint(
+                    create_custom_forward(decoder_layer),
+                    hidden_states,
+                    combined_attention_mask,
+                    encoder_hidden_states,
+                    encoder_attention_mask,
+                    None,
+                )
+            else:
+
+                layer_outputs = decoder_layer(
+                    hidden_states,
+                    attention_mask=combined_attention_mask,
+                    encoder_hidden_states=encoder_hidden_states,
+                    encoder_attention_mask=encoder_attention_mask,
+                    past_key_value=past_key_value,
+                    output_attentions=output_attentions,
+                    use_cache=use_cache,
+                )
+            hidden_states = layer_outputs[0]
+
+            if use_cache:
+                next_decoder_cache += (
+                layer_outputs[3 if output_attentions else 1],)
+
+            if output_attentions:
+                all_self_attns += (layer_outputs[1],)
+                all_cross_attentions += (layer_outputs[2],)
+
+        # add hidden states from the last decoder layer
+        if output_hidden_states:
+            all_hidden_states += (hidden_states,)
+
+        next_cache = next_decoder_cache if use_cache else None
+        if not return_dict:
+            return tuple(
+                v
+                for v in
+                [hidden_states, next_cache, all_hidden_states, all_self_attns,
+                 all_cross_attentions]
+                if v is not None
+            )
+        return BaseModelOutputWithPastAndCrossAttentions(
+            last_hidden_state=hidden_states,
+            past_key_values=next_cache,
+            hidden_states=all_hidden_states,
+            attentions=all_self_attns,
+            cross_attentions=all_cross_attentions,
+        )
+
+# class BartModel(BartPretrainedModel):
+#     def __init__(self, config: BartConfig):
 #         super().__init__(config)
-#         # add copy layer
-#         ## TODO: what is copy layer size??
-#         # self.copy_layer = torch.nnLinear(self.config.decoder_output_dim, self.max_source_length)
-#         self.copy_layer = torch.nn.Linear(self.config.hidden_dim*4 + self.config.embedding_size, 1)
 #
-#     def forward(self,
-#                 input_ids=None,
-#                 attention_mask=None,
-#                 encoder_hidden_states=None,
-#                 encoder_attention_mask=None,
-#                 past_key_values=None,
-#                 inputs_embeds=None,
-#                 use_cache=None,
-#                 output_attentions=None,
-#                 output_hidden_states=None,
-#                 return_dict=None,
+#         padding_idx, vocab_size = config.pad_token_id, config.vocab_size
+#         self.shared = nn.Embedding(vocab_size, config.d_model, padding_idx)
+#
+#         self.encoder = BartEncoder(config, self.shared)
+#         self.decoder = BartDecoder(config, self.shared)
+#
+#         self.init_weights()
+#
+#     def get_input_embeddings(self):
+#         return self.shared
+#
+#     def set_input_embeddings(self, value):
+#         self.shared = value
+#         self.encoder.embed_tokens = self.shared
+#         self.decoder.embed_tokens = self.shared
+#
+#     def get_encoder(self):
+#         return self.encoder
+#
+#     def get_decoder(self):
+#         return self.decoder
+#
+#     [docs]
+#     @add_start_docstrings_to_model_forward(BART_INPUTS_DOCSTRING)
+#     @add_code_sample_docstrings(
+#         tokenizer_class=_TOKENIZER_FOR_DOC,
+#         checkpoint="facebook/bart-large",
+#         output_type=Seq2SeqModelOutput,
+#         config_class=_CONFIG_FOR_DOC,
+#     )
+#     def forward(
+#         self,
+#         input_ids=None,
+#         attention_mask=None,
+#         decoder_input_ids=None,
+#         decoder_attention_mask=None,
+#         encoder_outputs=None,
+#         past_key_values=None,
+#         inputs_embeds=None,
+#         decoder_inputs_embeds=None,
+#         use_cache=None,
+#         output_attentions=None,
+#         output_hidden_states=None,
+#         return_dict=None,
 #     ):
+#
+#         # different to other models, Bart automatically creates decoder_input_ids from
+#         # input_ids if no decoder_input_ids are provided
+#         if decoder_input_ids is None and decoder_inputs_embeds is None:
+#             decoder_input_ids = shift_tokens_right(
+#                 input_ids, self.config.pad_token_id, self.config.decoder_start_token_id
+#             )
+#
 #         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
 #         output_hidden_states = (
 #             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -47,148 +244,66 @@ from transformers.models.bart.modeling_bart import BartDecoder, _expand_mask
 #         use_cache = use_cache if use_cache is not None else self.config.use_cache
 #         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 #
-#         # retrieve input_ids and inputs_embeds
-#         if input_ids is not None and inputs_embeds is not None:
-#             raise ValueError(
-#                 "You cannot specify both decoder_input_ids and decoder_inputs_embeds at the same time")
-#         elif input_ids is not None:
-#             input_shape = input_ids.size()
-#             input_ids = input_ids.view(-1, input_shape[-1])
-#         elif inputs_embeds is not None:
-#             input_shape = inputs_embeds.size()[:-1]
-#         else:
-#             raise ValueError(
-#                 "You have to specify either decoder_input_ids or decoder_inputs_embeds")
-#
-#         # past_key_values_length
-#         past_key_values_length = past_key_values[0][0].shape[
-#             2] if past_key_values is not None else 0
-#
-#         if inputs_embeds is None:
-#             inputs_embeds = self.embed_tokens(input_ids) * self.embed_scale
-#
-#         # create causal mask
-#         # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
-#         combined_attention_mask = None
-#         if input_shape[-1] > 1:
-#             combined_attention_mask = _make_causal_mask(
-#                 input_shape, inputs_embeds.dtype,
-#                 past_key_values_length=past_key_values_length
-#             ).to(self.device)
-#
-#         if attention_mask is not None and combined_attention_mask is not None:
-#             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
-#             combined_attention_mask = combined_attention_mask + _expand_mask(
-#                 attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1]
+#         if encoder_outputs is None:
+#             encoder_outputs = self.encoder(
+#                 input_ids=input_ids,
+#                 attention_mask=attention_mask,
+#                 inputs_embeds=inputs_embeds,
+#                 output_attentions=output_attentions,
+#                 output_hidden_states=output_hidden_states,
+#                 return_dict=return_dict,
+#             )
+#         # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=True
+#         elif return_dict and not isinstance(encoder_outputs, BaseModelOutput):
+#             encoder_outputs = BaseModelOutput(
+#                 last_hidden_state=encoder_outputs[0],
+#                 hidden_states=encoder_outputs[1] if len(encoder_outputs) > 1 else None,
+#                 attentions=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
 #             )
 #
-#         # expand encoder attention mask
-#         if encoder_hidden_states is not None and encoder_attention_mask is not None:
-#             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
-#             encoder_attention_mask = _expand_mask(encoder_attention_mask,
-#                                                   inputs_embeds.dtype,
-#                                                   tgt_len=input_shape[-1])
+#         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
+#         ## TODO: add prior copy probabilities to decoder FML
+#         decoder_outputs = self.decoder(
+#             input_ids=decoder_input_ids,
+#             attention_mask=decoder_attention_mask,
+#             encoder_hidden_states=encoder_outputs[0],
+#             encoder_attention_mask=attention_mask,
+#             past_key_values=past_key_values,
+#             inputs_embeds=decoder_inputs_embeds,
+#             use_cache=use_cache,
+#             output_attentions=output_attentions,
+#             output_hidden_states=output_hidden_states,
+#             return_dict=return_dict,
+#         )
 #
-#         # embed positions
-#         positions = self.embed_positions(input_shape, past_key_values_length)
-#
-#         hidden_states = inputs_embeds + positions
-#         hidden_states = self.layernorm_embedding(hidden_states)
-#
-#         hidden_states = F.dropout(hidden_states, p=self.dropout,
-#                                   training=self.training)
-#
-#         # decoder layers
-#         all_hidden_states = () if output_hidden_states else None
-#         all_self_attns = () if output_attentions else None
-#         all_cross_attentions = () if output_attentions else None
-#         next_decoder_cache = () if use_cache else None
-#         for idx, decoder_layer in enumerate(self.layers):
-#             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-#             if output_hidden_states:
-#                 all_hidden_states += (hidden_states,)
-#             dropout_probability = torch.random.uniform(0, 1)
-#             if self.training and (dropout_probability < self.layerdrop):
-#                 continue
-#
-#             past_key_value = past_key_values[
-#                 idx] if past_key_values is not None else None
-#
-#             if getattr(self.config, "gradient_checkpointing", False):
-#                 if use_cache:
-#                     raise ValueError(
-#                         "When using `gradient_checkpointing, make sure that `use_cache=False` and `config.use_cache=False`."
-#                     )
-#
-#                 def create_custom_forward(module):
-#                     def custom_forward(*inputs):
-#                         # None for past_key_value
-#                         return module(*inputs, output_attentions, use_cache)
-#
-#                     return custom_forward
-#
-#                 layer_outputs = torch.utils.checkpoint.checkpoint(
-#                     create_custom_forward(decoder_layer),
-#                     hidden_states,
-#                     combined_attention_mask,
-#                     encoder_hidden_states,
-#                     encoder_attention_mask,
-#                     None,
-#                 )
-#             else:
-#
-#                 layer_outputs = decoder_layer(
-#                     hidden_states,
-#                     attention_mask=combined_attention_mask,
-#                     encoder_hidden_states=encoder_hidden_states,
-#                     encoder_attention_mask=encoder_attention_mask,
-#                     past_key_value=past_key_value,
-#                     output_attentions=output_attentions,
-#                     use_cache=use_cache,
-#                 )
-#             hidden_states = layer_outputs[0]
-#
-#             if use_cache:
-#                 next_decoder_cache += (
-#                 layer_outputs[3 if output_attentions else 1],)
-#
-#             if output_attentions:
-#                 all_self_attns += (layer_outputs[1],)
-#                 all_cross_attentions += (layer_outputs[2],)
-#
-#         # add hidden states from the last decoder layer
-#         if output_hidden_states:
-#             all_hidden_states += (hidden_states,)
-#
-#         next_cache = next_decoder_cache if use_cache else None
 #         if not return_dict:
-#             return tuple(
-#                 v
-#                 for v in
-#                 [hidden_states, next_cache, all_hidden_states, all_self_attns,
-#                  all_cross_attentions]
-#                 if v is not None
-#             )
-#         return BaseModelOutputWithPastAndCrossAttentions(
-#             last_hidden_state=hidden_states,
-#             past_key_values=next_cache,
-#             hidden_states=all_hidden_states,
-#             attentions=all_self_attns,
-#             cross_attentions=all_cross_attentions,
+#             return decoder_outputs + encoder_outputs
+#
+#         return Seq2SeqModelOutput(
+#             last_hidden_state=decoder_outputs.last_hidden_state,
+#             past_key_values=decoder_outputs.past_key_values,
+#             decoder_hidden_states=decoder_outputs.hidden_states,
+#             decoder_attentions=decoder_outputs.attentions,
+#             cross_attentions=decoder_outputs.cross_attentions,
+#             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
+#             encoder_hidden_states=encoder_outputs.hidden_states,
+#             encoder_attentions=encoder_outputs.attentions,
 #         )
 
 class CopyGenerationModel(BartForConditionalGeneration):
 
     def __init__(self, config):
         super().__init__(config)
-        self._output_copying_layer = torch.nn.Linear(self.encoder_output_dim,
-                                                     self.decoder_output_dim)
+        # encoder hidden x decoder hidden
+        self._output_copying_layer = torch.nn.Linear(self.config.d_model,
+                                                     self.config.d_model)
+        self.oov_index = self.config.vocab_size + 1 # need dummy token ID when copying stuff
 
     def _get_copy_scores(self, encoder_outputs, decoder_hidden):
-        trim_encoder_outputs = encoder_outputs[:, -1:1]
+        trim_encoder_outputs = encoder_outputs[:, -1:1] # remove START/END chars
         copy_projection = self._output_copying_layer(trim_encoder_outputs)
         copy_projection = torch.tanh(copy_projection)
-        copy_scores = copy_projection.bmm(decoder_hidden.unsqueeze(-1)).squeeze(-1)
+        copy_scores = copy_projection.bmm(decoder_hidden.unsqueeze(-1)).squeeze(-1) # weighted sum
         return copy_scores
 
     def _get_ll_contrib(
@@ -199,9 +314,12 @@ class CopyGenerationModel(BartForConditionalGeneration):
             target_tokens: torch.Tensor,
             target_to_source: torch.Tensor,
             source_mask: torch.BoolTensor,
+            smooth_val=1e-9,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Get the log-likelihood contribution from a single timestep.
+
+        TODO: make this work with transformer decoder output?
         # Parameters
         generation_scores : `torch.Tensor`
             Shape: `(batch_size, target_vocab_size)`
@@ -243,8 +361,7 @@ class CopyGenerationModel(BartForConditionalGeneration):
                 log_probs[:, target_size:]
                 + (
                         target_to_source.to(
-                            log_probs.dtype) + util.tiny_value_of_dtype(
-                    log_probs.dtype)
+                            log_probs.dtype) + smooth_val
                 ).log()
         )
         # Since `log_probs[:, target_size]` gives us the raw copy log probabilities,
@@ -257,8 +374,7 @@ class CopyGenerationModel(BartForConditionalGeneration):
         # shape: (batch_size, 1)
         gen_mask = (target_tokens != self._oov_index) | (
                     target_to_source.sum(-1) == 0)
-        log_gen_mask = (gen_mask + util.tiny_value_of_dtype(
-            log_probs.dtype)).log().unsqueeze(-1)
+        log_gen_mask = (gen_mask + smooth_val).log().unsqueeze(-1)
         # Now we get the generation score for the gold target token.
         # shape: (batch_size, 1)
         generation_log_probs = log_probs.gather(1, target_tokens.unsqueeze(
@@ -294,7 +410,7 @@ class CopyGenerationModel(BartForConditionalGeneration):
             Shape: `(group_size, target_vocab_size + source_sequence_length)`.
         """
         _, source_sequence_length = source_to_target.size()
-        source_token_ids = source_token_ids
+        # source_token_ids = source_token_ids
 
         # shape: [(batch_size, *)]
         modified_log_probs_list: List[torch.Tensor] = []
@@ -403,15 +519,17 @@ class CopyGenerationModel(BartForConditionalGeneration):
             decoder_inputs_embeds=None,
             labels=None,
             use_cache=None,
-            output_attentions=None,
-            output_hidden_states=None,
+            output_attentions=True, # need decoder attention to get copy working
+            output_hidden_states=True, # need encoder output to get copy working
             return_dict=None,
     ):
+        # tmp debugging
+        # print(f'passing input IDs forward {input_ids}')
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         if labels is not None:
             if decoder_input_ids is None:
-                decoder_input_ids = transformers.shift_tokens_right(
+                decoder_input_ids = shift_tokens_right(
                     labels, self.config.pad_token_id,
                     self.config.decoder_start_token_id
                 )
@@ -430,10 +548,35 @@ class CopyGenerationModel(BartForConditionalGeneration):
             return_dict=return_dict,
         )
         lm_logits = self.lm_head(outputs[0]) + self.final_logits_bias
-        ## add copy probabilities
-        copy_scores = self._get_copy_scores(encoder_outputs, decoder_hidden)
-        source_token_ids = 0 # TODO: convert input IDs to [0,1,2...] format where index indicates matching
-        final_log_probs = self._gather_final_log_probs(generation_log_probs, copy_log_probs, input_ids, source_token_ids)
+        # decoder_hidden = outputs.decoder_hidden_states[-1]
+        # decoder_attention = outputs.decoder_attentions[-1]
+        # compute average over all heads
+        # decoder_attention = decoder_attention.mean(axis=1)
+        decoder_hidden = outputs.decoder_hidden_states[-1].mean(axis=1) # mean over all dimensions?
+        encoder_hidden = outputs.encoder_hidden_states[-1]
+
+        ## compute copy probabilities
+        copy_scores = self._get_copy_scores(encoder_hidden, decoder_hidden)
+        # target to source
+        # target_to_source = input_ids ==
+        ## add to generation probabilities
+        # copy_gen_score = lm_logits.clone().detach()
+        for i in range(copy_scores.shape[1] - 1):
+            token_idx_i = input_ids[:, i + 1]
+            # combine copy + gen scores
+            lm_logits[:, :, token_idx_i] = copy_scores[:, i] + lm_logits[:, :, token_idx_i]
+        # lm_logits = copy_gen_score.clone().detach()
+
+        # source_to_target = torch.zeros(input_ids.shape)
+        # source_to_target = []
+        # for i in range(input_ids.shape[0]):
+        #     target_slice = set(labels[i, :])
+        #     input_slice = input_ids[i, :]
+        #     source_to_target_slice = [source_id if source_id in target_slice else self.oov_index for j, source_id in enumerate(input_slice)]
+        #     source_to_target.append(source_to_target_slice)
+        # source_to_target = torch.LongTensor(source_to_target)
+        #
+        # final_log_probs = self._gather_final_log_probs(lm_logits, copy_scores, source_to_target, input_ids)
 
         # generation_score_mask = outputs[1]
         # log_likelihood, selective_weights = self._get_ll_contrib(
@@ -443,6 +586,7 @@ class CopyGenerationModel(BartForConditionalGeneration):
         masked_lm_loss = None
         if labels is not None:
             loss_fct = CrossEntropyLoss()
+            ## TODO: coverage loss from copy scores to avoid repeating the same words; with hyperparameter??
             masked_lm_loss = loss_fct(
                 lm_logits.view(-1, self.config.vocab_size), labels.view(-1))
 

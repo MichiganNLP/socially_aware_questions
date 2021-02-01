@@ -5,6 +5,8 @@ We expect the format:
 article ID | article text | question text
 """
 import os
+# need GPU to extract NEs from comments/articles
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import re
 from argparse import ArgumentParser
 import pandas as pd
@@ -14,6 +16,7 @@ import numpy as np
 from data_helpers import prepare_question_data
 from transformers import BartTokenizer, LongformerTokenizer
 from datetime import datetime
+import logging
 
 def load_all_articles(data_dir, data_name):
     article_files = list(map(lambda x: os.path.join(data_dir, x), os.listdir(data_dir)))
@@ -123,7 +126,8 @@ def main():
     parser.add_argument('--model_type', default='bart')
     parser.add_argument('--NE_overlap', type=bool, default=False)
     args = vars(parser.parse_args())
-
+    out_dir = args['out_dir']
+    logging.basicConfig(filename=os.path.join(out_dir, 'clean_data_generation_log.txt'), filemode='w', format='%(asctime)-15s %(message)s', level=logging.DEBUG)
     ## load raw data
     data_dir = args['data_dir']
     data_name = args['data_name']
@@ -155,7 +159,6 @@ def main():
         author_data = author_data.assign(**{
             'date_day': author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, date_day_fmt))
         })
-    out_dir = args['out_dir']
     NE_overlap = args['NE_overlap']
     if (NE_overlap):
         data_name = f'NE_overlap_{data_name}'
@@ -183,7 +186,8 @@ def main():
                               author_data=author_data,
                               max_source_length=max_source_length,
                               max_target_length=max_target_length,
-                              article_question_NE_overlap=NE_overlap)
+                              article_question_NE_overlap=NE_overlap,
+                              NE_data_dir=out_dir)
         # if we include author data: also generate "clean" no-author data for comparison
         if(author_data is not None):
             clean_out_dir = os.path.join(out_dir, 'no_author_data/')
@@ -196,7 +200,8 @@ def main():
                                   author_data=None,
                                   max_source_length=max_source_length,
                                   max_target_length=max_target_length,
-                                  article_question_NE_overlap=NE_overlap)
+                                  article_question_NE_overlap=NE_overlap,
+                                  NE_data_dir=out_dir)
     ## save raw data to file
     out_file_name = os.path.join(out_dir, f'{data_name}_question_data.tsv')
     article_data.to_csv(out_file_name, sep='\t', index=False)

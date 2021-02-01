@@ -116,6 +116,7 @@ def main():
     model_type_tokenizer_lookup = {
         'bart' : 'BART',
         'longformer': 'LongFormer',
+        'bart_copy' : 'BART',
     }
     data_dir = os.path.dirname(train_data_file)
     tokenizer_name = model_type_tokenizer_lookup[model_type]
@@ -128,13 +129,18 @@ def main():
     # tokenizer = torch.load('../../data/CNN_articles/cnn/BART_tokenizer.pt')
     model_type_path_lookup = {
         'bart' : 'facebook/bart-base',
-        'longformer' : 'allenai/led-base-16384'
+        'longformer' : 'allenai/led-base-16384',
+        'bart_copy' : 'facebook/bart-base',
     }
-    model_path = model_type_path_lookup[model_type]
-    model = AutoModelForSeq2SeqLM.from_pretrained(
-        model_path,
-        cache_dir=model_cache_dir,
-    )
+    if (model_type == 'bart_copy'):
+        ## custom loading
+        pass
+    else:
+        model_path = model_type_path_lookup[model_type]
+        model = AutoModelForSeq2SeqLM.from_pretrained(
+            model_path,
+            cache_dir=model_cache_dir,
+        )
     if(pretrained_model is not None):
         pretrained_model_weights = torch.load(pretrained_model)
         model.load_state_dict(pretrained_model_weights)
@@ -171,7 +177,7 @@ def main():
     }
     # tmp debugging
     # print(f'training device {training_args.device}')
-    ## TODO: prevent model from saving optimizer during every 500 training steps!!
+    ## TODO: prevent model from saving optimizer after every 500 training steps!!
     trainer = Trainer(
         model=model,
         args=training_args,
