@@ -127,6 +127,8 @@ def main():
     parser.add_argument('--NE_overlap', type=bool, default=False)
     args = vars(parser.parse_args())
     out_dir = args['out_dir']
+    if(not os.path.exists(out_dir)):
+        os.mkdir(out_dir)
     logging.basicConfig(filename=os.path.join(out_dir, 'clean_data_generation_log.txt'), filemode='w', format='%(asctime)-15s %(message)s', level=logging.DEBUG)
     ## load raw data
     data_dir = args['data_dir']
@@ -188,14 +190,16 @@ def main():
                               max_target_length=max_target_length,
                               article_question_NE_overlap=NE_overlap,
                               NE_data_dir=out_dir)
-        # if we include author data: also generate "clean" no-author data for comparison
-        if(author_data is not None):
-            clean_out_dir = os.path.join(out_dir, 'no_author_data/')
-            if(not os.path.exists(clean_out_dir)):
-                os.mkdir(clean_out_dir)
+    # if we include author data: also generate "clean" no-author data for comparison
+    if(author_data is not None):
+        no_author_out_dir = os.path.join(out_dir, 'no_author_data/')
+        if(not os.path.exists(no_author_out_dir)):
+            os.mkdir(no_author_out_dir)
+        no_author_train_data_file = os.path.join(no_author_out_dir, f'{data_name}_train_data.pt')
+        if(not os.path.exists(no_author_train_data_file)):
             # need clean tokenizer
             tokenizer = tokenizer_class.from_pretrained(tokenizer_name)
-            prepare_question_data(article_data, clean_out_dir, data_name,
+            prepare_question_data(article_data, no_author_out_dir, data_name,
                                   tokenizer=tokenizer, train_pct=train_pct,
                                   author_data=None,
                                   max_source_length=max_source_length,

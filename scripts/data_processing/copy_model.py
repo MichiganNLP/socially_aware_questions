@@ -605,4 +605,3 @@ class CopyGenerationModel(BartForConditionalGeneration):
             encoder_hidden_states=outputs.encoder_hidden_states,
             encoder_attentions=outputs.encoder_attentions,
         )
-        pass

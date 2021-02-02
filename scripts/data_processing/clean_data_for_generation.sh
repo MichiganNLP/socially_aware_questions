@@ -1,9 +1,9 @@
 ## NYT data
 DATA_DIR=../../data/NYT_scrape/
-DATA_NAME=NYT_long_input
+DATA_NAME=NYT_full_long_input
 COMMENT_DIR=../../data/nyt_comments/
-COMMENT_MONTH_YEAR_PAIRS=('April_2018')
-OUT_DIR=../../data/nyt_comments/
+COMMENT_MONTH_YEAR_PAIRS=('Jan_2018' 'Feb_2018' 'March_2018' 'April_2018')
+OUT_DIR=../../data/nyt_comments/full_data/
 AUTHOR_DATA=../../data/nyt_comments/author_comment_social_data.tsv
 ## CNN data
 #DATA_FILE=../../data/CNN_articles/cnn/article_question_data.tsv
@@ -11,7 +11,7 @@ AUTHOR_DATA=../../data/nyt_comments/author_comment_social_data.tsv
 #OUT_DIR=../../data/CNN_articles/cnn/
 #MODEL_TYPE=bart
 MODEL_TYPE=longformer
-# enforce named entity overlap between article and question
+# enforce named entity overlap between article and question (>=1 NE overlap per question/article)
 NE_overlap=True
 SAMPLE_PCT=1.0
 # sampling for long data

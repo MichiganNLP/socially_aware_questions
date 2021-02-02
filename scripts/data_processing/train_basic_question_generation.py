@@ -3,7 +3,7 @@ Train basic question generation on top of
 pre-trained language models (e.g. BART).
 """
 import numpy as np
-import pandas as pd
+# import pandas as pd
 import torch
 import sys
 if ('question_generation' not in sys.path):
