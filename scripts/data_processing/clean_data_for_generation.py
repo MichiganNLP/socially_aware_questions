@@ -5,6 +5,8 @@ We expect the format:
 article ID | article text | question text
 """
 import os
+# need GPU to extract NEs from comments/articles
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import re
 from argparse import ArgumentParser
 import pandas as pd
@@ -14,6 +16,7 @@ import numpy as np
 from data_helpers import prepare_question_data
 from transformers import BartTokenizer, LongformerTokenizer
 from datetime import datetime
+import logging
 
 def load_all_articles(data_dir, data_name):
     article_files = list(map(lambda x: os.path.join(data_dir, x), os.listdir(data_dir)))
@@ -66,6 +69,8 @@ def load_all_comment_questions(comment_dir, comment_month_years=[('April', '2018
         comment_data_i = pd.read_csv(comment_file_i, sep=',', index_col=False, usecols=['articleID', 'createDate', 'commentBody', 'commentType', 'parentID', 'userLocation', 'userID', 'userDisplayName'])
         comment_data.append(comment_data_i)
     comment_data = pd.concat(comment_data, axis=0)
+    # tmp debugging
+    print(f'pre-processing: loaded {comment_data.shape[0]} comments total from {len(comment_month_years)} month year pairs')
     # remove duplicates? OK
     comment_data.drop_duplicates(['articleID', 'commentBody'], inplace=True)
     # clean comment text
@@ -121,8 +126,12 @@ def main():
     parser.add_argument('--sample_pct', type=float, default=1.0)
     parser.add_argument('--author_data', default=None)
     parser.add_argument('--model_type', default='bart')
+    parser.add_argument('--NE_overlap', type=bool, default=False)
     args = vars(parser.parse_args())
-
+    out_dir = args['out_dir']
+    if(not os.path.exists(out_dir)):
+        os.mkdir(out_dir)
+    logging.basicConfig(filename=os.path.join(out_dir, 'clean_data_generation_log.txt'), filemode='w', format='%(asctime)-15s %(message)s', level=logging.DEBUG)
     ## load raw data
     data_dir = args['data_dir']
     data_name = args['data_name']
@@ -136,7 +145,11 @@ def main():
     if(args.get('comment_dir') is not None):
         comment_dir = args['comment_dir']
         comment_month_year_pairs = list(map(lambda x: x.split('_'), args['comment_month_year_pairs']))
+        # tmp debugging
+        print(f'month year pairs {comment_month_year_pairs}')
         question_data = load_all_comment_questions(comment_dir, comment_month_year_pairs)
+        # tmp debugging
+        print(f'loaded {question_data} questions total from {len(comment_month_year_pairs)} month year pairs')
         article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
     print(f'loaded {article_data.shape[0]} data')
 
@@ -155,7 +168,9 @@ def main():
         author_data = author_data.assign(**{
             'date_day': author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, date_day_fmt))
         })
-    out_dir = args['out_dir']
+    NE_overlap = args['NE_overlap']
+    if (NE_overlap):
+        data_name = f'NE_overlap_{data_name}'
     train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
     model_type = args['model_type']
     tokenizer_lookup = {
@@ -179,26 +194,28 @@ def main():
                               tokenizer=tokenizer, train_pct=train_pct,
                               author_data=author_data,
                               max_source_length=max_source_length,
-                              max_target_length=max_target_length)
-        # if we include author data: also generate "clean" no-author data for comparison
-        if(author_data is not None):
-            clean_out_dir = os.path.join(out_dir, 'no_author_data/')
-            if(not os.path.exists(clean_out_dir)):
-                os.mkdir(clean_out_dir)
+                              max_target_length=max_target_length,
+                              article_question_NE_overlap=NE_overlap,
+                              NE_data_dir=out_dir)
+    # if we include author data: also generate "clean" no-author data for comparison
+    if(author_data is not None):
+        no_author_out_dir = os.path.join(out_dir, 'no_author_data/')
+        if(not os.path.exists(no_author_out_dir)):
+            os.mkdir(no_author_out_dir)
+        no_author_train_data_file = os.path.join(no_author_out_dir, f'{data_name}_train_data.pt')
+        if(not os.path.exists(no_author_train_data_file)):
             # need clean tokenizer
             tokenizer = tokenizer_class.from_pretrained(tokenizer_name)
-            prepare_question_data(article_data, clean_out_dir, data_name,
+            prepare_question_data(article_data, no_author_out_dir, data_name,
                                   tokenizer=tokenizer, train_pct=train_pct,
                                   author_data=None,
                                   max_source_length=max_source_length,
-                                  max_target_length=max_target_length)
-    print('finished processing train/test data')
+                                  max_target_length=max_target_length,
+                                  article_question_NE_overlap=NE_overlap,
+                                  NE_data_dir=out_dir)
     ## save raw data to file
     out_file_name = os.path.join(out_dir, f'{data_name}_question_data.tsv')
     article_data.to_csv(out_file_name, sep='\t', index=False)
-    # split train/test
-    # train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
-    # val_data_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
 
 if __name__ == '__main__':
     main()

@@ -3,7 +3,7 @@ Train basic question generation on top of
 pre-trained language models (e.g. BART).
 """
 import numpy as np
-import pandas as pd
+# import pandas as pd
 import torch
 import sys
 if ('question_generation' not in sys.path):
@@ -14,12 +14,11 @@ import os
 # tmp debugging
 from trainer import Trainer
 from data_helpers import DataArguments
-from datetime import datetime
 from argparse import ArgumentParser
 np.random.seed(123)
 torch.manual_seed(123)
 
-def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, max_source_len, max_target_len):
+def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, max_source_len, max_target_len, model_type='bart'):
     training_args = DataArguments(model_out_dir)
     training_args.train_file_path = train_data_file
     training_args.valid_file_path = val_data_file
@@ -33,7 +32,11 @@ def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, m
     training_args.disable_tqdm = False
     training_args.local_rank = -1 # something with parallelization
     training_args.output_dir = model_out_dir
-    training_args.num_train_epochs = 5 # 5 = longformer, 20 = BART
+    model_type_train_epoch_lookup = {
+        'longformer' : 5,
+        'bart' : 20,
+    }
+    training_args.num_train_epochs = model_type_train_epoch_lookup[model_type]
     # training_args.max_steps = 1
     training_args.fp16 = False
     training_args.label_names = None
@@ -117,6 +120,7 @@ def main():
     model_type_tokenizer_lookup = {
         'bart' : 'BART',
         'longformer': 'LongFormer',
+        'bart_copy' : 'BART',
     }
     data_dir = os.path.dirname(train_data_file)
     tokenizer_name = model_type_tokenizer_lookup[model_type]
@@ -129,13 +133,18 @@ def main():
     # tokenizer = torch.load('../../data/CNN_articles/cnn/BART_tokenizer.pt')
     model_type_path_lookup = {
         'bart' : 'facebook/bart-base',
-        'longformer' : 'allenai/led-base-16384'
+        'longformer' : 'allenai/led-base-16384',
+        'bart_copy' : 'facebook/bart-base',
     }
-    model_path = model_type_path_lookup[model_type]
-    model = AutoModelForSeq2SeqLM.from_pretrained(
-        model_path,
-        cache_dir=model_cache_dir,
-    )
+    if (model_type == 'bart_copy'):
+        ## custom loading
+        pass
+    else:
+        model_path = model_type_path_lookup[model_type]
+        model = AutoModelForSeq2SeqLM.from_pretrained(
+            model_path,
+            cache_dir=model_cache_dir,
+        )
     if(pretrained_model is not None):
         pretrained_model_weights = torch.load(pretrained_model)
         model.load_state_dict(pretrained_model_weights)
@@ -166,13 +175,13 @@ def main():
     if (not os.path.exists(model_out_dir)):
         os.mkdir(model_out_dir)
 
-    training_args = load_training_args(model_out_dir, train_data_file, model_out_dir, val_data_file, max_source_len, max_target_len)
+    training_args = load_training_args(model_out_dir, train_data_file, model_out_dir, val_data_file, max_source_len, max_target_len, model_type=model_type)
     model_args = {
         'label_smoothing': 0,
     }
     # tmp debugging
     # print(f'training device {training_args.device}')
-    ## TODO: prevent model from saving optimizer during every 500 training steps!!
+    ## TODO: prevent model from saving optimizer after every 500 training steps!!
     trainer = Trainer(
         model=model,
         args=training_args,
