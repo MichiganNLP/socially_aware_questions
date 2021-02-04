@@ -515,6 +515,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     clean_data_train_out_file = os.path.join(out_dir, f'{data_name}_train_data.csv')
     clean_data_val_out_file = os.path.join(out_dir, f'{data_name}_val_data.csv')
     # tmp debugging
+    # every time we write file, we have to re-download csv loader? yikes
     if(not os.path.exists(clean_data_train_out_file)):
         clean_data_train.to_csv(clean_data_train_out_file, sep=',', index=False)
         clean_data_val.to_csv(clean_data_val_out_file, sep=',', index=False)

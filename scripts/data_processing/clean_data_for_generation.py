@@ -151,6 +151,7 @@ def main():
         # tmp debugging
         print(f'loaded {question_data} questions total from {len(comment_month_year_pairs)} month year pairs')
         article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
+    print(f'loaded {article_data.shape[0]} data')
 
     ## prepare data for training
     sample_pct = args['sample_pct']
@@ -179,9 +180,9 @@ def main():
     tokenizer_class, tokenizer_name = tokenizer_lookup[model_type]
     max_len_lookup = {
         'bart' : (1024, 64),
-        'longformer' : (3072, 128), # 4096 => memory overload in training
-        # 'longformer': (4096, 128),  # ONLY for big GPU server
-    }
+        #'longformer' : (3072, 128), # 4028 => max out memory in training
+        'longformer' : (4096, 128), # 4028 => max out memory in training
+	}
     max_source_length, max_target_length = max_len_lookup[model_type]
     if (not os.path.exists(train_data_file)):
         if(author_data is not None):

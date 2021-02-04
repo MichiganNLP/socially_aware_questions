@@ -1,3 +1,14 @@
+#!/bin/bash
+#SBATCH --job-name=evaluate_question_generation
+#SBATCH --mail-type=BEGIN,END
+#SBATCH --output=/home/%u/logs/%x-%j.log
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --mem-per-gpu=10g
+#SBATCH --time=1:00:00
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+
 # evaluate question generation based on test data, repetition, and copying training data
 ## model
 ## CNN training
@@ -5,8 +16,13 @@
 #OUT_DIR=../../data/CNN_articles/cnn/
 #OUT_DIR=../../data/CNN_articles/cnn/NYT_eval/
 # long data
+<<<<<<< HEAD
+MODEL_FILE=../../data/CNN_articles/cnn/longformer_model/question_generation_model/checkpoint-60000/pytorch_model.bin
+OUT_DIR=../../data/CNN_articles/cnn/longformer_model/
+=======
 #MODEL_FILE=../../data/CNN_articles/cnn/longformer_model/question_generation_model/checkpoint-60000/pytorch_model.bin
 #OUT_DIR=../../data/CNN_articles/cnn/NYT_eval/longformer_model/
+>>>>>>> 25c0b93620e840931505c3ce059ce89b8d70a5d9
 ## NYT training
 # w/out author
 #MODEL_FILE=../../data/nyt_comments/question_generation_model/checkpoint-96000/pytorch_model.bin
@@ -40,8 +56,8 @@ MODEL_TYPE='longformer'
 #TRAIN_DATA=../../data/CNN_articles/cnn/article_question_generation_train_data.pt
 #TEST_DATA=../../data/CNN_articles/cnn/article_question_generation_val_data.pt
 # long data
-#TRAIN_DATA=../../data/CNN_articles/cnn/CNN_long_train_data.pt
-#TEST_DATA=../../data/CNN_articles/cnn/CNN_long_val_data.pt
+TRAIN_DATA=../../data/CNN_articles/cnn/CNN_long_train_data.pt
+TEST_DATA=../../data/CNN_articles/cnn/CNN_long_val_data.pt
 ### NYT data
 # w/out author
 #TRAIN_DATA=../../data/nyt_comments/no_author_data/NYT_train_data.pt
