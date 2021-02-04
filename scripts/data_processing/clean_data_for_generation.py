@@ -138,6 +138,7 @@ def main():
         comment_month_year_pairs = list(map(lambda x: x.split('_'), args['comment_month_year_pairs']))
         question_data = load_all_comment_questions(comment_dir, comment_month_year_pairs)
         article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
+    print(f'loaded {article_data.shape[0]} data')
 
     ## prepare data for training
     sample_pct = args['sample_pct']
@@ -164,8 +165,9 @@ def main():
     tokenizer_class, tokenizer_name = tokenizer_lookup[model_type]
     max_len_lookup = {
         'bart' : (1024, 64),
-        'longformer' : (3072, 128), # 4028 => max out memory in training
-    }
+        #'longformer' : (3072, 128), # 4028 => max out memory in training
+        'longformer' : (4096, 128), # 4028 => max out memory in training
+	}
     max_source_length, max_target_length = max_len_lookup[model_type]
     if (not os.path.exists(train_data_file)):
         if(author_data is not None):
@@ -190,6 +192,7 @@ def main():
                                   author_data=None,
                                   max_source_length=max_source_length,
                                   max_target_length=max_target_length)
+    print('finished processing train/test data')
     ## save raw data to file
     out_file_name = os.path.join(out_dir, f'{data_name}_question_data.tsv')
     article_data.to_csv(out_file_name, sep='\t', index=False)

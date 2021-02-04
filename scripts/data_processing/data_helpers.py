@@ -424,8 +424,11 @@ def prepare_question_data(data, out_dir, data_name, tokenizer, author_data=None,
     # clean_data_val = clean_data.iloc[N_train:, :]
     clean_data_train_out_file = os.path.join(out_dir, f'{data_name}_train_data.csv')
     clean_data_val_out_file = os.path.join(out_dir, f'{data_name}_val_data.csv')
-    clean_data_train.to_csv(clean_data_train_out_file, sep=',', index=False)
-    clean_data_val.to_csv(clean_data_val_out_file, sep=',', index=False)
+    # tmp debugging
+    # every time we write file, we have to re-download csv loader? yikes
+    if(not os.path.exists(clean_data_train_out_file)):
+        clean_data_train.to_csv(clean_data_train_out_file, sep=',', index=False)
+        clean_data_val.to_csv(clean_data_val_out_file, sep=',', index=False)
     # reload data into correct format lol
     train_data_set = nlp.load_dataset('csv', data_files=clean_data_train_out_file)
     val_data_set = nlp.load_dataset('csv', data_files=clean_data_val_out_file)
