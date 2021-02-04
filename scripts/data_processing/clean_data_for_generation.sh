@@ -17,6 +17,6 @@ SAMPLE_PCT=1.0
 # sampling for long data
 #SAMPLE_PCT=0.25
 # NYT
-python clean_data_for_generation.py $OUT_DIR --data_dir $DATA_DIR --data_name $DATA_NAME --comment_dir $COMMENT_DIR --comment_month_year_pairs $COMMENT_MONTH_YEAR_PAIRS --author_data $AUTHOR_DATA --model_type $MODEL_TYPE --sample_pct $SAMPLE_PCT --NE_overlap $NE_overlap
+python clean_data_for_generation.py $OUT_DIR --data_dir $DATA_DIR --data_name $DATA_NAME --comment_dir $COMMENT_DIR --comment_month_year_pairs "${COMMENT_MONTH_YEAR_PAIRS[@]}" --author_data $AUTHOR_DATA --model_type $MODEL_TYPE --sample_pct $SAMPLE_PCT --NE_overlap $NE_overlap
 # CNN
 #python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE

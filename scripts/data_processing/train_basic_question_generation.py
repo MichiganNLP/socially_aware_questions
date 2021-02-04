@@ -18,7 +18,7 @@ from argparse import ArgumentParser
 np.random.seed(123)
 torch.manual_seed(123)
 
-def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, max_source_len, max_target_len):
+def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, max_source_len, max_target_len, model_type='bart'):
     training_args = DataArguments(model_out_dir)
     training_args.train_file_path = train_data_file
     training_args.valid_file_path = val_data_file
@@ -32,7 +32,11 @@ def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, m
     training_args.disable_tqdm = False
     training_args.local_rank = -1 # something with parallelization
     training_args.output_dir = model_out_dir
-    training_args.num_train_epochs = 5 # 5 = longformer, 20 = BART
+    model_type_train_epoch_lookup = {
+        'longformer' : 5,
+        'bart' : 20,
+    }
+    training_args.num_train_epochs = model_type_train_epoch_lookup[model_type]
     # training_args.max_steps = 1
     training_args.fp16 = False
     training_args.label_names = None
@@ -171,7 +175,7 @@ def main():
     if (not os.path.exists(model_out_dir)):
         os.mkdir(model_out_dir)
 
-    training_args = load_training_args(model_out_dir, train_data_file, model_out_dir, val_data_file, max_source_len, max_target_len)
+    training_args = load_training_args(model_out_dir, train_data_file, model_out_dir, val_data_file, max_source_len, max_target_len, model_type=model_type)
     model_args = {
         'label_smoothing': 0,
     }

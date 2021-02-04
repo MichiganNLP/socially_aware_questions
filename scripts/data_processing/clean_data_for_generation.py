@@ -69,6 +69,8 @@ def load_all_comment_questions(comment_dir, comment_month_years=[('April', '2018
         comment_data_i = pd.read_csv(comment_file_i, sep=',', index_col=False, usecols=['articleID', 'createDate', 'commentBody', 'commentType', 'parentID', 'userLocation', 'userID', 'userDisplayName'])
         comment_data.append(comment_data_i)
     comment_data = pd.concat(comment_data, axis=0)
+    # tmp debugging
+    print(f'pre-processing: loaded {comment_data.shape[0]} comments total from {len(comment_month_years)} month year pairs')
     # remove duplicates? OK
     comment_data.drop_duplicates(['articleID', 'commentBody'], inplace=True)
     # clean comment text
@@ -143,7 +145,11 @@ def main():
     if(args.get('comment_dir') is not None):
         comment_dir = args['comment_dir']
         comment_month_year_pairs = list(map(lambda x: x.split('_'), args['comment_month_year_pairs']))
+        # tmp debugging
+        print(f'month year pairs {comment_month_year_pairs}')
         question_data = load_all_comment_questions(comment_dir, comment_month_year_pairs)
+        # tmp debugging
+        print(f'loaded {question_data} questions total from {len(comment_month_year_pairs)} month year pairs')
         article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
 
     ## prepare data for training
