@@ -515,7 +515,6 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     clean_data_train_out_file = os.path.join(out_dir, f'{data_name}_train_data.csv')
     clean_data_val_out_file = os.path.join(out_dir, f'{data_name}_val_data.csv')
     # tmp debugging
-    # every time we write file, we have to re-download csv loader? yikes
     if(not os.path.exists(clean_data_train_out_file)):
         clean_data_train.to_csv(clean_data_train_out_file, sep=',', index=False)
         clean_data_val.to_csv(clean_data_val_out_file, sep=',', index=False)
@@ -570,3 +569,71 @@ def convert_ids_to_clean_str(token_ids, tokenizer):
     token_str = tokenizer.convert_tokens_to_string(tokens)
     token_str = token_str.strip() # remove extra white space
     return token_str
+
+## author identification
+
+# age
+AGE_MATCHER = re.compile('.*?(i am|i\'m) (\\d+) (years|yrs|yr) old[^e].*?') # stolen from here https://github.com/cfwelch/compositional_demographic_embeddings/blob/master/compose/find_self_statements.py
+def extract_age(text, age_matcher=None, age_err_cutoff=5):
+    combined_text = ' '.join(text).lower()
+    if(age_matcher is None):
+        age_matcher = AGE_MATCHER
+    age_match = age_matcher.findall(combined_text)
+    approx_age = -1
+    if(len(age_match) > 0):
+        ages = list(map(lambda x: int(x), age_match))
+        # if ages have larger STD than expected, ignore
+        age_std = np.std(ages)
+        if(age_std < age_err_cutoff):
+            approx_age = int(np.mean(ages))
+    return approx_age
+
+# location
+def extract_NE_locations(text, location_matcher, sent_tokenizer, ner_pipeline, valid_NE_types={'GPE'}):
+    locations = []
+    for text_i in text:
+        sents = sent_tokenizer.tokenize(text_i)
+        for sent_j in sents:
+            location_match_j = location_matcher.findall(sent_j)
+            if(len(location_match_j) > 0):
+                NE_j = extract_all_named_entities(sent_j, ner_pipeline, valid_NE_types=valid_NE_types)
+                NE_j = list(map(lambda x: x.replace('_', ' '), NE_j))
+                # look for overlaps
+                valid_location_match_j = []
+                for location_match_k in location_match_j:
+                    NE_matches_k = list(filter(lambda x: x in location_match_k, NE_j))
+                    valid_location_match_j.extend(NE_matches_k)
+                if(len(valid_location_match_j) > 0):
+                    locations.extend(valid_location_match_j)
+    return locations
+import geocoder
+def estimate_locations(text_locations):
+    ## TODO: keep full location for e.g. state comparison?
+    location_estimates = list(map(lambda x: geocoder.osm(x, method='geocode'), text_locations))
+    # get countries for valid estimates
+    location_countries = []
+    for location_estimate_i in location_estimates:
+        if(location_estimate_i.geojson is not None and len(location_estimate_i.geojson['features']) > 0):
+            location_country = location_estimate_i.geojson['features'][0]['properties']['country_code']
+            location_countries.append(location_country)
+    return location_countries
+def estimate_country(locations, location_pct_cutoff=0.5):
+    location_country_est = 'UNK'
+    country_counts = pd.Series(locations).value_counts() / len(locations)
+    country_counts.sort_values(inplace=True, ascending=False)
+    # get max country
+    max_country_count = country_counts.iloc[0]
+    if(max_country_count >= location_pct_cutoff):
+        location_country_est = country_counts.index[0]
+    return location_country_est
+def full_location_pipeline(text, location_matcher,
+                           word_tokenizer, sent_tokenizer,
+                           ner_pipeline,
+                           valid_NE_types={'GPE'},
+                           location_pct_cutoff=0.5):
+    locations = extract_NE_locations(text, location_matcher, word_tokenizer, sent_tokenizer, ner_pipeline, valid_NE_types=valid_NE_types)
+    location_country_est = 'UNK'
+    if(len(locations) > 0):
+        location_countries = estimate_locations(locations)
+        location_country_est = estimate_country(location_countries, location_pct_cutoff=location_pct_cutoff)
+    return location_country_est
