@@ -18,6 +18,9 @@ from stanza import Pipeline
 from nltk.translate.bleu_score import sentence_bleu
 from datetime import datetime
 import nlp
+from nltk.tokenize import WordPunctTokenizer
+from stop_words import get_stop_words
+from gensim.corpora.dictionary import Dictionary
 
 def assign_label_by_cutoff_pct(data, label_var='gender', min_pct=0.75):
     """
@@ -574,14 +577,19 @@ def convert_ids_to_clean_str(token_ids, tokenizer):
 
 # age
 AGE_MATCHER = re.compile('.*?(i am|i\'m) (\\d+) (years|yrs|yr) old[^e].*?') # stolen from here https://github.com/cfwelch/compositional_demographic_embeddings/blob/master/compose/find_self_statements.py
+NUM_MATCHER = re.compile('\d+')
 def extract_age(text, age_matcher=None, age_err_cutoff=5):
     combined_text = ' '.join(text).lower()
     if(age_matcher is None):
         age_matcher = AGE_MATCHER
     age_match = age_matcher.findall(combined_text)
+    age_match = [y for x in age_match for y in x if NUM_MATCHER.match(y)]
     approx_age = -1
     if(len(age_match) > 0):
-        ages = list(map(lambda x: int(x), age_match))
+        # tmp debugging
+        # print(f'age match = {age_match}')
+        # print('blah')
+        ages = list(map(lambda x: int(NUM_MATCHER.search(x).group(0)), age_match))
         # if ages have larger STD than expected, ignore
         age_std = np.std(ages)
         if(age_std < age_err_cutoff):
@@ -594,10 +602,10 @@ def extract_NE_locations(text, location_matcher, sent_tokenizer, ner_pipeline, v
     for text_i in text:
         sents = sent_tokenizer.tokenize(text_i)
         for sent_j in sents:
-            location_match_j = location_matcher.findall(sent_j)
+            location_match_j = location_matcher.findall(sent_j.lower())
             if(len(location_match_j) > 0):
                 NE_j = extract_all_named_entities(sent_j, ner_pipeline, valid_NE_types=valid_NE_types)
-                NE_j = list(map(lambda x: x.replace('_', ' '), NE_j))
+                NE_j = list(map(lambda x: x.replace('_', ' ').lower(), NE_j))
                 # look for overlaps
                 valid_location_match_j = []
                 for location_match_k in location_match_j:
@@ -627,13 +635,48 @@ def estimate_country(locations, location_pct_cutoff=0.5):
         location_country_est = country_counts.index[0]
     return location_country_est
 def full_location_pipeline(text, location_matcher,
-                           word_tokenizer, sent_tokenizer,
+                           sent_tokenizer,
                            ner_pipeline,
                            valid_NE_types={'GPE'},
                            location_pct_cutoff=0.5):
-    locations = extract_NE_locations(text, location_matcher, word_tokenizer, sent_tokenizer, ner_pipeline, valid_NE_types=valid_NE_types)
+    locations = extract_NE_locations(text, location_matcher, sent_tokenizer, ner_pipeline, valid_NE_types=valid_NE_types)
     location_country_est = 'UNK'
     if(len(locations) > 0):
         location_countries = estimate_locations(locations)
         location_country_est = estimate_country(location_countries, location_pct_cutoff=location_pct_cutoff)
     return location_country_est
+
+## topic modeling
+PUNCT = list(',.?!;:"\'-’')
+def convert_docs_to_corpus(docs, doc_dict=None):
+    """
+    Convert raw text to corpus for LDA.
+
+    :param docs:
+    :param doc_dict:
+    :return:
+    """
+    word_tokenizer = WordPunctTokenizer()
+    doc_tokens = list(map(lambda x: word_tokenizer.tokenize(x.lower()), docs))
+    # remove stop words
+    en_stops = set(get_stop_words('en') + PUNCT)
+    doc_tokens = list(map(lambda x: list(filter(lambda y: y not in en_stops, x)), doc_tokens))
+    if(doc_dict is None):
+        doc_dict = Dictionary(doc_tokens)
+    doc_corpus = list(map(lambda x: doc_dict.doc2bow(x), doc_tokens))
+    return doc_dict, doc_corpus
+def convert_docs_to_topics(docs, doc_dict, model):
+    """
+    Convert documents to topic distribution.
+
+    :param docs:
+    :param doc_dict:
+    :param model:
+    :return:
+    """
+    doc_dict, doc_corpus = convert_docs_to_corpus(docs, doc_dict=doc_dict)
+    # get topics
+    doc_topics = list(map(lambda x: pd.Series(list(zip(*x))[1], index=list(zip(*x))[0]),
+                          model.get_document_topics(doc_corpus, minimum_probability=0.)))
+    doc_topics = pd.concat(doc_topics, axis=1).transpose()
+    return doc_topics
