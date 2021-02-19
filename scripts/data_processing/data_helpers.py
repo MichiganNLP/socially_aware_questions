@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 import re
 import os
+
+import requests
 from transformers.training_args import TrainingArguments
 from transformers import BartTokenizer, LongformerTokenizer
 from dataclasses import field
@@ -18,9 +20,10 @@ from stanza import Pipeline
 from nltk.translate.bleu_score import sentence_bleu
 from datetime import datetime
 import nlp
-from nltk.tokenize import WordPunctTokenizer
+from nltk.tokenize import WordPunctTokenizer, PunktSentenceTokenizer
 from stop_words import get_stop_words
 from gensim.corpora.dictionary import Dictionary
+from time import sleep
 
 def assign_label_by_cutoff_pct(data, label_var='gender', min_pct=0.75):
     """
@@ -360,6 +363,18 @@ def extract_questions(text, word_tokenizer, sent_tokenizer, question_matcher, mi
             questions.append(sent_i)
     return questions
 
+def extract_questions_all_data(data, min_question_len=5):
+    """
+    Extract all questions from data.
+
+    :param data:
+    :return:
+    """
+    word_tokenizer = WordPunctTokenizer()
+    sent_tokenizer = PunktSentenceTokenizer()
+    question_matcher = re.compile('.+\?$')
+    questions = list(map(lambda x: extract_questions(x, word_tokenizer, sent_tokenizer, question_matcher, min_question_len=min_question_len), data))
+    return questions
 
 def prepare_question_data(data, out_dir, data_name, tokenizer,
                           author_data=None, train_pct=0.8,
@@ -680,3 +695,71 @@ def convert_docs_to_topics(docs, doc_dict, model):
                           model.get_document_topics(doc_corpus, minimum_probability=0.)))
     doc_topics = pd.concat(doc_topics, axis=1).transpose()
     return doc_topics
+
+## twitter API mess
+def create_headers(bearer_token):
+    headers = {"Authorization": "Bearer {}".format(bearer_token)}
+    return headers
+SLEEP_TIME=300 # sleep time between requests = 5 min
+def connect_to_endpoint(search_url, headers, params):
+    """
+    Connect to
+
+    :param url:
+    :param headers:
+    :param params:
+    :return:
+    """
+    success = False
+    while(not success):
+        response = requests.request("GET", search_url, headers=headers, params=params)
+    #     print(response.status_code)
+        # rate-limit => sleep to recover
+        if(response.status_code == 429):
+            print(f'sleeping for {SLEEP_TIME} because rate limit error {response}')
+            sleep(SLEEP_TIME)
+        elif(response.status_code != 200):
+            raise Exception(response.status_code, response.text)
+        else:
+            success = True
+    return response.json()
+
+def collect_all_tweets(search_url, headers, query_params, verbose=False, max_tweets=0):
+    """
+    Collect all tweets based on search query.
+
+    :param search_url:
+    :param headers:
+    :param query_params:
+    :return:
+    """
+    combined_tweets = []
+    has_next_page = True
+    max_tweets_reached = False
+    ctr = 0
+    while(has_next_page and not max_tweets_reached):
+        json_response = connect_to_endpoint(search_url, headers, query_params)
+        if('data' in json_response):
+            response_data = json_response['data']
+            # if(verbose):
+            #     print(f'response data = {response_data}')
+            response_data = pd.DataFrame(response_data)
+            # optional: add user information
+            if('includes' in json_response):
+                if('users' in json_response['includes']):
+                    user_data = pd.DataFrame(json_response['includes']['users'])
+                    user_data.rename(columns={'id' : 'author_id'}, inplace=True)
+                    response_data = pd.merge(response_data, user_data, on='author_id')
+            combined_tweets.append(response_data)
+        has_next_page = ('meta' in json_response) and ('next_token' in json_response['meta'])
+        if(has_next_page):
+            query_params['next_token'] = json_response['meta']['next_token']
+        ctr += 1
+        if(verbose and ctr % 10 == 0):
+            print(f'collected {len(combined_tweets)} total')
+        # end early if we hit max tweets
+        if(max_tweets > 0):
+            max_tweets_reached = len(combined_tweets) >= max_tweets
+    if(len(combined_tweets) > 0):
+        combined_tweets = pd.concat(combined_tweets, axis=0)
+    return combined_tweets
