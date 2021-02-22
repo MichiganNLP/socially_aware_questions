@@ -5,4 +5,6 @@ scripts/data_processing/question_generation/
 scripts/data_processing/.ipynb_checkpoints/
 scripts/data_processing/*.log
 scripts/data_processing/runs/
+scripts/data_processing/debug_training.py
+scripts/data_processing/pointer-generator/
 scripts/*/__pycache__/

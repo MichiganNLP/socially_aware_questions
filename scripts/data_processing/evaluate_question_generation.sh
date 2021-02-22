@@ -1,3 +1,14 @@
+#!/bin/bash
+#SBATCH --job-name=evaluate_question_generation
+#SBATCH --mail-type=BEGIN,END
+#SBATCH --output=/home/%u/logs/%x-%j.log
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --mem-per-gpu=10g
+#SBATCH --time=1:00:00
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+
 # evaluate question generation based on test data, repetition, and copying training data
 ## model
 ## CNN training
@@ -7,7 +18,9 @@
 # long data
 #MODEL_FILE=../../data/CNN_articles/cnn/longformer_model/question_generation_model/checkpoint-60000/pytorch_model.bin
 #OUT_DIR=../../data/CNN_articles/cnn/NYT_eval/longformer_model/
-## NYT training
+MODEL_FILE=../../data/CNN_articles/cnn/longformer_model/question_generation_model/checkpoint-60000/pytorch_model.bin
+OUT_DIR=../../data/CNN_articles/cnn/longformer_model/
+# NYT training
 # w/out author
 #MODEL_FILE=../../data/nyt_comments/question_generation_model/checkpoint-96000/pytorch_model.bin
 #OUT_DIR=../../data/nyt_comments/no_author_data/
@@ -40,8 +53,8 @@ MODEL_TYPE='longformer'
 #TRAIN_DATA=../../data/CNN_articles/cnn/article_question_generation_train_data.pt
 #TEST_DATA=../../data/CNN_articles/cnn/article_question_generation_val_data.pt
 # long data
-#TRAIN_DATA=../../data/CNN_articles/cnn/CNN_long_train_data.pt
-#TEST_DATA=../../data/CNN_articles/cnn/CNN_long_val_data.pt
+TRAIN_DATA=../../data/CNN_articles/cnn/CNN_long_train_data.pt
+TEST_DATA=../../data/CNN_articles/cnn/CNN_long_val_data.pt
 ### NYT data
 # w/out author
 #TRAIN_DATA=../../data/nyt_comments/no_author_data/NYT_train_data.pt
@@ -61,7 +74,6 @@ MODEL_TYPE='longformer'
 # NE overlap w/out author
 TRAIN_DATA=../../data/nyt_comments/no_author_data/NE_overlap_NYT_long_input_train_data.pt
 TEST_DATA=../../data/nyt_comments/no_author_data/NE_overlap_NYT_long_input_val_data.pt
-  
 #DEVICE_NAME='cuda:2'
 export CUDA_VISIBLE_DEVICES="1"
 python evaluate_question_generation.py $MODEL_FILE $OUT_DIR $TRAIN_DATA $TEST_DATA --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR

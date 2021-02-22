@@ -151,6 +151,7 @@ def main():
         # tmp debugging
         print(f'loaded {question_data} questions total from {len(comment_month_year_pairs)} month year pairs')
         article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
+    print(f'loaded {article_data.shape[0]} data')
 
     ## prepare data for training
     sample_pct = args['sample_pct']
