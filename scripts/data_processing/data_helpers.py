@@ -24,6 +24,7 @@ from nltk.tokenize import WordPunctTokenizer, PunktSentenceTokenizer
 from stop_words import get_stop_words
 from gensim.corpora.dictionary import Dictionary
 from time import sleep
+import zstandard
 
 def assign_label_by_cutoff_pct(data, label_var='gender', min_pct=0.75):
     """
@@ -763,3 +764,33 @@ def collect_all_tweets(search_url, headers, query_params, verbose=False, max_twe
     if(len(combined_tweets) > 0):
         combined_tweets = pd.concat(combined_tweets, axis=0)
     return combined_tweets
+
+class Zreader:
+    def __init__(self, file, chunk_size=16384):
+        '''Init method'''
+        self.fh = open(file,'rb')
+        self.chunk_size = chunk_size
+        self.dctx = zstandard.ZstdDecompressor()
+        self.reader = self.dctx.stream_reader(self.fh)
+        self.buffer = ''
+    def readlines(self):
+        '''Generator method that creates an iterator for each line of JSON'''
+        while True:
+            chunk = self.reader.read(self.chunk_size).decode()
+            if not chunk:
+                break
+            lines = (self.buffer + chunk).split("\n")
+
+            for line in lines[:-1]:
+                yield line
+            self.buffer = lines[-1]
+import lzma
+class FileReader():
+    def __init__(self, file_name):
+        self.file_name = file_name
+        if(file_name.endswith('.xz')):
+            self.file_iter = lzma.open(file_name, mode='rt')
+        elif(file_name.endswith('.zst')):
+            self.file_iter = Zreader(file_name).readlines()
+    def __iter__(self):
+        return self.file_iter.__iter__()
