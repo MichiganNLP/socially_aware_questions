@@ -180,9 +180,9 @@ def main():
     tokenizer_class, tokenizer_name = tokenizer_lookup[model_type]
     max_len_lookup = {
         'bart' : (1024, 64),
-        #'longformer' : (3072, 128), # 4028 => max out memory in training
-        'longformer' : (4096, 128), # 4028 => max out memory in training
-	}
+        'longformer' : (3072, 128), # 4096 => memory overload in training
+        # 'longformer': (4096, 128),  # ONLY for big GPU server
+    }
     max_source_length, max_target_length = max_len_lookup[model_type]
     if (not os.path.exists(train_data_file)):
         if(author_data is not None):

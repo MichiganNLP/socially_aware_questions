@@ -25,6 +25,7 @@ from stop_words import get_stop_words
 from gensim.corpora.dictionary import Dictionary
 from time import sleep
 import zstandard
+import lzma
 
 def assign_label_by_cutoff_pct(data, label_var='gender', min_pct=0.75):
     """
@@ -763,7 +764,7 @@ def collect_all_tweets(search_url, headers, query_params, verbose=False, max_twe
             max_tweets_reached = len(combined_tweets) >= max_tweets
     if(len(combined_tweets) > 0):
         combined_tweets = pd.concat(combined_tweets, axis=0)
-    return combined_tweets
+   return combined_tweets
 
 class Zreader:
     def __init__(self, file, chunk_size=16384):
@@ -784,7 +785,6 @@ class Zreader:
             for line in lines[:-1]:
                 yield line
             self.buffer = lines[-1]
-import lzma
 class FileReader():
     def __init__(self, file_name):
         self.file_name = file_name

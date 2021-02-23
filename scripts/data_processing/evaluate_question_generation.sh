@@ -16,14 +16,11 @@
 #OUT_DIR=../../data/CNN_articles/cnn/
 #OUT_DIR=../../data/CNN_articles/cnn/NYT_eval/
 # long data
-<<<<<<< HEAD
-MODEL_FILE=../../data/CNN_articles/cnn/longformer_model/question_generation_model/checkpoint-60000/pytorch_model.bin
-OUT_DIR=../../data/CNN_articles/cnn/longformer_model/
-=======
 #MODEL_FILE=../../data/CNN_articles/cnn/longformer_model/question_generation_model/checkpoint-60000/pytorch_model.bin
 #OUT_DIR=../../data/CNN_articles/cnn/NYT_eval/longformer_model/
->>>>>>> 25c0b93620e840931505c3ce059ce89b8d70a5d9
-## NYT training
+MODEL_FILE=../../data/CNN_articles/cnn/longformer_model/question_generation_model/checkpoint-60000/pytorch_model.bin
+OUT_DIR=../../data/CNN_articles/cnn/longformer_model/
+# NYT training
 # w/out author
 #MODEL_FILE=../../data/nyt_comments/question_generation_model/checkpoint-96000/pytorch_model.bin
 #OUT_DIR=../../data/nyt_comments/no_author_data/
@@ -77,7 +74,6 @@ TEST_DATA=../../data/CNN_articles/cnn/CNN_long_val_data.pt
 # NE overlap w/out author
 TRAIN_DATA=../../data/nyt_comments/no_author_data/NE_overlap_NYT_long_input_train_data.pt
 TEST_DATA=../../data/nyt_comments/no_author_data/NE_overlap_NYT_long_input_val_data.pt
-
 #DEVICE_NAME='cuda:2'
 export CUDA_VISIBLE_DEVICES="1"
 python evaluate_question_generation.py $MODEL_FILE $OUT_DIR $TRAIN_DATA $TEST_DATA --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR
