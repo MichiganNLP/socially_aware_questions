@@ -54,7 +54,7 @@ def main():
                 print(f'processed {i} posts')
         ## TODO: project from subreddit-author to subreddit-subreddit network
         subreddit_author_count_data_i = pd.Series(subreddit_author_counts).reset_index(name='count').rename(columns={'level_0':'subreddit', 'level_1':'author'})
-        subreddit_subreddit_counts = defaultdict(int)
+        subreddit_subreddit_counts_i = defaultdict(int)
 
         for author_j, data_j in subreddit_author_count_data_i.groupby('author'):
             # get combinations of all subreddits fml
@@ -67,8 +67,13 @@ def main():
                     count_l = data_j[data_j.loc[:, 'subreddit']==subreddit_l].loc[:, 'count'].iloc[0]
                     # compute average as count => count high-overlap
                     count_k_l = (count_k + count_l)*0.5
-                    subreddit_subreddit_counts[(subreddit_k, subreddit_l)] += count_k_l
-        subreddit_subreddit_counts_i = pd.Series(subreddit_subreddit_counts).reset_index(name='count').rename(columns={'level_0':'subreddit_i', 'level_1':'subreddit_j'})
+                    subreddit_subreddit_counts_i[(subreddit_k, subreddit_l)] += count_k_l
+            # tmp debugging
+            # if(len(subreddit_subreddit_counts_i) > 1000):
+            #     break
+        subreddit_subreddit_counts_i = pd.Series(subreddit_subreddit_counts_i).reset_index(name='count').rename(columns={'level_0':'subreddit_i', 'level_1':'subreddit_j'})
+        # tmp debugging
+        # print(f'subreddit count data\n{subreddit_subreddit_counts_i.head(10)}')
         ## TODO: normalize for author counts??
         ## save to file!!
         file_name_i = 'comment_%d-%.2d_cross_posting.gz'%(year_i, month_i)

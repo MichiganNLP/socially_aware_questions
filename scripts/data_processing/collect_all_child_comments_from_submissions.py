@@ -21,9 +21,14 @@ def main():
     out_dir = args['out_dir']
     data_dir = args['data_dir']
     comment_start_year, comment_start_month, comment_end_year, comment_end_month = list(map(int, args['comment_dates'].split(',')))
+    # tmp debugging
+    # print(f'start year = {comment_start_year}; start month = {comment_start_month}')
+    # import sys
+    # sys.exit()
 
     ## load submission data
-    submission_data = pd.read_json(submission_data_file, compression='gzip')
+    # submission_data = pd.read_json(submission_data_file, compression='gzip')
+    submission_data = pd.DataFrame([pd.Series(json.loads(x.strip())) for x in gzip.open(submission_data_file, 'rt')])
     parent_ids = submission_data.loc[:, 'id'].unique()
 
     ## collect comments
@@ -54,7 +59,7 @@ def main():
             file_reader = FileReader(comment_file_i)
             # write out one file at a time => parallelize me Cap'n
             out_file_i = os.path.join(out_dir,
-                                      'advice_subreddit_comments_%d-%.2d.gz' % (
+                                      'subreddit_comments_%d-%.2d.gz' % (
                                       comment_year_i, comment_month_i))
             with gzip.open(out_file_i, 'wt') as subreddit_comment_out:
                 for j, line_j in enumerate(tqdm(file_reader)):
