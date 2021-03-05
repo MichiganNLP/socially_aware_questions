@@ -375,7 +375,7 @@ def extract_questions_all_data(data, min_question_len=5):
     word_tokenizer = WordPunctTokenizer()
     sent_tokenizer = PunktSentenceTokenizer()
     question_matcher = re.compile('.+\?$')
-    questions = list(map(lambda x: extract_questions(x, word_tokenizer, sent_tokenizer, question_matcher, min_question_len=min_question_len), data))
+    questions = list(map(lambda x: extract_questions(x, word_tokenizer, sent_tokenizer, question_matcher, min_question_len=min_question_len), tqdm(data)))
     return questions
 
 def prepare_question_data(data, out_dir, data_name, tokenizer,
@@ -785,7 +785,7 @@ class Zreader:
             for line in lines[:-1]:
                 yield line
             self.buffer = lines[-1]
-class FileReader():
+class FileReader:
     def __init__(self, file_name):
         self.file_name = file_name
         if(file_name.endswith('.xz')):

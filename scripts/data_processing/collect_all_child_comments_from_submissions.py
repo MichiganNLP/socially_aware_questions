@@ -9,6 +9,7 @@ import pandas as pd
 from nltk.tokenize import WordPunctTokenizer
 from data_helpers import FileReader
 from tqdm import tqdm
+import logging
 
 def main():
     parser = ArgumentParser()
@@ -25,6 +26,9 @@ def main():
     # print(f'start year = {comment_start_year}; start month = {comment_start_month}')
     # import sys
     # sys.exit()
+    logging.basicConfig(filename=f'../../logs/collect_all_child_comments_from_submissions_{comment_start_year}-{comment_start_month}_{comment_end_year}-{comment_end_month}.txt',
+                        filemode='w', format='%(asctime)s %(levelname)s:%(message)s',
+                        level=logging.INFO)
 
     ## load submission data
     # submission_data = pd.read_json(submission_data_file, compression='gzip')
@@ -54,6 +58,7 @@ def main():
         elif(comment_year_i == comment_end_year):
             end_month_i = comment_end_month
         for comment_month_i in range(start_month_i, end_month_i+1):
+            logging.info(f'processing {comment_year_i}-{comment_month_i}')
             comment_file_i = list(filter(lambda x: 'RC_%d-%.2d' % (comment_year_i, comment_month_i) in x, comment_dir_files))[0]
             comment_file_i = os.path.join(data_dir, comment_file_i)
             file_reader = FileReader(comment_file_i)
@@ -83,6 +88,8 @@ def main():
                                              comment_data_vars if v in data_j}
                             subreddit_comment_out.write(
                                 f'{json.dumps(filter_data_j)}\n')
+                    if(j % 1000000 == 0):
+                        logging.info(f'processed {j} lines')
 
 if __name__ == '__main__':
     main()
