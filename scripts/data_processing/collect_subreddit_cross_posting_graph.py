@@ -52,9 +52,12 @@ def main():
                 subreddit_author_counts[edge_i] += 1
             if(i % 1000000 == 0):
                 print(f'processed {i} posts')
+            # tmp debugging
+            # if (len(subreddit_author_counts) >= 10000):
+            #     break
         ## TODO: project from subreddit-author to subreddit-subreddit network
         subreddit_author_count_data_i = pd.Series(subreddit_author_counts).reset_index(name='count').rename(columns={'level_0':'subreddit', 'level_1':'author'})
-        subreddit_subreddit_counts_i = defaultdict(int)
+        subreddit_subreddit_author_sets_i = defaultdict(set)
 
         for author_j, data_j in subreddit_author_count_data_i.groupby('author'):
             # get combinations of all subreddits fml
@@ -64,17 +67,15 @@ def main():
                 count_k = data_j[data_j.loc[:, 'subreddit']==subreddit_k].loc[:, 'count'].iloc[0] #
                 for l in range((k+1), len(subreddits_j)):
                     subreddit_l = subreddits_j[l]
-                    count_l = data_j[data_j.loc[:, 'subreddit']==subreddit_l].loc[:, 'count'].iloc[0]
-                    # compute average as count => count high-overlap
-                    count_k_l = (count_k + count_l)*0.5
-                    subreddit_subreddit_counts_i[(subreddit_k, subreddit_l)] += count_k_l
-            # tmp debugging
-            # if(len(subreddit_subreddit_counts_i) > 1000):
-            #     break
-        subreddit_subreddit_counts_i = pd.Series(subreddit_subreddit_counts_i).reset_index(name='count').rename(columns={'level_0':'subreddit_i', 'level_1':'subreddit_j'})
+                    # count_l = data_j[data_j.loc[:, 'subreddit']==subreddit_l].loc[:, 'count'].iloc[0]
+                    # # compute average as count => count high-overlap
+                    # count_k_l = (count_k + count_l)*0.5
+                    # subreddit_subreddit_counts_i[(subreddit_k, subreddit_l)] += count_k_l
+                    subreddit_subreddit_author_sets_i[(subreddit_k, subreddit_l)].add(author_j)
+        subreddit_subreddit_counts_i = pd.Series({k : len(v) for k,v in subreddit_subreddit_author_sets_i.items()}).reset_index(name='count').rename(columns={'level_0':'subreddit_i', 'level_1':'subreddit_j'})
         # tmp debugging
         # print(f'subreddit count data\n{subreddit_subreddit_counts_i.head(10)}')
-        ## TODO: normalize for author counts??
+        ## TODO: normalize for total author counts??
         ## save to file!!
         file_name_i = 'comment_%d-%.2d_cross_posting.gz'%(year_i, month_i)
         subreddit_subreddit_count_data_file_i = os.path.join(out_dir, file_name_i)

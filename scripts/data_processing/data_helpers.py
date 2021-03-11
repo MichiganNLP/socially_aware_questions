@@ -1,8 +1,11 @@
 """
 Data helper functions.
 """
+import gzip
+import json
 import logging
 import shutil
+from itertools import product
 
 import numpy as np
 import pandas as pd
@@ -794,3 +797,36 @@ class FileReader:
             self.file_iter = Zreader(file_name).readlines()
     def __iter__(self):
         return self.file_iter.__iter__()
+
+## load json data
+def load_zipped_json_data(data_file):
+    data = []
+    try:
+        for l_i in gzip.open(data_file, 'rt'):
+            data_i = json.loads(l_i.strip())
+            data.append(data_i)
+    except Exception as e:
+        print(f'ending data collection early because error {e}')
+    data = pd.DataFrame(data)
+    return data
+
+## text overlap
+def tokenize_stem_text(text, stemmer, word_tokenizer, sent_tokenizer):
+    text_sents = sent_tokenizer.tokenize(text)
+    # tokenize and stem
+    text_sent_tokens = list(map(lambda x:list(map(lambda y:stemmer.stem(y),word_tokenizer.tokenize(x))),text_sents))
+    return text_sent_tokens
+def compute_word_overlap(text_1, text_2):
+    # Jaccard similarity
+    word_overlap = set(text_1) & set(text_2)
+    word_union = set(text_1) | set(text_2)
+    word_overlap_sim = len(word_overlap) / len(word_union)
+    return word_overlap_sim
+def compute_sent_word_overlap(text_1, text_2):
+    # compute word overlap for all pairs of sentences
+    # then get max score
+    sent_pairs = list(product(text_1, text_2))
+    sent_word_overlap_scores = np.array([compute_word_overlap(sent_i, sent_j) for sent_i, sent_j in sent_pairs])
+    max_word_overlap_score = max(sent_word_overlap_scores)
+    max_word_overlap_sent_pair = sent_pairs[np.argmax(sent_word_overlap_scores)]
+    return max_word_overlap_score, max_word_overlap_sent_pair
