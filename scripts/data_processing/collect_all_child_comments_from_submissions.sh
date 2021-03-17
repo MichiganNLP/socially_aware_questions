@@ -6,7 +6,7 @@ DATA_DIR=/local2/lbiester/pushshift/comments/
 #python collect_all_child_comments_from_submissions.py $SUBMISSION_DATA --out_dir $OUT_DIR --data_dir $DATA_DIR --comment_dates $COMMENT_DATES
 ## parallel
 COMMENT_YEAR=2019
-COMMENT_START_MONTH=6
+COMMENT_START_MONTH=12
 COMMENT_END_MONTH=12
 ## generate all combos lol
 COMMENT_YEAR_MONTH_PAIRS=()

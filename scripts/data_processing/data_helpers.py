@@ -830,3 +830,14 @@ def compute_sent_word_overlap(text_1, text_2):
     max_word_overlap_score = max(sent_word_overlap_scores)
     max_word_overlap_sent_pair = sent_pairs[np.argmax(sent_word_overlap_scores)]
     return max_word_overlap_score, max_word_overlap_sent_pair
+
+## text cleaning
+
+def remove_edit_data(text):
+    # remove edit data based on structure
+    # "EDIT( #): ...\n"
+    edit_span = re.search('^edit( [0-9]+)?:[^\n]+$|\nedit( [0-9]+)?:[^\n]+', text.lower())
+    if(edit_span is not None):
+        span_start, span_end = edit_span.span()
+        text = text[:span_start] + text[span_end:]
+    return text
