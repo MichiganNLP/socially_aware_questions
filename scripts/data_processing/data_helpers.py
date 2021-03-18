@@ -1,8 +1,11 @@
 """
 Data helper functions.
 """
+import gzip
+import json
 import logging
 import shutil
+from itertools import product
 
 import numpy as np
 import pandas as pd
@@ -375,7 +378,7 @@ def extract_questions_all_data(data, min_question_len=5):
     word_tokenizer = WordPunctTokenizer()
     sent_tokenizer = PunktSentenceTokenizer()
     question_matcher = re.compile('.+\?$')
-    questions = list(map(lambda x: extract_questions(x, word_tokenizer, sent_tokenizer, question_matcher, min_question_len=min_question_len), data))
+    questions = list(map(lambda x: extract_questions(x, word_tokenizer, sent_tokenizer, question_matcher, min_question_len=min_question_len), tqdm(data)))
     return questions
 
 def prepare_question_data(data, out_dir, data_name, tokenizer,
@@ -764,7 +767,7 @@ def collect_all_tweets(search_url, headers, query_params, verbose=False, max_twe
             max_tweets_reached = len(combined_tweets) >= max_tweets
     if(len(combined_tweets) > 0):
         combined_tweets = pd.concat(combined_tweets, axis=0)
-   return combined_tweets
+    return combined_tweets
 
 class Zreader:
     def __init__(self, file, chunk_size=16384):
@@ -785,7 +788,7 @@ class Zreader:
             for line in lines[:-1]:
                 yield line
             self.buffer = lines[-1]
-class FileReader():
+class FileReader:
     def __init__(self, file_name):
         self.file_name = file_name
         if(file_name.endswith('.xz')):
@@ -794,3 +797,47 @@ class FileReader():
             self.file_iter = Zreader(file_name).readlines()
     def __iter__(self):
         return self.file_iter.__iter__()
+
+## load json data
+def load_zipped_json_data(data_file):
+    data = []
+    try:
+        for l_i in gzip.open(data_file, 'rt'):
+            data_i = json.loads(l_i.strip())
+            data.append(data_i)
+    except Exception as e:
+        print(f'ending data collection early because error {e}')
+    data = pd.DataFrame(data)
+    return data
+
+## text overlap
+def tokenize_stem_text(text, stemmer, word_tokenizer, sent_tokenizer):
+    text_sents = sent_tokenizer.tokenize(text)
+    # tokenize and stem
+    text_sent_tokens = list(map(lambda x:list(map(lambda y:stemmer.stem(y),word_tokenizer.tokenize(x))),text_sents))
+    return text_sent_tokens
+def compute_word_overlap(text_1, text_2):
+    # Jaccard similarity
+    word_overlap = set(text_1) & set(text_2)
+    word_union = set(text_1) | set(text_2)
+    word_overlap_sim = len(word_overlap) / len(word_union)
+    return word_overlap_sim
+def compute_sent_word_overlap(text_1, text_2):
+    # compute word overlap for all pairs of sentences
+    # then get max score
+    sent_pairs = list(product(text_1, text_2))
+    sent_word_overlap_scores = np.array([compute_word_overlap(sent_i, sent_j) for sent_i, sent_j in sent_pairs])
+    max_word_overlap_score = max(sent_word_overlap_scores)
+    max_word_overlap_sent_pair = sent_pairs[np.argmax(sent_word_overlap_scores)]
+    return max_word_overlap_score, max_word_overlap_sent_pair
+
+## text cleaning
+
+def remove_edit_data(text):
+    # remove edit data based on structure
+    # "EDIT( #): ...\n"
+    edit_span = re.search('^edit( [0-9]+)?:[^\n]+$|\nedit( [0-9]+)?:[^\n]+', text.lower())
+    if(edit_span is not None):
+        span_start, span_end = edit_span.span()
+        text = text[:span_start] + text[span_end:]
+    return text
