@@ -57,6 +57,7 @@ def main():
             #     break
         ## TODO: project from subreddit-author to subreddit-subreddit network
         subreddit_author_count_data_i = pd.Series(subreddit_author_counts).reset_index(name='count').rename(columns={'level_0':'subreddit', 'level_1':'author'})
+        subreddit_author_sets_i = defaultdict(set)
         subreddit_subreddit_author_sets_i = defaultdict(set)
 
         for author_j, data_j in subreddit_author_count_data_i.groupby('author'):
@@ -64,15 +65,20 @@ def main():
             subreddits_j = data_j.loc[:, 'subreddit'].sort_values().values # sort values to ensure same order
             # subreddit_combos_j = [(subreddits_j[k], subreddits_j[l]) for k in range(len(subreddits_j)) for l in range(k+1, len(subreddits_j))]
             for k, subreddit_k in enumerate(subreddits_j):
-                count_k = data_j[data_j.loc[:, 'subreddit']==subreddit_k].loc[:, 'count'].iloc[0] #
+                # count_k = data_j[data_j.loc[:, 'subreddit']==subreddit_k].loc[:, 'count'].iloc[0] #
+                subreddit_author_sets_i[subreddit_k].add(author_j)
                 for l in range((k+1), len(subreddits_j)):
                     subreddit_l = subreddits_j[l]
                     # count_l = data_j[data_j.loc[:, 'subreddit']==subreddit_l].loc[:, 'count'].iloc[0]
                     # # compute average as count => count high-overlap
                     # count_k_l = (count_k + count_l)*0.5
                     # subreddit_subreddit_counts_i[(subreddit_k, subreddit_l)] += count_k_l
+                    subreddit_author_sets_i[subreddit_l].add(author_j)
                     subreddit_subreddit_author_sets_i[(subreddit_k, subreddit_l)].add(author_j)
-        subreddit_subreddit_counts_i = pd.Series({k : len(v) for k,v in subreddit_subreddit_author_sets_i.items()}).reset_index(name='count').rename(columns={'level_0':'subreddit_i', 'level_1':'subreddit_j'})
+        # raw author counts
+        # subreddit_subreddit_counts_i = pd.Series({k : len(v) for k,v in subreddit_subreddit_author_sets_i.items()}).reset_index(name='count').rename(columns={'level_0':'subreddit_i', 'level_1':'subreddit_j'})
+        # Jaccard similarity
+        subreddit_subreddit_counts_i = pd.Series({k : len(v) / len(subreddit_author_sets_i[k[0]] | subreddit_author_sets_i[k[1]]) for k,v in subreddit_subreddit_author_sets_i.items()}).reset_index(name='count').rename(columns={'level_0':'subreddit_i', 'level_1':'subreddit_j'})
         # tmp debugging
         # print(f'subreddit count data\n{subreddit_subreddit_counts_i.head(10)}')
         ## TODO: normalize for total author counts??

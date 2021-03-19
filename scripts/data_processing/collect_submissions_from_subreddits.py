@@ -2,6 +2,7 @@
 Collect submissions sent to specified subreddits,
 from pre-downloaded data.
 """
+import logging
 from argparse import ArgumentParser
 import json
 from nltk.tokenize import WordPunctTokenizer
@@ -13,19 +14,24 @@ from data_helpers import FileReader
 def main():
     parser = ArgumentParser()
     parser.add_argument('submission_dir') # /local2/lbiester/pushshift/submissions/
-    parser.add_argument('--subreddits', nargs='+', type=set, default=['AmItheAsshole', 'legaladvice', 'pcmasterrace', 'Advice', 'personalfinance'])
+    parser.add_argument('--subreddits', nargs='+', default=['AmItheAsshole', 'legaladvice', 'pcmasterrace', 'Advice', 'personalfinance'])
     parser.add_argument('--out_dir', default='../../data/reddit_data/')
     parser.add_argument('--submission_dates', nargs='+', default=[2018,1,2019,12])
     args = vars(parser.parse_args())
+    submission_dates = list(map(int, args['submission_dates']))
+    submission_start_year, submission_start_month, submission_end_year, submission_end_month = submission_dates
+    logging.basicConfig(
+        filename=f'../../logs/collect_submissions_from_subreddits_{submission_start_year}-{submission_start_month}_{submission_end_year}-{submission_end_month}.txt',
+            filemode='w', format='%(asctime)s %(levelname)s:%(message)s',
+            level=logging.INFO)
 
     out_dir = args['out_dir']
     submission_dir = args['submission_dir']
     subreddits = args['subreddits']
-    submission_dates = list(map(int, args['submission_dates']))
-    submission_start_year, submission_start_month, submission_end_year, submission_end_month = submission_dates
+
     submission_dir_files = os.listdir(submission_dir)
-    invalid_text = ['[removed]', '[deleted]', '']
-    invalid_authors = ['[removed]', '[deleted]', 'AutoModerator']
+    invalid_text = {'[removed]', '[deleted]', ''}
+    invalid_authors = {'[removed]', '[deleted]', 'AutoModerator'}
     tokenizer = WordPunctTokenizer()
     min_submission_len = 20
     min_comment_count = 1
@@ -43,10 +49,10 @@ def main():
             end_month_i = submission_end_month
         for month_j in range(start_month_i, end_month_i+1):
             submission_year_month_pairs.append([year_i, month_j])
+        submission_ctr = 0
     with gzip.open(subreddit_submission_out_file, 'wt') as subreddit_submission_out:
         for submission_year_i, submission_month_i in submission_year_month_pairs:
-            print(
-                f'processing month={submission_month_i} year={submission_year_i}')
+            logging.info(f'processing month={submission_month_i} year={submission_year_i}')
             submission_file_i = list(filter(lambda x: 'RS_%d-%.2d' % (
             submission_year_i, submission_month_i) in x, submission_dir_files))[
                 0]
@@ -54,17 +60,21 @@ def main():
             file_reader = FileReader(submission_file_i)
             for j, line_j in enumerate(tqdm(file_reader)):
                 data_j = json.loads(line_j)
-                if ((data_j['subreddit'] in subreddits) and
+                if (
+                        (data_j['subreddit'] in subreddits) and
                         (data_j['selftext'] not in invalid_text) and
                         (data_j['author'] not in invalid_authors) and
-                        (data_j['num_comments'] >= min_comment_count)):
+                        (data_j['num_comments'] >= min_comment_count)
+                ):
                     text_j = data_j['selftext']
                     text_tokens_j = tokenizer.tokenize(text_j)
                     if (len(text_tokens_j) >= min_submission_len):
                         filter_data_j = {v: data_j[v] for v in
                                          submission_data_vars if v in data_j}
-                        subreddit_submission_out.write(
-                            f'{json.dumps(filter_data_j)}\n')
+                        subreddit_submission_out.write(f'{json.dumps(filter_data_j)}\n')
+                        submission_ctr += 1
+                        if(submission_ctr % 100000 == 0):
+                            logging.info(f'collected {submission_ctr} submissions')
 
 if __name__ == '__main__':
     main()

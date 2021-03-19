@@ -841,3 +841,21 @@ def remove_edit_data(text):
         span_start, span_end = edit_span.span()
         text = text[:span_start] + text[span_end:]
     return text
+
+## Reddit API
+from praw import Reddit
+from psaw import PushshiftAPI
+def load_reddit_api(reddit_auth_file):
+    reddit_auth = pd.read_csv(reddit_auth_file, sep=',', index_col=False).iloc[
+                  0, :]
+    client_id = reddit_auth.loc['client_id']
+    client_secret = reddit_auth.loc['client_secret']
+    user_agent = 'user_agent_123'
+    reddit_api = Reddit(
+        client_id=client_id,
+        client_secret=client_secret,
+        user_agent=user_agent,
+        check_for_async=False,
+    )
+    pushshift_reddit_api = PushshiftAPI(reddit_api)
+    return reddit_api, pushshift_reddit_api
