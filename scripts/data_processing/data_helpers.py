@@ -418,6 +418,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # deduplicate article/answer pairs
     clean_data.drop_duplicates(['source_text', 'target_text'], inplace=True)
     # tmp debugging
+    print(f'after deduplicating, data has {clean_data.shape[0]} questions')
     logging.debug(f'after deduplicating, data has {clean_data.shape[0]} questions')
     # logging.debug(clean_data.head())
     # shorten source/target to fit model
