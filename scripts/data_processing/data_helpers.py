@@ -418,6 +418,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # deduplicate article/answer pairs
     clean_data.drop_duplicates(['source_text', 'target_text'], inplace=True)
     # tmp debugging
+    # print('blah')
+    # print(f'after deduplicating, data has {clean_data.shape[0]} questions')
     logging.debug(f'after deduplicating, data has {clean_data.shape[0]} questions')
     # logging.debug(clean_data.head())
     # shorten source/target to fit model
@@ -527,8 +529,12 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     np.random.shuffle(article_ids)
     train_article_ids = article_ids[:N_train]
     val_article_ids = article_ids[N_train:]
+    # print(f'{len(train_article_ids)} train articles')
+    # print(f'{len(val_article_ids)} val articles')
     clean_data_train = clean_data[clean_data.loc[:, 'article_id'].isin(train_article_ids)]
     clean_data_val = clean_data[clean_data.loc[:, 'article_id'].isin(val_article_ids)]
+    # print(f'{clean_data_train.shape[0]} train data')
+    # print(f'{clean_data_val.shape[0]} val data')
     ## split train/val data by questions
     # N = clean_data.shape[0]
     # N_train = int(N * train_pct)
@@ -537,6 +543,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # clean_data_val = clean_data.iloc[N_train:, :]
     clean_data_train_out_file = os.path.join(out_dir, f'{data_name}_train_data.csv')
     clean_data_val_out_file = os.path.join(out_dir, f'{data_name}_val_data.csv')
+    print(f'train data columns = {clean_data_train.columns}')
     # tmp debugging
     if(not os.path.exists(clean_data_train_out_file)):
         clean_data_train.to_csv(clean_data_train_out_file, sep=',', index=False)
@@ -560,6 +567,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
                                    model_type='bert',
                                    max_source_length=max_source_length,
                                    max_target_length=max_target_length)
+    print(f'{train_data_set} train data')
+    # print(f'{len(val_data_set["source_text"])} val data')
     train_data = data_processor.process(train_data_set)
     val_data = data_processor.process(val_data_set)
     columns = ["source_ids", "target_ids", "attention_mask"]
