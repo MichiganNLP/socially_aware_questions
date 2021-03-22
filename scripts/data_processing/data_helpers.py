@@ -29,6 +29,8 @@ from gensim.corpora.dictionary import Dictionary
 from time import sleep
 import zstandard
 import lzma
+from praw import Reddit
+from psaw import PushshiftAPI
 
 def assign_label_by_cutoff_pct(data, label_var='gender', min_pct=0.75):
     """
@@ -263,12 +265,16 @@ def generate_predictions(model, data, tokenizer, device_name='cuda:0',
 def cleanup_transformer_tokens(tokens, tokenizer, special_tokens, space_token):
     tokens = list(filter(lambda x: x not in special_tokens, tokens))
     ## TODO: why does convert_tokens_to_string fail with OOV chars?
-    # tokens = list(map(lambda x: x.    replace(' ', space_token), tokens))
-    # token_txt = tokenizer.convert_tokens_to_string(tokens)
-    token_txt = ' '.join(tokens)
+    tokens = list(map(lambda x: x.replace(' ', space_token), tokens))
+    # remove OOV chars
+    vocab = tokenizer.get_vocab()
+    tokens = list(filter(lambda x: x in vocab, tokens))
+    token_txt = tokenizer.convert_tokens_to_string(tokens)
+    # token_txt = ' '.join(tokens)
     return token_txt
 
-def compare_pred_text_with_target(data, pred_text, tokenizer, max_txt_len=300, cutoff_idx=0):
+def compare_pred_text_with_target(data, pred_text, tokenizer,
+                                  max_txt_len=300, cutoff_idx=0, extra_data_vars=None):
     """
     Compare predicted text with target data.
 
@@ -293,6 +299,9 @@ def compare_pred_text_with_target(data, pred_text, tokenizer, max_txt_len=300, c
         # source_text_i = tokenizer.convert_tokens_to_string(source_text_i)
         # target_text_i = tokenizer.convert_tokens_to_string(target_text_i)
         print('*~*~*~*~*~*')
+        if(extra_data_vars is not None):
+            for v in extra_data_vars:
+                print(f'{v} = {data[v][i]}')
         print(f'source text = {source_text_i[:max_txt_len]}...')
         print(f'target text = {target_text_i}')
         print(f'pred text = {pred_text_i}')
@@ -382,6 +391,7 @@ def extract_questions_all_data(data, min_question_len=5):
     return questions
 
 def prepare_question_data(data, out_dir, data_name, tokenizer,
+                          data_vars=['article_text', 'question', 'article_id'],
                           author_data=None, train_pct=0.8,
                           max_source_length=1024, max_target_length=64,
                           article_question_NE_overlap=False,
@@ -398,7 +408,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     :param train_pct:
     :return:
     """
-    data_vars = ['article_text', 'question', 'article_id']
+
     # optional: add author data
     if (author_data is not None):
         author_var = 'userID'
@@ -418,7 +428,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # deduplicate article/answer pairs
     clean_data.drop_duplicates(['source_text', 'target_text'], inplace=True)
     # tmp debugging
-    print(f'after deduplicating, data has {clean_data.shape[0]} questions')
+    # print('blah')
+    # print(f'after deduplicating, data has {clean_data.shape[0]} questions')
     logging.debug(f'after deduplicating, data has {clean_data.shape[0]} questions')
     # logging.debug(clean_data.head())
     # shorten source/target to fit model
@@ -528,8 +539,12 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     np.random.shuffle(article_ids)
     train_article_ids = article_ids[:N_train]
     val_article_ids = article_ids[N_train:]
+    # print(f'{len(train_article_ids)} train articles')
+    # print(f'{len(val_article_ids)} val articles')
     clean_data_train = clean_data[clean_data.loc[:, 'article_id'].isin(train_article_ids)]
     clean_data_val = clean_data[clean_data.loc[:, 'article_id'].isin(val_article_ids)]
+    # print(f'{clean_data_train.shape[0]} train data')
+    # print(f'{clean_data_val.shape[0]} val data')
     ## split train/val data by questions
     # N = clean_data.shape[0]
     # N_train = int(N * train_pct)
@@ -538,6 +553,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # clean_data_val = clean_data.iloc[N_train:, :]
     clean_data_train_out_file = os.path.join(out_dir, f'{data_name}_train_data.csv')
     clean_data_val_out_file = os.path.join(out_dir, f'{data_name}_val_data.csv')
+    # print(f'train data columns = {clean_data_train.columns}')
     # tmp debugging
     if(not os.path.exists(clean_data_train_out_file)):
         clean_data_train.to_csv(clean_data_train_out_file, sep=',', index=False)
@@ -561,6 +577,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
                                    model_type='bert',
                                    max_source_length=max_source_length,
                                    max_target_length=max_target_length)
+    # print(f'{train_data_set} train data')
+    # print(f'{len(val_data_set["source_text"])} val data')
     train_data = data_processor.process(train_data_set)
     val_data = data_processor.process(val_data_set)
     columns = ["source_ids", "target_ids", "attention_mask"]
@@ -844,8 +862,6 @@ def remove_edit_data(text):
     return text
 
 ## Reddit API
-from praw import Reddit
-from psaw import PushshiftAPI
 def load_reddit_api(reddit_auth_file):
     reddit_auth = pd.read_csv(reddit_auth_file, sep=',', index_col=False).iloc[
                   0, :]
@@ -860,3 +876,17 @@ def load_reddit_api(reddit_auth_file):
     )
     pushshift_reddit_api = PushshiftAPI(reddit_api)
     return reddit_api, pushshift_reddit_api
+
+def flatten_columns(df, cols):
+    """Flattens multiple columns in a data frame, cannot specify all columns!"""
+    flattened_cols = {}
+    for col in cols:
+        flattened_cols[col] = pd.DataFrame([(index, value) for (index, values) in tqdm(df[col].iteritems()) for value in values],
+                                           columns=['index', col]).set_index('index')
+    flattened_df = df.drop(cols, axis=1)
+    for col in cols:
+        flattened_df = flattened_df.join(flattened_cols[col])
+    # remove null vals??
+    for col in cols:
+        flattened_df = flattened_df[~flattened_df.loc[:, col].apply(lambda x: type(x) is float and np.isnan(x))]
+    return flattened_df
