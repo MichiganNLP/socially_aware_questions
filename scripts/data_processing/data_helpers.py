@@ -263,12 +263,16 @@ def generate_predictions(model, data, tokenizer, device_name='cuda:0',
 def cleanup_transformer_tokens(tokens, tokenizer, special_tokens, space_token):
     tokens = list(filter(lambda x: x not in special_tokens, tokens))
     ## TODO: why does convert_tokens_to_string fail with OOV chars?
-    # tokens = list(map(lambda x: x.    replace(' ', space_token), tokens))
-    # token_txt = tokenizer.convert_tokens_to_string(tokens)
-    token_txt = ' '.join(tokens)
+    tokens = list(map(lambda x: x.replace(' ', space_token), tokens))
+    # remove OOV chars
+    vocab = tokenizer.get_vocab()
+    tokens = list(filter(lambda x: x in vocab, tokens))
+    token_txt = tokenizer.convert_tokens_to_string(tokens)
+    # token_txt = ' '.join(tokens)
     return token_txt
 
-def compare_pred_text_with_target(data, pred_text, tokenizer, max_txt_len=300, cutoff_idx=0):
+def compare_pred_text_with_target(data, pred_text, tokenizer,
+                                  max_txt_len=300, cutoff_idx=0, extra_data_vars=None):
     """
     Compare predicted text with target data.
 
@@ -293,6 +297,9 @@ def compare_pred_text_with_target(data, pred_text, tokenizer, max_txt_len=300, c
         # source_text_i = tokenizer.convert_tokens_to_string(source_text_i)
         # target_text_i = tokenizer.convert_tokens_to_string(target_text_i)
         print('*~*~*~*~*~*')
+        if(extra_data_vars is not None):
+            for v in extra_data_vars:
+                print(f'{v} = {data[v][i]}')
         print(f'source text = {source_text_i[:max_txt_len]}...')
         print(f'target text = {target_text_i}')
         print(f'pred text = {pred_text_i}')
@@ -382,6 +389,7 @@ def extract_questions_all_data(data, min_question_len=5):
     return questions
 
 def prepare_question_data(data, out_dir, data_name, tokenizer,
+                          data_vars=['article_text', 'question', 'article_id'],
                           author_data=None, train_pct=0.8,
                           max_source_length=1024, max_target_length=64,
                           article_question_NE_overlap=False,
@@ -398,7 +406,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     :param train_pct:
     :return:
     """
-    data_vars = ['article_text', 'question', 'article_id']
+
     # optional: add author data
     if (author_data is not None):
         author_var = 'userID'
@@ -543,7 +551,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # clean_data_val = clean_data.iloc[N_train:, :]
     clean_data_train_out_file = os.path.join(out_dir, f'{data_name}_train_data.csv')
     clean_data_val_out_file = os.path.join(out_dir, f'{data_name}_val_data.csv')
-    print(f'train data columns = {clean_data_train.columns}')
+    # print(f'train data columns = {clean_data_train.columns}')
     # tmp debugging
     if(not os.path.exists(clean_data_train_out_file)):
         clean_data_train.to_csv(clean_data_train_out_file, sep=',', index=False)
@@ -567,7 +575,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
                                    model_type='bert',
                                    max_source_length=max_source_length,
                                    max_target_length=max_target_length)
-    print(f'{train_data_set} train data')
+    # print(f'{train_data_set} train data')
     # print(f'{len(val_data_set["source_text"])} val data')
     train_data = data_processor.process(train_data_set)
     val_data = data_processor.process(val_data_set)

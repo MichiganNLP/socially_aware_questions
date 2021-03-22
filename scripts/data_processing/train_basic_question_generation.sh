@@ -22,16 +22,19 @@
 #TRAIN_DATA=../../data/nyt_comments/author_type_NYT_long_input_train_data.pt
 #VAL_DATA=../../data/nyt_comments/author_type_NYT_long_input_val_data.pt
 # clean NE data
-TRAIN_DATA=../../data/nyt_comments/author_type_NE_overlap_NYT_long_input_train_data.pt
-VAL_DATA=../../data/nyt_comments/author_type_NE_overlap_NYT_long_input_val_data.pt
+#TRAIN_DATA=../../data/nyt_comments/author_type_NE_overlap_NYT_long_input_train_data.pt
+#VAL_DATA=../../data/nyt_comments/author_type_NE_overlap_NYT_long_input_val_data.pt
 #TRAIN_DATA=../../data/nyt_comments/author_type_NE_overlap_NYT_long_input_train_data.pt
 #VAL_DATA=../../data/nyt_comments/author_type_NE_overlap_NYT_long_input_val_data.pt
 # clean NE data, no authors
 #TRAIN_DATA=../../data/nyt_comments/no_author_data/NE_overlap_NYT_long_input_train_data.pt
 #VAL_DATA=../../data/nyt_comments/no_author_data/NE_overlap_NYT_long_input_val_data.pt
 # clean NE data, all (4) months
-TRAIN_DATA=../../data/nyt_comments/full_data/author_type_NE_overlap_NYT_full_long_input_train_data.pt
-VAL_DATA=../../data/nyt_comments/full_data/author_type_NE_overlap_NYT_full_long_input_val_data.pt
+#TRAIN_DATA=../../data/nyt_comments/full_data/author_type_NE_overlap_NYT_full_long_input_train_data.pt
+#VAL_DATA=../../data/nyt_comments/full_data/author_type_NE_overlap_NYT_full_long_input_val_data.pt
+## reddit data
+TRAIN_DATA=../../data/reddit_data/advice_subreddit_train_data.pt
+VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
 # regular model
 #OUT_DIR=../../data/nyt_comments/
 # model with author information
@@ -39,22 +42,24 @@ VAL_DATA=../../data/nyt_comments/full_data/author_type_NE_overlap_NYT_full_long_
 #OUT_DIR=../../data/nyt_comments/cnn_fine_tune/
 # longformer model
 #OUT_DIR=../../data/CNN_articles/cnn/longformer_model/
-OUT_DIR=../../data/nyt_comments/no_author_data/NE_overlap/longformer_model/
+#OUT_DIR=../../data/nyt_comments/no_author_data/NE_overlap/longformer_model/
 # debug model
 #OUT_DIR=../../data/nyt_comments/debug_model/
+# reddit model
+OUT_DIR=../../data/reddit_data/text_only_model/
 # regular transformer
-#MODEL_CACHE_DIR=../../data/nyt_comments/author_data_model/model_cache/
+MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML
-MODEL_CACHE_DIR=../../data/longformer_cache/
+#MODEL_CACHE_DIR=../../data/longformer_cache/
 #DEVICE='cpu' # debug with small data ;_;
-#MODEL_TYPE="bart"
-MODEL_TYPE='longformer'
+MODEL_TYPE="bart"
+#MODEL_TYPE='longformer'
 # model with author information
 #AUTHOR_DATA=../../data/nyt_comments/author_comment_social_data.tsv
 # optional: pretrained model
 #PRETRAINED_MODEL=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
-export CUDA_VISIBLE_DEVICES=2
+export CUDA_VISIBLE_DEVICES=1
+SAMPLE_PCT=1.0
 # regular model
-python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR
+python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --sample_pct $SAMPLE_PCT
 #python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --device $DEVICE --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --pretrained_model $PRETRAINED_MODEL
-
