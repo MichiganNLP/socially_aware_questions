@@ -59,7 +59,6 @@ MODEL_TYPE="bart"
 # optional: pretrained model
 #PRETRAINED_MODEL=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
 export CUDA_VISIBLE_DEVICES=0
-echo "blah"
 SAMPLE_PCT=1.0
 # regular model
 python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --sample_pct $SAMPLE_PCT
