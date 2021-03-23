@@ -17,6 +17,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score
 from sklearn.model_selection import StratifiedKFold
+from stop_words import get_stop_words
 
 from data_helpers import remove_edit_data
 from nltk.tokenize import WordPunctTokenizer
@@ -74,10 +75,16 @@ def main():
     ## extract text
     ## convert data to useful format
     word_tokenizer = WordPunctTokenizer()
+    # fixed vocabulary
     question_vocab = {'does', 'did', 'what', 'how', 'were', 'are', 'was', 'is',
                       'where', 'when', 'why', 'could', 'can', 'who', 'would'}
-    cv = CountVectorizer(vocabulary=question_vocab, min_df=0.,
+    cv = CountVectorizer(vocabulary=question_vocab, lowercase=True,
                          tokenizer=word_tokenizer.tokenize)
+    # open vocabulary
+    # M = 100
+    # cv = CountVectorizer(max_df=0.75, lowercase=True, max_features=M,
+    #                      tokenizer=word_tokenizer.tokenize)
+    
     question_dtm = cv.fit_transform(valid_question_data.loc[:, 'question'].values)
     question_labels = np.array(valid_question_data.loc[:, 'question_is_clarification'].values)
 
@@ -118,8 +125,14 @@ def main():
     out_dir = args['out_dir']
     if(not os.path.exists(out_dir)):
         os.mkdir(out_dir)
+    # save model
     model_out_file = os.path.join(out_dir, 'valid_question_detection_model.pkl')
     pickle.dump(model, open(model_out_file, 'wb'))
+    # save vocabulary
+    model_vocab_out_file = os.path.join(out_dir, 'valid_question_detection_model_vocab.txt')
+    cv_vocab = list(sorted(cv.vocabulary_.keys(), key=cv.vocabulary_.get))
+    with open(model_vocab_out_file, 'w') as vocab_out:
+        vocab_out.write('\n'.join(cv_vocab))
     # save accuracy
     acc_out_file = os.path.join(out_dir, 'valid_question_detection_scores.csv')
     acc_scores.to_csv(acc_out_file, sep=',', index=False)
