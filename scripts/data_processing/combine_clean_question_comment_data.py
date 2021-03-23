@@ -14,19 +14,21 @@ import numpy as np
 
 def filter_comments_by_post_overlap(comment_data, post_data_file):
     post_data = load_zipped_json_data(post_data_file)
-    post_data.rename(columns={
+   post_data.rename(columns={
         'id': 'parent_id', 'created_utc': 'parent_created',
         'selftext': 'parent_text', 'title': 'parent_title',
         'edited': 'parent_edited', 'author': 'parent_author'
     }, inplace=True)
-    # remove edits
+   # remove edits
     post_data = post_data[post_data.loc[:, 'parent_edited'].apply(
         lambda x: type(x) is bool and not x)]
     ## combine with questions
     post_cols = ['parent_id', 'parent_created', 'parent_text', 'parent_title',
                  'parent_edited', 'parent_author']
+   # print(f'comment data cols {comment_data.columns}')
     comment_post_data = pd.merge(comment_data, post_data.loc[:, post_cols],
                                  on='parent_id')
+    print(f'{comment_post_data.shape[0]}/{comment_data.shape[0]} comments retained after merge with posts')
     # get sentences/tokens
     word_tokenizer = WordPunctTokenizer()
     sent_tokenizer = PunktSentenceTokenizer()
@@ -43,7 +45,7 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
     ## compute overlap
     comment_post_data = comment_post_data.assign(**{
         'post_question_overlap': comment_post_data.apply(
-            lambda x: compute_sent_word_overlap(x.loc['submission_sents'],
+            lambda x: compute_sent_word_overlap(x.loc['parent_sents'],
                                                 x.loc['question_sents']),
             axis=1)
     })
@@ -73,7 +75,7 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
     return comment_data
 
 def filter_comments_by_valid_question_prob(comment_data, model_file):
-    valid_question_model = pickle.load(open(model_file))
+   valid_question_model = pickle.load(open(model_file, 'rb'))
     vocab_file = model_file.replace('.pkl', '_vocab.txt')
     model_vocab = list(map(lambda x: x.strip(), open(vocab_file, 'r')))
     cv = CountVectorizer(vocabulary=model_vocab)
@@ -101,10 +103,16 @@ def main():
     comment_files = list(map(lambda x: os.path.join(data_dir, x), comment_files))
     ## load all data
     comment_data = pd.concat(list(map(lambda x: load_zipped_json_data(x), comment_files)), axis=0)
+    # fix parent IDs
+    comment_data = comment_data.assign(**{
+        'parent_id' : comment_data.loc[:, 'parent_id'].apply(lambda x: x.split('_')[-1])
+    })
     # don't add submission data because of space (M submissions x N comments x O questions/comment = a lot)
     # submission_data =
     # remove comments without parents
     comment_data = comment_data[comment_data.loc[:, 'parent_id'].apply(lambda x: type(x) is not float)]
+    # tmp debugging
+    # comment_data = comment_data.iloc[:10000, :]
 
     ## extract questions
     min_question_len = 5
@@ -140,7 +148,8 @@ def main():
         comment_data = filter_comments_by_valid_question_prob(comment_data, model_file)
 
     ## write to file
-    out_file = os.path.join(data_dir, 'subreddit_combined_comment_question_data.gz')
+    data_name = args['data_name']
+    out_file = os.path.join(data_dir, f'{data_name}_comment_question_data.gz')
     comment_data.to_csv(out_file, sep='\t', compression='gzip', index=False)
 
 if __name__ == '__main__':

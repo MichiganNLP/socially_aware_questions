@@ -29,6 +29,8 @@ from gensim.corpora.dictionary import Dictionary
 from time import sleep
 import zstandard
 import lzma
+from praw import Reddit
+from psaw import PushshiftAPI
 
 def assign_label_by_cutoff_pct(data, label_var='gender', min_pct=0.75):
     """
@@ -860,8 +862,6 @@ def remove_edit_data(text):
     return text
 
 ## Reddit API
-from praw import Reddit
-from psaw import PushshiftAPI
 def load_reddit_api(reddit_auth_file):
     reddit_auth = pd.read_csv(reddit_auth_file, sep=',', index_col=False).iloc[
                   0, :]
