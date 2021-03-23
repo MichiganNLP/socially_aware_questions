@@ -12,4 +12,7 @@ MODEL_TYPE='bart'
 # set GPU
 export CUDA_VISIBLE_DEVICES=0
 
-python test_question_generation.py $MODEL_FILE $TEST_DATA --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE
+# no model (i.e. zero-shot)
+#python test_question_generation.py $TEST_DATA --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE
+# trained model
+python test_question_generation.py $TEST_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE

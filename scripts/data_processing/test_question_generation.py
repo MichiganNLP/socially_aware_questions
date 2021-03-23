@@ -14,8 +14,8 @@ import pandas as pd
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument('model_file')
     parser.add_argument('test_data')
+    parser.add_argument('--model_file', default=None)
     parser.add_argument('--model_cache_dir', default='../../data/model_cache/')
     parser.add_argument('--model_type', default='bart')
     args = vars(parser.parse_args())
@@ -25,13 +25,14 @@ def main():
     test_data = args['test_data']
 
     ## load model, data
-    model_weights = torch.load(model_file)
     model_name_lookup = {
         'bart' : 'facebook/bart-base'
     }
     full_model_name = model_name_lookup[model_type]
     generation_model = AutoModelForSeq2SeqLM.from_pretrained(full_model_name, cache_dir=model_cache_dir)
-    generation_model.load_state_dict(model_weights)
+    if(model_file is not None):
+        model_weights = torch.load(model_file)
+        generation_model.load_state_dict(model_weights)
     model_tokenizer = BartTokenizer.from_pretrained(full_model_name, cache_dir=model_cache_dir)
     test_data = torch.load(test_data)['train']
 
