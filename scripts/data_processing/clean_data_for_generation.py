@@ -121,6 +121,7 @@ def main():
     parser.add_argument('--data_dir', default='../../data/')
     parser.add_argument('--data_file', default=None)
     parser.add_argument('--data_name', default='NYT')
+    parser.add_argument('--comment_data', default=None)
     parser.add_argument('--comment_dir', default=None) # ../../data/nyt_comments/
     parser.add_argument('--comment_month_year_pairs', nargs='+', default=None) # 'April_2018'
     parser.add_argument('--sample_pct', type=float, default=1.0)
@@ -142,7 +143,10 @@ def main():
         article_data = pd.read_csv(data_file, sep='\t', index_col=False)
 
     ## optional: get questions from comments
-    if(args.get('comment_dir') is not None):
+    if(args.get('comment_data') is not None):
+        question_data = pd.read_csv(args['comment_data'], sep='\t', compression='gzip', index_col=False)
+        article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
+    elif(args.get('comment_dir') is not None):
         comment_dir = args['comment_dir']
         comment_month_year_pairs = list(map(lambda x: x.split('_'), args['comment_month_year_pairs']))
         # tmp debugging
@@ -214,8 +218,8 @@ def main():
                                   article_question_NE_overlap=NE_overlap,
                                   NE_data_dir=out_dir)
     ## save raw data to file
-    out_file_name = os.path.join(out_dir, f'{data_name}_question_data.tsv')
-    article_data.to_csv(out_file_name, sep='\t', index=False)
+    out_file_name = os.path.join(out_dir, f'{data_name}_question_data.gz')
+    article_data.to_csv(out_file_name, sep='\t', index=False, compression='gzip')
 
 if __name__ == '__main__':
     main()

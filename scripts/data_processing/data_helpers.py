@@ -876,3 +876,17 @@ def load_reddit_api(reddit_auth_file):
     )
     pushshift_reddit_api = PushshiftAPI(reddit_api)
     return reddit_api, pushshift_reddit_api
+
+def flatten_columns(df, cols):
+    """Flattens multiple columns in a data frame, cannot specify all columns!"""
+    flattened_cols = {}
+    for col in cols:
+        flattened_cols[col] = pd.DataFrame([(index, value) for (index, values) in tqdm(df[col].iteritems()) for value in values],
+                                           columns=['index', col]).set_index('index')
+    flattened_df = df.drop(cols, axis=1)
+    for col in cols:
+        flattened_df = flattened_df.join(flattened_cols[col])
+    # remove null vals??
+    for col in cols:
+        flattened_df = flattened_df[~flattened_df.loc[:, col].apply(lambda x: type(x) is float and np.isnan(x))]
+    return flattened_df
