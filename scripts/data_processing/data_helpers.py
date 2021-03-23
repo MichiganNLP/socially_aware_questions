@@ -13,6 +13,7 @@ import re
 import os
 
 import requests
+from rouge_score.rouge_scorer import RougeScorer
 from transformers.training_args import TrainingArguments
 from transformers import BartTokenizer, LongformerTokenizer
 from dataclasses import field
@@ -309,7 +310,11 @@ def compare_pred_text_with_target(data, pred_text, tokenizer,
             break
 
 ## model evaluation
-
+def compute_text_rouge(txt_1, txt_2, scorer=None):
+    if(scorer is None):
+        scorer = RougeScorer(['rougeL'], use_stemmer=True)
+    score = scorer.score(txt_1, txt_2)
+    return score
 def compute_text_bleu(txt_1, txt_2, weights):
     score = sentence_bleu([txt_1], txt_2, weights=weights)
     return score

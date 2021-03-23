@@ -14,21 +14,18 @@ import numpy as np
 
 def filter_comments_by_post_overlap(comment_data, post_data_file):
     post_data = load_zipped_json_data(post_data_file)
-    # print(f'post data example: {post_data.head()}')
-    post_data.rename(columns={
+   post_data.rename(columns={
         'id': 'parent_id', 'created_utc': 'parent_created',
         'selftext': 'parent_text', 'title': 'parent_title',
         'edited': 'parent_edited', 'author': 'parent_author'
     }, inplace=True)
-    # print(f'post IDs {post_data.loc[:, "parent_id"].unique()[:10]}')
-    # print(f'comment parent IDs {comment_data.loc[:, "parent_id"].unique()[:10]}')
-    # remove edits
+   # remove edits
     post_data = post_data[post_data.loc[:, 'parent_edited'].apply(
         lambda x: type(x) is bool and not x)]
     ## combine with questions
     post_cols = ['parent_id', 'parent_created', 'parent_text', 'parent_title',
                  'parent_edited', 'parent_author']
-    # print(f'comment data cols {comment_data.columns}')
+   # print(f'comment data cols {comment_data.columns}')
     comment_post_data = pd.merge(comment_data, post_data.loc[:, post_cols],
                                  on='parent_id')
     print(f'{comment_post_data.shape[0]}/{comment_data.shape[0]} comments retained after merge with posts')
@@ -78,7 +75,7 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
     return comment_data
 
 def filter_comments_by_valid_question_prob(comment_data, model_file):
-    valid_question_model = pickle.load(open(model_file, 'rb'))
+   valid_question_model = pickle.load(open(model_file, 'rb'))
     vocab_file = model_file.replace('.pkl', '_vocab.txt')
     model_vocab = list(map(lambda x: x.strip(), open(vocab_file, 'r')))
     cv = CountVectorizer(vocabulary=model_vocab)
