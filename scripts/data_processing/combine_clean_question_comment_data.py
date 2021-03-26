@@ -11,6 +11,8 @@ from sklearn.feature_extraction.text import CountVectorizer
 from data_helpers import load_zipped_json_data, extract_questions_all_data, flatten_columns, tokenize_stem_text, compute_sent_word_overlap
 import pandas as pd
 import numpy as np
+from tqdm import tqdm
+tqdm.pandas()
 
 def filter_comments_by_post_overlap(comment_data, post_data_file):
     post_data = load_zipped_json_data(post_data_file)
@@ -19,6 +21,10 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
         'selftext': 'parent_text', 'title': 'parent_title',
         'edited': 'parent_edited', 'author': 'parent_author'
     }, inplace=True)
+    # restrict to valid posts
+    valid_post_ids = set(comment_data.loc[:, 'parent_id'].unique()) & set(post_data.loc[:, 'parent_id'].unique())
+    post_data = post_data[post_data.loc[:, 'parent_id'].isin(valid_post_ids)]
+    comment_data = comment_data[comment_data.loc[:, 'parent_id'].isin(valid_post_ids)]
     # print(f'post IDs {post_data.loc[:, "parent_id"].unique()[:10]}')
     # print(f'comment parent IDs {comment_data.loc[:, "parent_id"].unique()[:10]}')
     # remove edits
@@ -27,12 +33,7 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
     ## combine with questions
     post_cols = ['parent_id', 'parent_created', 'parent_text', 'parent_title',
                  'parent_edited', 'parent_author']
-    # print(f'comment data cols {comment_data.columns}')
-    post_data = pd.merge(comment_data, post_data.loc[:, post_cols],
-                                 on='parent_id')
-
-    print(f'{post_data.shape[0]}/{comment_data.shape[0]} comments retained after merge with posts')
-    # get sentences/tokens
+    ## tokenize/stem before joining to save space? yeah sure
     word_tokenizer = WordPunctTokenizer()
     sent_tokenizer = PunktSentenceTokenizer()
     stemmer = PorterStemmer()
@@ -40,11 +41,15 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
         'parent_sents': post_data.loc[:, 'parent_text'].apply(
             lambda x: tokenize_stem_text(x, stemmer, word_tokenizer,
                                          sent_tokenizer)),
-        'question_sents': post_data.loc[:,
-                          'question'].apply(
-            lambda x: tokenize_stem_text(x, stemmer, word_tokenizer,
-                                         sent_tokenizer))
     })
+    comment_data = comment_data.assign(**{
+        'question_sents': comment_data.loc[:,'question'].apply(lambda x: tokenize_stem_text(x, stemmer, word_tokenizer, sent_tokenizer))
+    })
+    ## join data
+    ## TODO: if memory overload, don't join just iterate by parent_id and combine later
+    post_data = pd.merge(comment_data, post_data.loc[:, post_cols],
+                         on='parent_id')
+    print(f'{post_data.shape[0]}/{comment_data.shape[0]} comments retained after merge with posts')
     ## compute overlap
     print(f'compute post/question overlap')
     post_data = post_data.assign(**{
@@ -111,8 +116,9 @@ def main():
     # submission_data =
     # remove comments without parents
     comment_data = comment_data[comment_data.loc[:, 'parent_id'].apply(lambda x: type(x) is not float)]
+    print(f'{comment_data.shape[0]} comments before filtering')
     # tmp debugging
-    # comment_data = comment_data.iloc[:10000, :]
+    comment_data = comment_data.iloc[:5000000, :]
 
     ## extract questions
     print(f'extracting questions')
@@ -120,6 +126,8 @@ def main():
     comment_data = comment_data.assign(**{
         'questions' : extract_questions_all_data(comment_data.loc[:, 'body'], min_question_len=min_question_len)
     })
+    # remove comment body to save space!!
+    comment_data.drop('body', axis=1, inplace=True)
     # remove invalid questions: quotes, bots
     quote_matcher = re.compile('&gt;[^\n]+\n')
     comment_data = comment_data.assign(**{
@@ -139,6 +147,8 @@ def main():
     comment_data = flatten_columns(comment_data, cols=flat_cols)
     comment_data.rename(columns={'questions': 'question'}, inplace=True)
     comment_data = comment_data.assign(**{'question_id' : comment_data.loc[:, 'question'].apply(lambda x: hash(x))})
+    # remove duplicates
+    comment_data.drop_duplicates(['parent_id', 'question_id'], inplace=True)
 
     ## filter for post overlap
     if(args.get('post_data') is not None):
