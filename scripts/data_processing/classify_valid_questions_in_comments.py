@@ -35,7 +35,7 @@ def main():
     ## load label data
     label_cols = ['question_is_relevant', 'question_is_clarification',
                   'submission_contains_answer']
-    valid_question_data.fillna({x: 0. for x in label_cols}, inplace=True)
+   valid_question_data.fillna({x: 0. for x in label_cols}, inplace=True)
     text_cols = ['selftext', 'parent_text', 'question']
     valid_question_data.fillna({x: '' for x in text_cols}, inplace=True)
     # fix inconsistent columns
