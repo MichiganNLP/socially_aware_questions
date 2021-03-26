@@ -25,6 +25,8 @@ def main():
     model_type = args['model_type']
     test_data = args['test_data']
     out_dir = args['out_dir']
+    if(not os.path.exists(out_dir)):
+        os.mkdir(out_dir)
 
     ## load model, data
     model_name_lookup = {
@@ -69,8 +71,8 @@ def main():
 
     ## write things to file
     generated_text_out_file = os.path.join(out_dir, 'test_data_output_text.gz')
-    generated_text_score_out_file = os.path.join(os.path.dirname(model_file), 'test_data_output_scores.tsv')
-    with gzip.open(generated_text_out_file, 'wt') as generated_text_out:
+    generated_text_score_out_file = os.path.join(out_dir, 'test_data_output_scores.tsv')
+   with gzip.open(generated_text_out_file, 'wt') as generated_text_out:
         generated_text_out.write('\n'.join(pred_data))
     generation_score_data.to_csv(generated_text_score_out_file, sep='\t', index=False)
 

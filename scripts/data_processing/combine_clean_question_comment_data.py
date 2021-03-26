@@ -34,7 +34,7 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
     post_cols = ['parent_id', 'parent_created', 'parent_text', 'parent_title',
                  'parent_edited', 'parent_author']
     ## tokenize/stem before joining to save space? yeah sure
-    word_tokenizer = WordPunctTokenizer()
+   word_tokenizer = WordPunctTokenizer()
     sent_tokenizer = PunktSentenceTokenizer()
     stemmer = PorterStemmer()
     post_data = post_data.assign(**{
@@ -45,7 +45,7 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
     comment_data = comment_data.assign(**{
         'question_sents': comment_data.loc[:,'question'].apply(lambda x: tokenize_stem_text(x, stemmer, word_tokenizer, sent_tokenizer))
     })
-    ## join data
+   ## join data
     ## TODO: if memory overload, don't join just iterate by parent_id and combine later
     post_data = pd.merge(comment_data, post_data.loc[:, post_cols],
                          on='parent_id')
