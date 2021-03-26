@@ -11,6 +11,8 @@
 
 ## data
 ## CNN data
+TRAIN_DATA=../../data/CNN_articles/cnn/article_question_generation_train_data.pt
+VAL_DATA=../../data/CNN_articles/cnn/article_question_generation_val_data.pt
 # long data
 #TRAIN_DATA=../../data/CNN_articles/cnn/CNN_long_train_data.pt
 #VAL_DATA=../../data/CNN_articles/cnn/CNN_long_val_data.pt
@@ -33,10 +35,11 @@
 #TRAIN_DATA=../../data/nyt_comments/full_data/author_type_NE_overlap_NYT_full_long_input_train_data.pt
 #VAL_DATA=../../data/nyt_comments/full_data/author_type_NE_overlap_NYT_full_long_input_val_data.pt
 ## reddit data
-TRAIN_DATA=../../data/reddit_data/advice_subreddit_train_data.pt
-VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
+#TRAIN_DATA=../../data/reddit_data/advice_subreddit_train_data.pt
+#VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
 # regular model
 #OUT_DIR=../../data/nyt_comments/
+OUT_DIR=../../data/CNN_articles/cnn/
 # model with author information
 #OUT_DIR=../../data/nyt_comments/author_data_model/
 #OUT_DIR=../../data/nyt_comments/cnn_fine_tune/
@@ -46,7 +49,7 @@ VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
 # debug model
 #OUT_DIR=../../data/nyt_comments/debug_model/
 # reddit model
-OUT_DIR=../../data/reddit_data/text_only_model/
+#OUT_DIR=../../data/reddit_data/text_only_model/
 # regular transformer
 MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML
@@ -58,7 +61,7 @@ MODEL_TYPE="bart"
 #AUTHOR_DATA=../../data/nyt_comments/author_comment_social_data.tsv
 # optional: pretrained model
 #PRETRAINED_MODEL=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=1
 SAMPLE_PCT=1.0
 # regular model
 python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --sample_pct $SAMPLE_PCT

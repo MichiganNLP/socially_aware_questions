@@ -189,8 +189,6 @@ def main():
     model_out_dir = os.path.join(out_dir, 'question_generation_model/')
     if (not os.path.exists(model_out_dir)):
         os.mkdir(model_out_dir)
-    # tmp debugging
-    print(f'model output directory {model_out_dir}')
 
     training_args = load_training_args(model_out_dir, train_data_file, model_out_dir, val_data_file, max_source_len, max_target_len, model_type=model_type)
     model_args = {
