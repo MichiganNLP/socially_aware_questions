@@ -21,6 +21,10 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
         'selftext': 'parent_text', 'title': 'parent_title',
         'edited': 'parent_edited', 'author': 'parent_author'
     }, inplace=True)
+    # restrict to valid posts
+    valid_post_ids = set(comment_data.loc[:, 'parent_id'].unique()) & set(post_data.loc[:, 'parent_id'].unique())
+    post_data = post_data[post_data.loc[:, 'parent_id'].isin(valid_post_ids)]
+    comment_data = comment_data[comment_data.loc[:, 'parent_id'].isin(valid_post_ids)]
     # print(f'post IDs {post_data.loc[:, "parent_id"].unique()[:10]}')
     # print(f'comment parent IDs {comment_data.loc[:, "parent_id"].unique()[:10]}')
     # remove edits
@@ -30,12 +34,6 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
     post_cols = ['parent_id', 'parent_created', 'parent_text', 'parent_title',
                  'parent_edited', 'parent_author']
     ## tokenize/stem before joining to save space? yeah sure
-    # print(f'comment data cols {comment_data.columns}')
-    post_data = pd.merge(comment_data, post_data.loc[:, post_cols],
-                                 on='parent_id')
-
-    print(f'{post_data.shape[0]}/{comment_data.shape[0]} comments retained after merge with posts')
-    # get sentences/tokens
     word_tokenizer = WordPunctTokenizer()
     sent_tokenizer = PunktSentenceTokenizer()
     stemmer = PorterStemmer()
@@ -43,7 +41,7 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
         'parent_sents': post_data.loc[:, 'parent_text'].apply(
             lambda x: tokenize_stem_text(x, stemmer, word_tokenizer,
                                          sent_tokenizer)),
-   })
+    })
     comment_data = comment_data.assign(**{
         'question_sents': comment_data.loc[:,'question'].apply(lambda x: tokenize_stem_text(x, stemmer, word_tokenizer, sent_tokenizer))
     })
@@ -128,6 +126,8 @@ def main():
     comment_data = comment_data.assign(**{
         'questions' : extract_questions_all_data(comment_data.loc[:, 'body'], min_question_len=min_question_len)
     })
+    # remove comment body to save space!!
+    comment_data.drop('body', axis=1, inplace=True)
     # remove invalid questions: quotes, bots
     quote_matcher = re.compile('&gt;[^\n]+\n')
     comment_data = comment_data.assign(**{
