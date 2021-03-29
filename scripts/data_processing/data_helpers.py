@@ -413,7 +413,6 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     :param train_pct:
     :return:
     """
-
     # optional: add author data
     if (author_data is not None):
         author_var = 'userID'
@@ -432,10 +431,17 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
         columns={'article_text': 'source_text', 'question': 'target_text'})
     # deduplicate article/answer pairs
     clean_data.drop_duplicates(['source_text', 'target_text'], inplace=True)
+    clean_data = clean_data[(clean_data.loc[:, 'source_text'].apply(lambda x: type(x) is str)) &
+                            (clean_data.loc[:, 'target_text'].apply(lambda x: type(x) is str))]
+    # clean up return chars
+    return_char_matcher = re.compile('[\n\r]')
+    clean_data = clean_data.assign(**{
+        'source_text' : clean_data.loc[:, 'source_text'].apply(lambda x: return_char_matcher.sub('', x)),
+        'target_text': clean_data.loc[:, 'target_text'].apply(lambda x: return_char_matcher.sub('', x)),
+    })
     # tmp debugging
     # print('blah')
-    # print(f'after deduplicating, data has {clean_data.shape[0]} questions')
-    logging.debug(f'after deduplicating, data has {clean_data.shape[0]} questions')
+    # logging.debug(f'after deduplicating, data has {clean_data.shape[0]} questions')
     # logging.debug(clean_data.head())
     # shorten source/target to fit model
     ## add author var tokens at the end of each source text => helps decoding? TBD
@@ -620,7 +626,7 @@ def convert_ids_to_clean_str(token_ids, tokenizer):
 ## author identification
 
 # age
-AGE_MATCHER = re.compile('.*?(i am|i\'m) (\\d+) (years|yrs|yr) old[^e].*?') # stolen from here https://github.com/cfwelch/compositional_demographic_embeddings/blob/master/compose/find_self_statements.py
+AGE_MATCHER = re.compile('.*?(i am|i\'m) (a |an )?(\d+) (years|year|yrs|yr) old[^e].*?') # adapted from here https://github.com/cfwelch/compositional_demographic_embeddings/blob/master/compose/find_self_statements.py
 NUM_MATCHER = re.compile('\d+')
 def extract_age(text, age_matcher=None, age_err_cutoff=5):
     combined_text = ' '.join(text).lower()

@@ -141,11 +141,17 @@ def main():
         article_data = load_all_articles(data_dir, data_name)
     else:
         article_data = pd.read_csv(data_file, sep='\t', index_col=False)
+        article_data.rename(columns={'id' : 'article_id', 'selftext' : 'article_text'}, inplace=True)
+        article_data = article_data.loc[:, ['article_id', 'article_text', 'title']]
 
     ## optional: get questions from comments
     if(args.get('comment_data') is not None):
         question_data = pd.read_csv(args['comment_data'], sep='\t', compression='gzip', index_col=False)
+        # fix ID var
+        question_data.rename(columns={'parent_id' : 'article_id'}, inplace=True)
+        question_data = question_data.loc[:, ['article_id', 'id', 'question']]
         article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
+        # print(f'article data cols {article_data.columns}')
     elif(args.get('comment_dir') is not None):
         comment_dir = args['comment_dir']
         comment_month_year_pairs = list(map(lambda x: x.split('_'), args['comment_month_year_pairs']))
