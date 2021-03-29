@@ -31,7 +31,7 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
     post_data = post_data[post_data.loc[:, 'parent_edited'].apply(
         lambda x: type(x) is bool and not x)]
     ## combine with questions
-    post_cols = ['parent_id', 'parent_created', 'parent_text', 'parent_title',
+    post_cols = ['parent_id', 'parent_created', 'parent_sents', 'parent_title',
                  'parent_edited', 'parent_author']
     ## tokenize/stem before joining to save space? yeah sure
     word_tokenizer = WordPunctTokenizer()
@@ -118,7 +118,7 @@ def main():
     comment_data = comment_data[comment_data.loc[:, 'parent_id'].apply(lambda x: type(x) is not float)]
     print(f'{comment_data.shape[0]} comments before filtering')
     # tmp debugging
-    comment_data = comment_data.iloc[:5000000, :]
+    # comment_data = comment_data.iloc[:5000000, :]
 
     ## extract questions
     print(f'extracting questions')
