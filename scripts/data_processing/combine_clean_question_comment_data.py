@@ -31,7 +31,7 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
     post_data = post_data[post_data.loc[:, 'parent_edited'].apply(
         lambda x: type(x) is bool and not x)]
     ## combine with questions
-    post_cols = ['parent_id', 'parent_created', 'parent_text', 'parent_title',
+    post_cols = ['parent_id', 'parent_created', 'parent_sents', 'parent_title',
                  'parent_edited', 'parent_author']
     ## tokenize/stem before joining to save space? yeah sure
     word_tokenizer = WordPunctTokenizer()
@@ -42,9 +42,9 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
             lambda x: tokenize_stem_text(x, stemmer, word_tokenizer,
                                          sent_tokenizer)),
     })
-    comment_data = comment_data.assign(**{
-        'question_sents': comment_data.loc[:,'question'].apply(lambda x: tokenize_stem_text(x, stemmer, word_tokenizer, sent_tokenizer))
-    })
+    # comment_data = comment_data.assign(**{
+    #     'question_sents': comment_data.loc[:,'question'].apply(lambda x: tokenize_stem_text(x, stemmer, word_tokenizer, sent_tokenizer))
+    # })
     ## join data
     ## TODO: if memory overload, don't join just iterate by parent_id and combine later
     post_data = pd.merge(comment_data, post_data.loc[:, post_cols],
@@ -55,7 +55,7 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
     post_data = post_data.assign(**{
         'post_question_overlap': post_data.progress_apply(
             lambda x: compute_sent_word_overlap(x.loc['parent_sents'],
-                                                x.loc['question_sents']),
+                                                [x.loc['question']]),
             axis=1)
     })
     post_data = post_data.assign(**{
@@ -118,7 +118,7 @@ def main():
     comment_data = comment_data[comment_data.loc[:, 'parent_id'].apply(lambda x: type(x) is not float)]
     print(f'{comment_data.shape[0]} comments before filtering')
     # tmp debugging
-    comment_data = comment_data.iloc[:5000000, :]
+    # comment_data = comment_data.iloc[:5000000, :]
 
     ## extract questions
     print(f'extracting questions')

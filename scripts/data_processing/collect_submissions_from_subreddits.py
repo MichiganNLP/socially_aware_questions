@@ -78,7 +78,7 @@ def main():
                             if(submission_ctr % 100000 == 0):
                                 logging.info(f'collected {submission_ctr} submissions')
 
-    ## after collecting, rewrite messy JSON as tsv file
+    ## after collecting data, rewrite messy JSON as tsv file
     subreddit_submission_data = load_zipped_json_data(subreddit_submission_out_file)
     subreddit_submission_data.to_csv(subreddit_submission_out_file, sep='\t', compression='gzip', index=False)
 

@@ -143,7 +143,6 @@ def main():
         article_data = pd.read_csv(data_file, sep='\t', index_col=False)
         article_data.rename(columns={'id' : 'article_id', 'selftext' : 'article_text'}, inplace=True)
         article_data = article_data.loc[:, ['article_id', 'article_text', 'title']]
-
     ## optional: get questions from comments
     if(args.get('comment_data') is not None):
         question_data = pd.read_csv(args['comment_data'], sep='\t', compression='gzip', index_col=False)
