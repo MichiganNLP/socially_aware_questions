@@ -10,9 +10,10 @@ import os
 import re
 from argparse import ArgumentParser
 from datetime import datetime
+from tqdm import tqdm
 from data_helpers import load_zipped_json_data
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 def main():
     parser = ArgumentParser()
@@ -25,11 +26,13 @@ def main():
     post_data_file = args['post_data']
 
     ## load existing data
-    post_data = pd.DataFrame(load_zipped_json_data(post_data_file)).loc[:, ['id', 'created_utc']]
+    # post_data = pd.DataFrame(load_zipped_json_data(post_data_file)).loc[:, ['id', 'created_utc']]
+    post_data = pd.read_csv(post_data_file, sep='\t', compression='gzip', index_col=False, usecols=['id', 'created_utc'])
     question_data = pd.read_csv(question_data_file, sep='\t', index_col=False, compression='gzip', usecols=['id', 'parent_id', 'created_utc', 'author', 'subreddit'])
     # remove null vals
     post_data.dropna(inplace=True)
     # question_data.dropna(inplace=True, subset=['created_utc', 'parent_id'])
+    post_data = post_data[post_data.loc[:, 'created_utc'].apply(lambda x: type(x) is int)]
     question_data = question_data[question_data.loc[:, 'created_utc'].apply(lambda x: type(x) is int)]
     # print(f'{question_data.shape[0]} question data')
     # get date info
@@ -54,41 +57,52 @@ def main():
     # tmp debugging
     # author_data_files = author_data_files[:1000]
     author_data_out_file = os.path.join(author_data_dir, 'author_prior_comment_data.gz')
-    with gzip.open(author_data_out_file, 'wt') as author_data_out:
-        author_data_col_str = "\t".join(author_data_cols)
-        author_data_out.write(author_data_col_str + '\n')
-        for author_file_i in author_data_files:
-            author_i = author_file_i.replace('_comments.gz', '')
-            author_comment_file_i = os.path.join(author_data_dir, author_file_i)
-            author_comment_data_i = pd.read_csv(author_comment_file_i, sep='\t', compression='gzip', usecols=['author', 'subreddit', 'created_utc'])
-            author_comment_data_i = author_comment_data_i.assign(**{'date' : author_comment_data_i.loc[:, 'created_utc'].apply(lambda x: datetime.fromtimestamp((x)))})
-            question_data_i = question_data[question_data.loc[:, 'author']==author_i].drop_duplicates(['author', 'subreddit', 'date_day'])
-            for idx_j, data_j in question_data_i.iterrows():
-                # expertise
-                date_day_j = data_j.loc['date_day']
-                date_j = data_j.loc['date']
-                subreddit_j = data_j.loc['subreddit']
-                author_prior_comment_data_j = author_comment_data_i[author_comment_data_i.loc[:, 'date'].apply(lambda x: x <= date_day_j)]
-                if(author_prior_comment_data_j.shape[0] > 0):
-                    relevant_prior_comment_data_j = author_prior_comment_data_j[author_prior_comment_data_j.loc[:, 'subreddit']==subreddit_j]
-                    expertise_pct_j = relevant_prior_comment_data_j.shape[0] / author_prior_comment_data_j.shape[0]
-                else:
-                    expertise_pct_j = 0.
-                # relative time
-                post_date_j = data_j.loc['parent_date']
-                relative_time_j = (post_date_j - date_j).seconds
-                combined_author_data_j = [author_i, date_day_j, subreddit_j, expertise_pct_j, relative_time_j]
-                combined_author_data_str_j = '\t'.join(list(map(str, combined_author_data_j)))
-                author_data_out.write(combined_author_data_str_j + '\n')
-                ## TODO: location, age => regexes
+    if(not os.path.exists(author_data_out_file)):
+        with gzip.open(author_data_out_file, 'wt') as author_data_out:
+            author_data_col_str = "\t".join(author_data_cols)
+            author_data_out.write(author_data_col_str + '\n')
+            for author_file_i in tqdm(author_data_files):
+                author_i = author_file_i.replace('_comments.gz', '')
+                author_comment_file_i = os.path.join(author_data_dir, author_file_i)
+                try:
+                    author_comment_data_i = pd.read_csv(author_comment_file_i, sep='\t', compression='gzip', usecols=['author', 'subreddit', 'created_utc'])
+                    author_comment_data_i = author_comment_data_i.assign(**{'date' : author_comment_data_i.loc[:, 'created_utc'].apply(lambda x: datetime.fromtimestamp((x)))})
+                    question_data_i = question_data[question_data.loc[:, 'author']==author_i].drop_duplicates(['author', 'subreddit', 'date_day'])
+                    for idx_j, data_j in question_data_i.iterrows():
+                        # expertise
+                        date_day_j = data_j.loc['date_day']
+                        date_j = data_j.loc['date']
+                        subreddit_j = data_j.loc['subreddit']
+                        author_prior_comment_data_j = author_comment_data_i[author_comment_data_i.loc[:, 'date'].apply(lambda x: x <= date_day_j)]
+                        if(author_prior_comment_data_j.shape[0] > 0):
+                            relevant_prior_comment_data_j = author_prior_comment_data_j[author_prior_comment_data_j.loc[:, 'subreddit']==subreddit_j]
+                            expertise_pct_j = relevant_prior_comment_data_j.shape[0] / author_prior_comment_data_j.shape[0]
+                        else:
+                            expertise_pct_j = 0.
+                        # relative time
+                        post_date_j = data_j.loc['parent_date']
+                        relative_time_j = (post_date_j - date_j).seconds
+                        combined_author_data_j = [author_i, date_day_j, subreddit_j, expertise_pct_j, relative_time_j]
+                        combined_author_data_str_j = '\t'.join(list(map(str, combined_author_data_j)))
+                        author_data_out.write(combined_author_data_str_j + '\n')
+                except Exception as e:
+                    print(f'failed to read file {author_comment_file_i} because error {e}')
                 # author_data.append(combined_author_data_j)
     # author_data = pd.DataFrame(author_data, columns=author_data_cols)
+    ## TODO: static data: location, age
 
     ## TODO: reload, convert to categorical with percentiles, etc.
-
-    ## save
-
-    # author_data.to_csv(author_data_out_file, sep='\t', compression='gzip', index=False)
+    combined_author_data = pd.read_csv(author_data_out_file, sep='\t', index_col=False, compression='gzip')
+    category_cutoff_pct_vals = [95, 50]
+    category_vars = ['expert_pct', 'relative_time']
+    for category_var_i, category_cutoff_pct_i in zip(category_vars, category_cutoff_pct_vals):
+        bin_var_i = f'{category_var_i}_bin'
+        bin_vals = [np.percentile(combined_author_data.loc[:, category_var_i].values, category_cutoff_pct_i)]
+        combined_author_data = combined_author_data.assign(**{
+            bin_var_i : np.digitize(combined_author_data.loc[:, category_var_i], bins=bin_vals)
+        })
+    # save
+    combined_author_data.to_csv(author_data_out_file, sep='\t', compression='gzip', index=False)
 
 if __name__ == '__main__':
     main()

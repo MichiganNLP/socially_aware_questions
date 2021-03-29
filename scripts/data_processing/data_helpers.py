@@ -620,7 +620,7 @@ def convert_ids_to_clean_str(token_ids, tokenizer):
 ## author identification
 
 # age
-AGE_MATCHER = re.compile('.*?(i am|i\'m) (\\d+) (years|yrs|yr) old[^e].*?') # stolen from here https://github.com/cfwelch/compositional_demographic_embeddings/blob/master/compose/find_self_statements.py
+AGE_MATCHER = re.compile('.*?(i am|i\'m) (a |an )?(\d+) (years|year|yrs|yr) old[^e].*?') # adapted from here https://github.com/cfwelch/compositional_demographic_embeddings/blob/master/compose/find_self_statements.py
 NUM_MATCHER = re.compile('\d+')
 def extract_age(text, age_matcher=None, age_err_cutoff=5):
     combined_text = ' '.join(text).lower()

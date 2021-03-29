@@ -42,9 +42,9 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
             lambda x: tokenize_stem_text(x, stemmer, word_tokenizer,
                                          sent_tokenizer)),
     })
-    comment_data = comment_data.assign(**{
-        'question_sents': comment_data.loc[:,'question'].apply(lambda x: tokenize_stem_text(x, stemmer, word_tokenizer, sent_tokenizer))
-    })
+    # comment_data = comment_data.assign(**{
+    #     'question_sents': comment_data.loc[:,'question'].apply(lambda x: tokenize_stem_text(x, stemmer, word_tokenizer, sent_tokenizer))
+    # })
     ## join data
     ## TODO: if memory overload, don't join just iterate by parent_id and combine later
     post_data = pd.merge(comment_data, post_data.loc[:, post_cols],
@@ -55,7 +55,7 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
     post_data = post_data.assign(**{
         'post_question_overlap': post_data.progress_apply(
             lambda x: compute_sent_word_overlap(x.loc['parent_sents'],
-                                                x.loc['question_sents']),
+                                                [x.loc['question']]),
             axis=1)
     })
     post_data = post_data.assign(**{

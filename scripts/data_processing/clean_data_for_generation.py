@@ -141,10 +141,13 @@ def main():
         article_data = load_all_articles(data_dir, data_name)
     else:
         article_data = pd.read_csv(data_file, sep='\t', index_col=False)
+        article_data.rename(columns={'id' : 'article_id'})
 
     ## optional: get questions from comments
     if(args.get('comment_data') is not None):
         question_data = pd.read_csv(args['comment_data'], sep='\t', compression='gzip', index_col=False)
+        # fix ID var
+        question_data.rename(columns={'parent_id' : 'article_id'}, inplace=True)
         article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
     elif(args.get('comment_dir') is not None):
         comment_dir = args['comment_dir']

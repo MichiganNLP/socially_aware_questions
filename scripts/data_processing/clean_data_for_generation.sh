@@ -24,7 +24,8 @@
 ## reddit data
 DATA_FILE=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
 DATA_NAME=advice_subreddit
-COMMENT_DATA=../../data/reddit_data/subreddit_combined_valid_question_data.gz
+#COMMENT_DATA=../../data/reddit_data/subreddit_combined_valid_question_data.gz
+COMMENT_DATA=../../data/reddit_data/advice_subreddit_comment_question_data.gz
 OUT_DIR=../../data/reddit_data/
 MODEL_TYPE=bart
 #MODEL_TYPE=longformer
