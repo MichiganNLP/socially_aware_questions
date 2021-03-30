@@ -140,15 +140,22 @@ def main():
     if(data_file is None):
         article_data = load_all_articles(data_dir, data_name)
     else:
-        article_data = pd.read_csv(data_file, sep='\t', index_col=False)
-        article_data.rename(columns={'id' : 'article_id'})
+        article_data = pd.read_csv(data_file, sep='\t', compression='gzip', index_col=False)
+        article_data.rename(columns={'id' : 'article_id', 'selftext' : 'article_text'}, inplace=True)
+        article_data = article_data.loc[:, ['article_id', 'article_text', 'title', 'created_utc', 'subreddit']]
+        # clean up time data (for optional merging with author data)
+        article_data.dropna(subset=['created_utc'], inplace=True)
+        article_data = article_data[article_data.loc[:, 'created_utc'].apply(lambda x: str(x).isdigit())]
+        article_data = article_data.assign(**{'created_utc' : article_data.loc[:, 'created_utc'].astype(int)})
 
     ## optional: get questions from comments
     if(args.get('comment_data') is not None):
         question_data = pd.read_csv(args['comment_data'], sep='\t', compression='gzip', index_col=False)
         # fix ID var
         question_data.rename(columns={'parent_id' : 'article_id'}, inplace=True)
+        question_data = question_data.loc[:, ['article_id', 'id', 'question', 'author']]
         article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
+        # print(f'article data cols {article_data.columns}')
     elif(args.get('comment_dir') is not None):
         comment_dir = args['comment_dir']
         comment_month_year_pairs = list(map(lambda x: x.split('_'), args['comment_month_year_pairs']))
@@ -169,12 +176,14 @@ def main():
     train_pct = 0.8
     author_data = args['author_data']
     if (author_data is not None):
-        author_data = pd.read_csv(author_data, sep='\t', index_col=False)
+        author_data = pd.read_csv(author_data, sep='\t', compression='gzip', index_col=False)
         # fix date
-        date_day_fmt = '%Y-%m-%d'
+        date_day_fmt = '%Y-%m-%d %H:%M:%S'
         author_data = author_data.assign(**{
-            'date_day': author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, date_day_fmt))
+            'date_day': author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, date_day_fmt) if type(x) is str else x)
         })
+        # drop data without authors
+        article_data = article_data[~article_data.loc[:, 'author'].apply(lambda x: type(x) is not str and np.isnan(x))]
     NE_overlap = args['NE_overlap']
     if (NE_overlap):
         data_name = f'NE_overlap_{data_name}'

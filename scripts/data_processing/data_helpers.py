@@ -413,38 +413,62 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     :param train_pct:
     :return:
     """
-
     # optional: add author data
     if (author_data is not None):
-        author_var = 'userID'
+        # author_var = 'userID'
+        author_var = 'author'
         date_var = 'date_day'
+        community_var = 'subreddit'
+        static_vars = ['location_region']
+        dynamic_vars = ['expert_pct_bin', 'relative_time_bin']
         # fix date variable
         # logging.debug(f'data cols {data.columns}')
         data = data.assign(**{
-            date_var : data.loc[:, 'createDate'].apply(lambda x: round_date_to_day(x))
+            date_var : data.loc[:, 'created_utc'].apply(lambda x: round_date_to_day(x))
         })
-        data = pd.merge(data, author_data, on=[author_var, date_var])
-        # add author identity to end of source
-        author_vars = ['location_region', 'prior_comment_count_bin', 'prior_comment_len_bin']
+        # print(f'pre-author-merge data shape={data.shape}')
+        dynamic_author_data = author_data[(~author_data.loc[:, 'date_day'].isna()) &
+                                          (~author_data.loc[:, 'subreddit'].isna())]
+        static_author_data = author_data.drop_duplicates(author_var, inplace=False)
+        data = pd.merge(data, dynamic_author_data.loc[:, [author_var, date_var, community_var] + dynamic_vars], on=[author_var, date_var, community_var], how='left')
+        # print(f'post-author-merge data shape 1={data.shape}')
+        data = pd.merge(data, static_author_data.loc[:, [author_var]+static_vars], on=author_var, how='left')
+        # remove null authors
+        data = data[~data.loc[:, 'author'].isna()]
+        # print(f'post-author-merge data shape 2={data.shape}')
+        # need author vars for later: we'll add author tokens to input
+        author_vars = static_vars + dynamic_vars
         data_vars.extend(author_vars)
     # change to clean source/target format
     clean_data = data.loc[:, data_vars].rename(
         columns={'article_text': 'source_text', 'question': 'target_text'})
     # deduplicate article/answer pairs
     clean_data.drop_duplicates(['source_text', 'target_text'], inplace=True)
+    clean_data = clean_data[(clean_data.loc[:, 'source_text'].apply(lambda x: type(x) is str)) &
+                            (clean_data.loc[:, 'target_text'].apply(lambda x: type(x) is str))]
+    # clean up return chars
+    return_char_matcher = re.compile('[\n\r]')
+    clean_data = clean_data.assign(**{
+        'source_text' : clean_data.loc[:, 'source_text'].apply(lambda x: return_char_matcher.sub('', x)),
+        'target_text': clean_data.loc[:, 'target_text'].apply(lambda x: return_char_matcher.sub('', x)),
+    })
     # tmp debugging
     # print('blah')
-    # print(f'after deduplicating, data has {clean_data.shape[0]} questions')
-    logging.debug(f'after deduplicating, data has {clean_data.shape[0]} questions')
+    # logging.debug(f'after deduplicating, data has {clean_data.shape[0]} questions')
     # logging.debug(clean_data.head())
     # shorten source/target to fit model
     ## add author var tokens at the end of each source text => helps decoding? TBD
     if (author_data is not None):
         ## add special tokens
+        # author_tokens = [
+        #     '<US_AUTHOR>', '<NONUS_AUTHOR>',  # location
+        #     '<COMMENT_COUNT_0_AUTHOR>', '<COMMENT_COUNT_1_AUTHOR>',  # prior comment count
+        #     '<COMMENT_LEN_0_AUTHOR>', '<COMMENT_LEN_1_AUTHOR>',  # prior comment length
+        # ]
         author_tokens = [
-            '<US_AUTHOR>', '<NONUS_AUTHOR>',  # location
-            '<COMMENT_COUNT_0_AUTHOR>', '<COMMENT_COUNT_1_AUTHOR>',  # prior comment count
-            '<COMMENT_LEN_0_AUTHOR>', '<COMMENT_LEN_1_AUTHOR>',  # prior comment length
+            '<US_AUTHOR>', '<NONUS_AUTHOR>',
+            '<EXPERT_PCT_0_AUTHOR>', '<EXPERT_PCT_1_AUTHOR>', # prior comment activity in subreddit
+            '<RESPONSE_TIME_0_AUTHOR>', '<RESPONSE_TIME_1_AUTHOR>', # question response time
         ]
         # for author_token in author_tokens:
             # tokenizer.add_special_tokens({'cls_token': author_token})
@@ -452,23 +476,30 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
         ## add special tokens to all data
         author_location_token_lookup = {
             'US' : '<US_AUTHOR>',
-            'non_US': '<NONUS_AUTHOR>',
+            'NONUS': '<NONUS_AUTHOR>',
         }
         author_var_template_lookup = {
-            'prior_comment_count_bin' : '<COMMENT_COUNT_%d_AUTHOR>',
-            'prior_comment_len_bin': '<COMMENT_LEN_%d_AUTHOR>',
+            # 'prior_comment_count_bin' : '<COMMENT_COUNT_%d_AUTHOR>',
+            # 'prior_comment_len_bin': '<COMMENT_LEN_%d_AUTHOR>',
+            'expert_pct_bin' : '<EXPERT_PCT_%d_AUTHOR>',
+            'relative_time_bin' : '<RESPONSE_TIME_%d_AUTHOR>',
         }
-        author_vars = ['location_region', 'prior_comment_count_bin', 'prior_comment_len_bin']
+        # author_vars = ['location_region', 'prior_comment_count_bin', 'prior_comment_len_bin']
         author_txt_data = []
         source_text_var = 'source_text'
         pad_space = 1 # need to remove tokens from start and end to make space for pads
         # add author variable value to each source text
-        for data_idx, data_i in clean_data.iterrows():
+        no_author_data = clean_data[clean_data.isna().loc[:, author_vars].apply(lambda x: all(x), axis=1)]
+        valid_author_data = clean_data.dropna(axis=0, subset=author_vars, how='all')
+        for data_idx, data_i in valid_author_data.iterrows():
             # tokenize, fit to max length
             source_text_i = data_i.loc[source_text_var]
             source_text_tokens_i = tokenizer.tokenize(source_text_i)
             source_text_tokens_i = source_text_tokens_i[pad_space:(max_source_length-1-pad_space)]
-            for author_var in author_vars:
+            # filter to valid vars
+            valid_author_vars = data_i.loc[author_vars].dropna().index
+            for author_var in valid_author_vars:
+                # if(not np.isnan(data_i.loc[author_var])):
                 data_j = data_i.copy()
                 source_text_tokens_j = list(source_text_tokens_i)
                 author_val_i = data_i.loc[author_var]
@@ -486,13 +517,18 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
                 source_text_j = tokenizer.convert_tokens_to_string(source_text_tokens_j)
                 data_j.loc[source_text_var] = source_text_j
                 author_txt_data.append(data_j)
-        clean_data = pd.concat(author_txt_data, axis=1).transpose()
+        author_txt_data = pd.concat(author_txt_data, axis=1).transpose()
+        # recombine data without-author and with-author
+        clean_data = pd.concat([no_author_data, author_txt_data], axis=0)
+
         # tmp debugging: check for author vars
         for author_token in author_tokens:
             for txt_i in clean_data.loc[:, 'source_text'].values:
                 if(author_token in txt_i):
                     logging.debug(f'found author token {author_token} in at least one doc')
                     break
+        # remove author data to avoid NAN bugs in later data reading
+        clean_data = clean_data.loc[:, ['source_text', 'target_text', 'article_id']]
     # optional: filter questions that have >=1 NEs shared with article
     if(article_question_NE_overlap):
         # check for NE data!! don't want to do this multiple times

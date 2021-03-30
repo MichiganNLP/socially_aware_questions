@@ -23,9 +23,10 @@
 #OUT_DIR=../../data/CNN_articles/cnn/
 ## reddit data
 DATA_FILE=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
-DATA_NAME=advice_subreddit
+DATA_NAME=advice_subreddit_author
 #COMMENT_DATA=../../data/reddit_data/subreddit_combined_valid_question_data.gz
 COMMENT_DATA=../../data/reddit_data/advice_subreddit_comment_question_data.gz
+AUTHOR_DATA=../../data/reddit_data/author_data/combined_author_prior_comment_data.gz # contains static and dynamic author data
 OUT_DIR=../../data/reddit_data/
 MODEL_TYPE=bart
 #MODEL_TYPE=longformer
@@ -33,10 +34,12 @@ MODEL_TYPE=bart
 #NE_overlap=False
 #SAMPLE_PCT=1.0
 # sampling for long data
-SAMPLE_PCT=0.25
+SAMPLE_PCT=0.1
 # NYT
 #python clean_data_for_generation.py $OUT_DIR --data_dir $DATA_DIR --data_name $DATA_NAME --comment_dir $COMMENT_DIR --comment_month_year_pairs "${COMMENT_MONTH_YEAR_PAIRS[@]}" --author_data $AUTHOR_DATA --model_type $MODEL_TYPE --sample_pct $SAMPLE_PCT --NE_overlap $NE_overlap
 # CNN
 #python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --sample_pct $SAMPLE_PCT
 # reddit
-python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --sample_pct $SAMPLE_PCT
+#python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --sample_pct $SAMPLE_PCT
+# reddit + author
+python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT

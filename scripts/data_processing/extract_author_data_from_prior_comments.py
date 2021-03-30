@@ -10,10 +10,13 @@ import os
 import re
 from argparse import ArgumentParser
 from datetime import datetime
+from nltk import PunktSentenceTokenizer
 from tqdm import tqdm
-from data_helpers import load_zipped_json_data
+from data_helpers import load_zipped_json_data, extract_age, \
+    full_location_pipeline
 import numpy as np
 import pandas as pd
+import stanza
 
 def main():
     parser = ArgumentParser()
@@ -68,6 +71,7 @@ def main():
                     author_comment_data_i = pd.read_csv(author_comment_file_i, sep='\t', compression='gzip', usecols=['author', 'subreddit', 'created_utc'])
                     author_comment_data_i = author_comment_data_i.assign(**{'date' : author_comment_data_i.loc[:, 'created_utc'].apply(lambda x: datetime.fromtimestamp((x)))})
                     question_data_i = question_data[question_data.loc[:, 'author']==author_i].drop_duplicates(['author', 'subreddit', 'date_day'])
+                    # dynamic data
                     for idx_j, data_j in question_data_i.iterrows():
                         # expertise
                         date_day_j = data_j.loc['date_day']
@@ -90,6 +94,29 @@ def main():
                 # author_data.append(combined_author_data_j)
     # author_data = pd.DataFrame(author_data, columns=author_data_cols)
     ## TODO: static data: location, age
+    nlp_pipeline = stanza.Pipeline(lang='en', processors='tokenize,ner', use_gpu=False)
+    location_matcher = re.compile('(?<=i\'m from )[a-z0-9\, ]+|(?<=i am from )[a-z0-9\, ]+|(?<=i live in )[a-z0-9\, ]+')
+    sent_tokenizer = PunktSentenceTokenizer()
+    author_static_data_file = os.path.join(author_data_dir, 'author_static_prior_comment_data.gz')
+    author_static_data_cols = ['age', 'location']
+    if(not os.path.exists(author_static_data_file)):
+        with gzip.open(author_static_data_file, 'wt') as author_static_data_out:
+            author_data_col_str = "\t".join(author_static_data_cols)
+            author_static_data_out.write(author_data_col_str + '\n')
+            for author_file_i in tqdm(author_data_files):
+                author_i = author_file_i.replace('_comments.gz', '')
+                author_comment_file_i = os.path.join(author_data_dir, author_file_i)
+                try:
+                    author_comment_data_i = pd.read_csv(author_comment_file_i, sep='\t', compression='gzip', usecols=['author', 'body',])
+                    text_i = author_comment_data_i.loc[:, 'body'].values
+                    # age
+                    age_i = extract_age(text_i)
+                    # location
+                    loc_i = full_location_pipeline(text_i, location_matcher, sent_tokenizer, nlp_pipeline)
+                    author_static_data_out.write('\t'.join([author_i, str(age_i), loc_i]) + '\n')
+                except Exception as e:
+                    print(
+                        f'failed to read file {author_comment_file_i} because error {e}')
 
     ## TODO: reload, convert to categorical with percentiles, etc.
     combined_author_data = pd.read_csv(author_data_out_file, sep='\t', index_col=False, compression='gzip')
@@ -101,8 +128,19 @@ def main():
         combined_author_data = combined_author_data.assign(**{
             bin_var_i : np.digitize(combined_author_data.loc[:, category_var_i], bins=bin_vals)
         })
-    # save
-    combined_author_data.to_csv(author_data_out_file, sep='\t', compression='gzip', index=False)
+    author_static_data = pd.read_csv(author_static_data_file, sep='\t', compression='gzip', index_col=False)
+    combined_author_data = pd.merge(combined_author_data, author_static_data, on=['author'])
+    # add location regions
+    location_region_lookup = {'us' : 'US'}
+    location_region_lookup.update({x : 'NONUS' for x in combined_author_data.loc[:, 'location'].unique() if x not in {'UNK', 'us'}})
+    location_region_lookup.update({'UNK' : 'UNK'})
+    combined_author_data = combined_author_data.assign(**{
+        'location_region' : combined_author_data.loc[:, 'location'].apply(location_region_lookup.get)
+    })
+
+    # save to single file
+    combined_author_data_file = os.path.join(author_data_dir, 'combined_author_prior_comment_data.gz')
+    combined_author_data.to_csv(combined_author_data_file, sep='\t', compression='gzip', index=False)
 
 if __name__ == '__main__':
     main()
