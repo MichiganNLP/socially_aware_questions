@@ -154,7 +154,7 @@ def main():
         # fix ID var
         question_data.rename(columns={'parent_id' : 'article_id'}, inplace=True)
         question_data = question_data.loc[:, ['article_id', 'id', 'question', 'author']]
-        article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
+       article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
         # print(f'article data cols {article_data.columns}')
     elif(args.get('comment_dir') is not None):
         comment_dir = args['comment_dir']
