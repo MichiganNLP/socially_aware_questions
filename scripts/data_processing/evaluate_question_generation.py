@@ -34,6 +34,50 @@ def count_exact_matches(pred_text, compare_text):
         match_counts.append(len(matches_i))
     return match_counts
 
+def evaluate_model(model, train_data, test_data, tokenizer, out_dir, data_name=None):
+    generation_method = 'beam_search'  # TODO: experiment with sample
+    num_beams = 4
+    temperature = 1.0
+    pred_text = generate_predictions(model, test_data, tokenizer,
+                                     generation_method=generation_method,
+                                     num_beams=num_beams,
+                                     temperature=temperature)
+    ### matching test data: BLEU and ROUGE
+    # use ROUGE for longest common subsequence
+    rouge_evaluator = Rouge(metrics=['rouge-l'], max_n=4,
+                            alpha=0.5,  # default F1 score
+                            stemming=True)
+    combined_overlap_scores = []
+    for pred_text_i, target_ids_i in zip(pred_text, test_data['target_ids']):
+        scores = compute_all_match_scores(pred_text_i, target_ids_i, tokenizer,
+                                          rouge_evaluator)
+        combined_overlap_scores.append(scores)
+    combined_overlap_scores = pd.DataFrame(combined_overlap_scores, columns=['bleu-1', 'bleu-2', 'rouge-l'])
+    mean_overlap_scores = combined_overlap_scores.mean(axis=0)
+    ### repetition
+    pred_text_clean = list(map(lambda x: x.lower().strip(), pred_text))
+    unique_question_pct = len(set(pred_text_clean)) / len(pred_text_clean)
+    ### copying
+    target_text_clean = list(
+        map(lambda x: convert_ids_to_clean_str(x, tokenizer).lower(),
+            train_data['target_ids']))
+    print(f'computing match counts:\nexample pred text {pred_text_clean[:10]}\nexample target text {target_text_clean}')
+    exact_match_counts = count_exact_matches(pred_text_clean, target_text_clean)
+    exact_match_pct = sum(
+        list(filter(lambda x: x > 0, exact_match_counts))) / len(train_data)
+    ### combine all scores
+    eval_scores = mean_overlap_scores.append(
+        pd.Series([unique_question_pct, exact_match_pct],
+                  index=['pct_unique', 'pct_match_train_data']))
+    ### write to file
+    if (not os.path.exists(out_dir)):
+        os.mkdir(out_dir)
+    out_file_name = 'question_scores.tsv'
+    if(data_name is not None):
+        out_file_name = f'{data_name}_question_scores.tsv'
+    out_file = os.path.join(out_dir, out_file_name)
+    eval_scores.to_csv(out_file, sep='\t', index=True)
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('model_file')
@@ -43,6 +87,7 @@ def main():
     parser.add_argument('--model_type', default='bart')
     parser.add_argument('--device_name', default='cpu')
     parser.add_argument('--model_cache_dir', default=None)
+    parser.add_argument('--post_metadata', default=None)
     args = vars(parser.parse_args())
     model_file = args['model_file']
     out_dir = args['out_dir']
@@ -88,38 +133,16 @@ def main():
 
     ## evaluation
     # generate predictions
-    generation_method = 'beam_search' # TODO: experiment with sample
-    num_beams = 4
-    temperature = 1.0
-    pred_text = generate_predictions(model, test_data, tokenizer, device_name='cuda:0',
-                                     generation_method=generation_method, num_beams=num_beams,
-                                     temperature=temperature)
-    ### matching test data: BLEU and ROUGE
-    # use ROUGE for longest common subsequence
-    rouge_evaluator = Rouge(metrics=['rouge-l'], max_n=4,
-                            alpha=0.5, # default F1 score
-                            stemming=True)
-    combined_overlap_scores = []
-    for pred_text_i, target_ids_i in zip(pred_text, test_data['target_ids']):
-        scores = compute_all_match_scores(pred_text_i, target_ids_i, tokenizer, rouge_evaluator)
-        combined_overlap_scores.append(scores)
-    combined_overlap_scores = pd.DataFrame(combined_overlap_scores, columns=['bleu-1', 'bleu-2', 'rouge-l'])
-    mean_overlap_scores = combined_overlap_scores.mean(axis=0)
-    ### repetition
-    pred_text_clean = list(map(lambda x: x.lower().strip(), pred_text))
-    unique_question_pct = len(set(pred_text_clean)) / len(pred_text_clean)
-    ### copying
-    target_text_clean = list(map(lambda x: convert_ids_to_clean_str(x, tokenizer).lower(), train_data['target_ids']))
-    print(f'computing match counts:\nexample pred text {pred_text_clean[:10]}\nexample target text {target_text_clean}')
-    exact_match_counts = count_exact_matches(pred_text_clean, target_text_clean)
-    exact_match_pct = sum(list(filter(lambda x: x>0 , exact_match_counts))) / len(train_data)
-    ### combine all scores
-    eval_scores = mean_overlap_scores.append(pd.Series([unique_question_pct, exact_match_pct], index=['pct_unique', 'pct_match_train_data']))
-    ### write to file
-    if(not os.path.exists(out_dir)):
-        os.mkdir(out_dir)
-    out_file = os.path.join(out_dir, 'question_scores.tsv')
-    eval_scores.to_csv(out_file, sep='\t', index=True)
+    evaluate_model(model, train_data, test_data, tokenizer, out_dir)
+
+    ## optional: same thing but for different subsets of post data
+    # if(args.get('post_metadata') is not None):
+    #     post_metadata = pd.read_csv(args['post_metadata'], sep='\t', compression='gzip', index_col=False)
+#         community_var = 'subreddit'
+#         for community_i, metadata_i in post_metadata.groupby(community_var):
+#             idx_i = metadata_i.loc[:, 'id'].unique()
+#             test_data_i = test_data.filter(lambda x: x["article_id"] in idx_i)
+#             evaluate_model(model, train_data, test_data, tokenizer, out_dir, data_name=community_i)
 
 if __name__ == '__main__':
     main()
