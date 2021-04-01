@@ -5,8 +5,6 @@ We expect the format:
 article ID | article text | question text
 """
 import os
-# need GPU to extract NEs from comments/articles
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import re
 from argparse import ArgumentParser
 import pandas as pd
@@ -17,6 +15,7 @@ from data_helpers import prepare_question_data
 from transformers import BartTokenizer, LongformerTokenizer
 from datetime import datetime
 import logging
+np.random.seed(123)
 
 def load_all_articles(data_dir, data_name):
     article_files = list(map(lambda x: os.path.join(data_dir, x), os.listdir(data_dir)))
