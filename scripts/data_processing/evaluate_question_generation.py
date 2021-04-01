@@ -11,13 +11,13 @@ from data_helpers import compute_text_bleu, generate_predictions, convert_ids_to
 from rouge import Rouge
 from tqdm import tqdm
 import os
-from transformers import AutoModelForSeq2SeqLM
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 import pandas as pd
+import numpy as np
 
-
-def compute_all_match_scores(pred_text, target_ids, tokenizer, rouge_evaluator):
-    target_text = tokenizer.convert_ids_to_tokens(target_ids,
-                                                  skip_special_tokens=True)
+def compute_all_match_scores(pred_text, target_text, tokenizer, rouge_evaluator):
+    # target_text = tokenizer.convert_ids_to_tokens(target_ids,
+    #                                               skip_special_tokens=True)
     pred_tokens = tokenizer.tokenize(pred_text)
     bleu_1_score = compute_text_bleu(pred_tokens, target_text,
                                      weights=[1.0, 0., 0., 0., ])
@@ -36,20 +36,19 @@ def count_exact_matches(pred_text, compare_text):
 
 def evaluate_model(model, train_data, test_data, tokenizer, out_dir, data_name=None):
     generation_method = 'beam_search'  # TODO: experiment with sample
-    num_beams = 4
-    temperature = 1.0
+    num_beams = 8
+    # temperature = 1.0
     pred_text = generate_predictions(model, test_data, tokenizer,
                                      generation_method=generation_method,
-                                     num_beams=num_beams,
-                                     temperature=temperature)
+                                     num_beams=num_beams)
     ### matching test data: BLEU and ROUGE
     # use ROUGE for longest common subsequence
     rouge_evaluator = Rouge(metrics=['rouge-l'], max_n=4,
                             alpha=0.5,  # default F1 score
                             stemming=True)
     combined_overlap_scores = []
-    for pred_text_i, target_ids_i in zip(pred_text, test_data['target_ids']):
-        scores = compute_all_match_scores(pred_text_i, target_ids_i, tokenizer,
+    for pred_text_i, target_text_i in zip(pred_text, test_data['target_text']):
+        scores = compute_all_match_scores(pred_text_i, target_text_i, tokenizer,
                                           rouge_evaluator)
         combined_overlap_scores.append(scores)
     combined_overlap_scores = pd.DataFrame(combined_overlap_scores, columns=['bleu-1', 'bleu-2', 'rouge-l'])
@@ -85,17 +84,17 @@ def main():
     parser.add_argument('train_data')
     parser.add_argument('test_data')
     parser.add_argument('--model_type', default='bart')
-    parser.add_argument('--device_name', default='cpu')
     parser.add_argument('--model_cache_dir', default=None)
     parser.add_argument('--post_metadata', default=None)
+    parser.add_argument('--data_name', default=None)
     args = vars(parser.parse_args())
     model_file = args['model_file']
     out_dir = args['out_dir']
     train_data_file = args['train_data']
     test_data_file = args['test_data']
     model_type = args['model_type']
-    device_name = args['device_name']
     model_cache_dir = args['model_cache_dir']
+    data_name = args.get('data_name')
 
     ## load data
     # model
@@ -116,7 +115,10 @@ def main():
     # tokenizer_dir = os.path.abspath(os.path.join(model_file, '../../../'))
     # tokenizer_path = os.path.join(tokenizer_dir, f'{tokenizer_name}_tokenizer.pt')
     # print(tokenizer_path)
-    tokenizer = torch.load(tokenizer_path)
+    if(os.path.exists(tokenizer_path)):
+        tokenizer = torch.load(tokenizer_path)
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(model_path, cache_dir=model_cache_dir)
     model = AutoModelForSeq2SeqLM.from_pretrained(
         model_path,
         cache_dir=model_cache_dir,
@@ -133,16 +135,24 @@ def main():
 
     ## evaluation
     # generate predictions
-    evaluate_model(model, train_data, test_data, tokenizer, out_dir)
+    out_file_name = 'question_scores.tsv'
+    if (data_name is not None):
+        out_file_name = f'{data_name}_question_scores.tsv'
+    if(not os.path.exists(out_file_name)):
+        evaluate_model(model, train_data, test_data, tokenizer, out_dir, data_name=data_name)
 
     ## optional: same thing but for different subsets of post data
-    # if(args.get('post_metadata') is not None):
-    #     post_metadata = pd.read_csv(args['post_metadata'], sep='\t', compression='gzip', index_col=False)
-#         community_var = 'subreddit'
-#         for community_i, metadata_i in post_metadata.groupby(community_var):
-#             idx_i = metadata_i.loc[:, 'id'].unique()
-#             test_data_i = test_data.filter(lambda x: x["article_id"] in idx_i)
-#             evaluate_model(model, train_data, test_data, tokenizer, out_dir, data_name=community_i)
+    if(args.get('post_metadata') is not None):
+        post_metadata = pd.read_csv(args['post_metadata'], sep='\t', compression='gzip', index_col=False, usecols=['id', 'subreddit'])
+        community_var = 'subreddit'
+        post_article_ids = np.array(post_metadata['article_id'])
+        for community_i, metadata_i in post_metadata.groupby(community_var):
+            article_ids_i = set(metadata_i.loc[:, 'article_id'].unique())
+            idx_i = np.where(np.apply_along_axis(lambda x: x in article_ids_i, 0, post_article_ids.reshape(1, -1)))
+            # idx_i = np.where(post_metadata['article_id'].isin(metadata_i.loc[:, 'id'].unique()))
+            test_data_i = test_data.select(idx_i)
+            data_name_i = f'{community_i}_{data_name}'
+            evaluate_model(model, train_data, test_data_i, tokenizer, out_dir, data_name=data_name_i)
 
 if __name__ == '__main__':
     main()

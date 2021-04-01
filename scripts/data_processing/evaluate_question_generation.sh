@@ -79,7 +79,13 @@ MODEL_TYPE='bart'
 #TEST_DATA=../../data/nyt_comments/no_author_data/NE_overlap_NYT_long_input_val_data.pt
 # reddit data
 TRAIN_DATA=../../data/reddit_data/advice_subreddit_train_data.pt
-VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
+TEST_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
+DATA_NAME=text_only_model
+## optional: post metadata
+POST_METADATA=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
 #DEVICE_NAME='cuda:2'
 export CUDA_VISIBLE_DEVICES="1"
-python evaluate_question_generation.py $MODEL_FILE $OUT_DIR $TRAIN_DATA $TEST_DATA --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR
+# normal evaluation
+#python evaluate_question_generation.py $MODEL_FILE $OUT_DIR $TRAIN_DATA $TEST_DATA --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --data_name $DATA_NAME
+# evaluation with metadata
+python evaluate_question_generation.py $MODEL_FILE $OUT_DIR $TRAIN_DATA $TEST_DATA --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --data_name $DATA_NAME --post_metadata $POST_METADATA

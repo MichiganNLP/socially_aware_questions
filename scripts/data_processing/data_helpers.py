@@ -176,6 +176,7 @@ class DataProcessor:
             'source_ids': source_encoding['input_ids'],
             'target_ids': target_encoding['input_ids'],
             'attention_mask': source_encoding['attention_mask'],
+            'article_id' : example_batch['article_id'],
         }
 
         return encodings
