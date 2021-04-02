@@ -172,6 +172,12 @@ def main():
         N_sample = int(article_data.shape[0] * sample_pct)
         article_data_idx = np.random.choice(article_data.index, N_sample, replace=False)
         article_data = article_data.loc[article_data_idx, :]
+        # tmp debugging
+        # tmp_out_file = 'tmp.txt'
+        # with open(tmp_out_file, 'w') as tmp_out:
+        #     tmp_out.write('\n'.join(article_data.loc[:, 'article_id'].values))
+        #     import sys
+        #     sys.exit(0)
     train_pct = 0.8
     author_data = args['author_data']
     if (author_data is not None):
@@ -213,21 +219,21 @@ def main():
                               article_question_NE_overlap=NE_overlap,
                               NE_data_dir=out_dir)
     # if we include author data: also generate "clean" no-author data for comparison
-    if(author_data is not None):
-        no_author_out_dir = os.path.join(out_dir, 'no_author_data/')
-        if(not os.path.exists(no_author_out_dir)):
-            os.mkdir(no_author_out_dir)
-        no_author_train_data_file = os.path.join(no_author_out_dir, f'{data_name}_train_data.pt')
-        if(not os.path.exists(no_author_train_data_file)):
-            # need clean tokenizer
-            tokenizer = tokenizer_class.from_pretrained(tokenizer_name)
-            prepare_question_data(article_data, no_author_out_dir, data_name,
-                                  tokenizer=tokenizer, train_pct=train_pct,
-                                  author_data=None,
-                                  max_source_length=max_source_length,
-                                  max_target_length=max_target_length,
-                                  article_question_NE_overlap=NE_overlap,
-                                  NE_data_dir=out_dir)
+    # if(author_data is not None):
+    #     no_author_out_dir = os.path.join(out_dir, 'no_author_data/')
+    #     if(not os.path.exists(no_author_out_dir)):
+    #         os.mkdir(no_author_out_dir)
+    #     no_author_train_data_file = os.path.join(no_author_out_dir, f'{data_name}_train_data.pt')
+    #     if(not os.path.exists(no_author_train_data_file)):
+    #         # need clean tokenizer
+    #         tokenizer = tokenizer_class.from_pretrained(tokenizer_name)
+    #         prepare_question_data(article_data, no_author_out_dir, data_name,
+    #                               tokenizer=tokenizer, train_pct=train_pct,
+    #                               author_data=None,
+    #                               max_source_length=max_source_length,
+    #                               max_target_length=max_target_length,
+    #                               article_question_NE_overlap=NE_overlap,
+    #                               NE_data_dir=out_dir)
     ## save raw data to file
     out_file_name = os.path.join(out_dir, f'{data_name}_question_data.gz')
     article_data.to_csv(out_file_name, sep='\t', index=False, compression='gzip')

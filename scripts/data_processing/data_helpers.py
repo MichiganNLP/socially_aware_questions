@@ -576,11 +576,16 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
                         break
     ## split train/val data
     # split by articles! to avoid bleeding between train/test
-    article_ids = list(clean_data.loc[:, 'article_id'].unique())
+    article_ids = list(sorted(clean_data.loc[:, 'article_id'].unique()))
     N_train = int(len(article_ids) * train_pct)
-    np.random.shuffle(article_ids)
-    train_article_ids = article_ids[:N_train]
-    val_article_ids = article_ids[N_train:]
+    train_article_ids = np.random.choice(article_ids, N_train, replace=False)
+    val_article_ids = list(set(article_ids) - set(train_article_ids))
+    # tmp debugging lol
+    # with open('tmp_article_ids.txt', 'w') as tmp_out:
+    #     print(f'writing {len(train_article_ids)} article IDs')
+    #     tmp_out.write('\n'.join(map(str, train_article_ids)))
+    #     import sys
+    #     sys.exit(0)
     # print(f'{len(train_article_ids)} train articles')
     # print(f'{len(val_article_ids)} val articles')
     clean_data_train = clean_data[clean_data.loc[:, 'article_id'].isin(train_article_ids)]
