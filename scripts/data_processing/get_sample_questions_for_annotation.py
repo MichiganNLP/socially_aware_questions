@@ -4,7 +4,7 @@ Get sample questions for annotation:
 """
 import os
 import re
-from argparse import ArgumentParser
+rom argparse import ArgumentParser
 import numpy as np
 np.random.seed(123)
 import pandas as pd
@@ -23,11 +23,10 @@ def main():
     out_dir = args['out_dir']
     if(not os.path.exists(out_dir)):
         os.mkdir(out_dir)
-
     ## load data
     question_data = pd.read_csv(question_data_file, sep='\t', compression='gzip', index_col=False)
     # remove edited posts
-    # question_data = question_data[question_data.loc[:, 'edited'].apply(lambda x: type(x) is bool and not x)]
+   # question_data = question_data[question_data.loc[:, 'edited'].apply(lambda x: type(x) is bool and not x)]
     # fix parent ID
     question_data = question_data.assign(**{'parent_id' : question_data.loc[:, 'parent_id'].apply(lambda x: x.split('_')[-1])})
     # print(question_data.loc[:, 'parent_id'].iloc[:10])
