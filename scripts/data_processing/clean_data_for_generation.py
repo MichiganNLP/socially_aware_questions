@@ -5,8 +5,6 @@ We expect the format:
 article ID | article text | question text
 """
 import os
-# need GPU to extract NEs from comments/articles
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import re
 from argparse import ArgumentParser
 import pandas as pd
@@ -17,6 +15,7 @@ from data_helpers import prepare_question_data
 from transformers import BartTokenizer, LongformerTokenizer
 from datetime import datetime
 import logging
+np.random.seed(123)
 
 def load_all_articles(data_dir, data_name):
     article_files = list(map(lambda x: os.path.join(data_dir, x), os.listdir(data_dir)))
@@ -121,6 +120,7 @@ def main():
     parser.add_argument('--data_dir', default='../../data/')
     parser.add_argument('--data_file', default=None)
     parser.add_argument('--data_name', default='NYT')
+    parser.add_argument('--comment_data', default=None)
     parser.add_argument('--comment_dir', default=None) # ../../data/nyt_comments/
     parser.add_argument('--comment_month_year_pairs', nargs='+', default=None) # 'April_2018'
     parser.add_argument('--sample_pct', type=float, default=1.0)
@@ -139,10 +139,23 @@ def main():
     if(data_file is None):
         article_data = load_all_articles(data_dir, data_name)
     else:
-        article_data = pd.read_csv(data_file, sep='\t', index_col=False)
+        article_data = pd.read_csv(data_file, sep='\t', compression='gzip', index_col=False)
+        article_data.rename(columns={'id' : 'article_id', 'selftext' : 'article_text'}, inplace=True)
+        article_data = article_data.loc[:, ['article_id', 'article_text', 'title', 'created_utc', 'subreddit']]
+        # clean up time data (for optional merging with author data)
+        article_data.dropna(subset=['created_utc'], inplace=True)
+        article_data = article_data[article_data.loc[:, 'created_utc'].apply(lambda x: str(x).isdigit())]
+        article_data = article_data.assign(**{'created_utc' : article_data.loc[:, 'created_utc'].astype(int)})
 
     ## optional: get questions from comments
-    if(args.get('comment_dir') is not None):
+    if(args.get('comment_data') is not None):
+        question_data = pd.read_csv(args['comment_data'], sep='\t', compression='gzip', index_col=False)
+        # fix ID var
+        question_data.rename(columns={'parent_id' : 'article_id'}, inplace=True)
+        question_data = question_data.loc[:, ['article_id', 'id', 'question', 'author']]
+        article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
+        # print(f'article data cols {article_data.columns}')
+    elif(args.get('comment_dir') is not None):
         comment_dir = args['comment_dir']
         comment_month_year_pairs = list(map(lambda x: x.split('_'), args['comment_month_year_pairs']))
         # tmp debugging
@@ -159,15 +172,23 @@ def main():
         N_sample = int(article_data.shape[0] * sample_pct)
         article_data_idx = np.random.choice(article_data.index, N_sample, replace=False)
         article_data = article_data.loc[article_data_idx, :]
+        # tmp debugging
+        # tmp_out_file = 'tmp.txt'
+        # with open(tmp_out_file, 'w') as tmp_out:
+        #     tmp_out.write('\n'.join(article_data.loc[:, 'article_id'].values))
+        #     import sys
+        #     sys.exit(0)
     train_pct = 0.8
     author_data = args['author_data']
     if (author_data is not None):
-        author_data = pd.read_csv(author_data, sep='\t', index_col=False)
+        author_data = pd.read_csv(author_data, sep='\t', compression='gzip', index_col=False)
         # fix date
-        date_day_fmt = '%Y-%m-%d'
+        date_day_fmt = '%Y-%m-%d %H:%M:%S'
         author_data = author_data.assign(**{
-            'date_day': author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, date_day_fmt))
+            'date_day': author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, date_day_fmt) if type(x) is str else x)
         })
+        # drop data without authors
+        article_data = article_data[~article_data.loc[:, 'author'].apply(lambda x: type(x) is not str and np.isnan(x))]
     NE_overlap = args['NE_overlap']
     if (NE_overlap):
         data_name = f'NE_overlap_{data_name}'
@@ -198,24 +219,24 @@ def main():
                               article_question_NE_overlap=NE_overlap,
                               NE_data_dir=out_dir)
     # if we include author data: also generate "clean" no-author data for comparison
-    if(author_data is not None):
-        no_author_out_dir = os.path.join(out_dir, 'no_author_data/')
-        if(not os.path.exists(no_author_out_dir)):
-            os.mkdir(no_author_out_dir)
-        no_author_train_data_file = os.path.join(no_author_out_dir, f'{data_name}_train_data.pt')
-        if(not os.path.exists(no_author_train_data_file)):
-            # need clean tokenizer
-            tokenizer = tokenizer_class.from_pretrained(tokenizer_name)
-            prepare_question_data(article_data, no_author_out_dir, data_name,
-                                  tokenizer=tokenizer, train_pct=train_pct,
-                                  author_data=None,
-                                  max_source_length=max_source_length,
-                                  max_target_length=max_target_length,
-                                  article_question_NE_overlap=NE_overlap,
-                                  NE_data_dir=out_dir)
+    # if(author_data is not None):
+    #     no_author_out_dir = os.path.join(out_dir, 'no_author_data/')
+    #     if(not os.path.exists(no_author_out_dir)):
+    #         os.mkdir(no_author_out_dir)
+    #     no_author_train_data_file = os.path.join(no_author_out_dir, f'{data_name}_train_data.pt')
+    #     if(not os.path.exists(no_author_train_data_file)):
+    #         # need clean tokenizer
+    #         tokenizer = tokenizer_class.from_pretrained(tokenizer_name)
+    #         prepare_question_data(article_data, no_author_out_dir, data_name,
+    #                               tokenizer=tokenizer, train_pct=train_pct,
+    #                               author_data=None,
+    #                               max_source_length=max_source_length,
+    #                               max_target_length=max_target_length,
+    #                               article_question_NE_overlap=NE_overlap,
+    #                               NE_data_dir=out_dir)
     ## save raw data to file
-    out_file_name = os.path.join(out_dir, f'{data_name}_question_data.tsv')
-    article_data.to_csv(out_file_name, sep='\t', index=False)
+    out_file_name = os.path.join(out_dir, f'{data_name}_question_data.gz')
+    article_data.to_csv(out_file_name, sep='\t', index=False, compression='gzip')
 
 if __name__ == '__main__':
     main()

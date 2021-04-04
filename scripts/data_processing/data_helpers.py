@@ -1,8 +1,11 @@
 """
 Data helper functions.
 """
+import gzip
+import json
 import logging
 import shutil
+from itertools import product
 
 import numpy as np
 import pandas as pd
@@ -10,6 +13,7 @@ import re
 import os
 
 import requests
+from rouge_score.rouge_scorer import RougeScorer
 from transformers.training_args import TrainingArguments
 from transformers import BartTokenizer, LongformerTokenizer
 from dataclasses import field
@@ -26,6 +30,8 @@ from gensim.corpora.dictionary import Dictionary
 from time import sleep
 import zstandard
 import lzma
+from praw import Reddit
+from psaw import PushshiftAPI
 
 def assign_label_by_cutoff_pct(data, label_var='gender', min_pct=0.75):
     """
@@ -170,6 +176,7 @@ class DataProcessor:
             'source_ids': source_encoding['input_ids'],
             'target_ids': target_encoding['input_ids'],
             'attention_mask': source_encoding['attention_mask'],
+            'article_id' : example_batch['article_id'],
         }
 
         return encodings
@@ -260,12 +267,16 @@ def generate_predictions(model, data, tokenizer, device_name='cuda:0',
 def cleanup_transformer_tokens(tokens, tokenizer, special_tokens, space_token):
     tokens = list(filter(lambda x: x not in special_tokens, tokens))
     ## TODO: why does convert_tokens_to_string fail with OOV chars?
-    # tokens = list(map(lambda x: x.    replace(' ', space_token), tokens))
-    # token_txt = tokenizer.convert_tokens_to_string(tokens)
-    token_txt = ' '.join(tokens)
+    tokens = list(map(lambda x: x.replace(' ', space_token), tokens))
+    # remove OOV chars
+    vocab = tokenizer.get_vocab()
+    tokens = list(filter(lambda x: x in vocab, tokens))
+    token_txt = tokenizer.convert_tokens_to_string(tokens)
+    # token_txt = ' '.join(tokens)
     return token_txt
 
-def compare_pred_text_with_target(data, pred_text, tokenizer, max_txt_len=300, cutoff_idx=0):
+def compare_pred_text_with_target(data, pred_text, tokenizer,
+                                  max_txt_len=300, cutoff_idx=0, extra_data_vars=None):
     """
     Compare predicted text with target data.
 
@@ -290,6 +301,9 @@ def compare_pred_text_with_target(data, pred_text, tokenizer, max_txt_len=300, c
         # source_text_i = tokenizer.convert_tokens_to_string(source_text_i)
         # target_text_i = tokenizer.convert_tokens_to_string(target_text_i)
         print('*~*~*~*~*~*')
+        if(extra_data_vars is not None):
+            for v in extra_data_vars:
+                print(f'{v} = {data[v][i]}')
         print(f'source text = {source_text_i[:max_txt_len]}...')
         print(f'target text = {target_text_i}')
         print(f'pred text = {pred_text_i}')
@@ -297,7 +311,11 @@ def compare_pred_text_with_target(data, pred_text, tokenizer, max_txt_len=300, c
             break
 
 ## model evaluation
-
+def compute_text_rouge(txt_1, txt_2, scorer=None):
+    if(scorer is None):
+        scorer = RougeScorer(['rougeL'], use_stemmer=True)
+    score = scorer.score(txt_1, txt_2)
+    return score
 def compute_text_bleu(txt_1, txt_2, weights):
     score = sentence_bleu([txt_1], txt_2, weights=weights)
     return score
@@ -375,10 +393,11 @@ def extract_questions_all_data(data, min_question_len=5):
     word_tokenizer = WordPunctTokenizer()
     sent_tokenizer = PunktSentenceTokenizer()
     question_matcher = re.compile('.+\?$')
-    questions = list(map(lambda x: extract_questions(x, word_tokenizer, sent_tokenizer, question_matcher, min_question_len=min_question_len), data))
+    questions = list(map(lambda x: extract_questions(x, word_tokenizer, sent_tokenizer, question_matcher, min_question_len=min_question_len), tqdm(data)))
     return questions
 
 def prepare_question_data(data, out_dir, data_name, tokenizer,
+                          data_vars=['article_text', 'question', 'article_id'],
                           author_data=None, train_pct=0.8,
                           max_source_length=1024, max_target_length=64,
                           article_question_NE_overlap=False,
@@ -395,36 +414,62 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     :param train_pct:
     :return:
     """
-    data_vars = ['article_text', 'question', 'article_id']
     # optional: add author data
     if (author_data is not None):
-        author_var = 'userID'
+        # author_var = 'userID'
+        author_var = 'author'
         date_var = 'date_day'
+        community_var = 'subreddit'
+        static_vars = ['location_region']
+        dynamic_vars = ['expert_pct_bin', 'relative_time_bin']
         # fix date variable
         # logging.debug(f'data cols {data.columns}')
         data = data.assign(**{
-            date_var : data.loc[:, 'createDate'].apply(lambda x: round_date_to_day(x))
+            date_var : data.loc[:, 'created_utc'].apply(lambda x: round_date_to_day(x))
         })
-        data = pd.merge(data, author_data, on=[author_var, date_var])
-        # add author identity to end of source
-        author_vars = ['location_region', 'prior_comment_count_bin', 'prior_comment_len_bin']
+        # print(f'pre-author-merge data shape={data.shape}')
+        dynamic_author_data = author_data[(~author_data.loc[:, 'date_day'].isna()) &
+                                          (~author_data.loc[:, 'subreddit'].isna())]
+        static_author_data = author_data.drop_duplicates(author_var, inplace=False)
+        data = pd.merge(data, dynamic_author_data.loc[:, [author_var, date_var, community_var] + dynamic_vars], on=[author_var, date_var, community_var], how='left')
+        # print(f'post-author-merge data shape 1={data.shape}')
+        data = pd.merge(data, static_author_data.loc[:, [author_var]+static_vars], on=author_var, how='left')
+        # remove null authors
+        data = data[~data.loc[:, 'author'].isna()]
+        # print(f'post-author-merge data shape 2={data.shape}')
+        # need author vars for later: we'll add author tokens to input
+        author_vars = static_vars + dynamic_vars
         data_vars.extend(author_vars)
     # change to clean source/target format
     clean_data = data.loc[:, data_vars].rename(
         columns={'article_text': 'source_text', 'question': 'target_text'})
     # deduplicate article/answer pairs
     clean_data.drop_duplicates(['source_text', 'target_text'], inplace=True)
+    clean_data = clean_data[(clean_data.loc[:, 'source_text'].apply(lambda x: type(x) is str)) &
+                            (clean_data.loc[:, 'target_text'].apply(lambda x: type(x) is str))]
+    # clean up return chars
+    return_char_matcher = re.compile('[\n\r]')
+    clean_data = clean_data.assign(**{
+        'source_text' : clean_data.loc[:, 'source_text'].apply(lambda x: return_char_matcher.sub('', x)),
+        'target_text': clean_data.loc[:, 'target_text'].apply(lambda x: return_char_matcher.sub('', x)),
+    })
     # tmp debugging
-    logging.debug(f'after deduplicating, data has {clean_data.shape[0]} questions')
+    # print('blah')
+    # logging.debug(f'after deduplicating, data has {clean_data.shape[0]} questions')
     # logging.debug(clean_data.head())
     # shorten source/target to fit model
     ## add author var tokens at the end of each source text => helps decoding? TBD
     if (author_data is not None):
         ## add special tokens
+        # author_tokens = [
+        #     '<US_AUTHOR>', '<NONUS_AUTHOR>',  # location
+        #     '<COMMENT_COUNT_0_AUTHOR>', '<COMMENT_COUNT_1_AUTHOR>',  # prior comment count
+        #     '<COMMENT_LEN_0_AUTHOR>', '<COMMENT_LEN_1_AUTHOR>',  # prior comment length
+        # ]
         author_tokens = [
-            '<US_AUTHOR>', '<NONUS_AUTHOR>',  # location
-            '<COMMENT_COUNT_0_AUTHOR>', '<COMMENT_COUNT_1_AUTHOR>',  # prior comment count
-            '<COMMENT_LEN_0_AUTHOR>', '<COMMENT_LEN_1_AUTHOR>',  # prior comment length
+            '<US_AUTHOR>', '<NONUS_AUTHOR>',
+            '<EXPERT_PCT_0_AUTHOR>', '<EXPERT_PCT_1_AUTHOR>', # prior comment activity in subreddit
+            '<RESPONSE_TIME_0_AUTHOR>', '<RESPONSE_TIME_1_AUTHOR>', # question response time
         ]
         # for author_token in author_tokens:
             # tokenizer.add_special_tokens({'cls_token': author_token})
@@ -432,23 +477,30 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
         ## add special tokens to all data
         author_location_token_lookup = {
             'US' : '<US_AUTHOR>',
-            'non_US': '<NONUS_AUTHOR>',
+            'NONUS': '<NONUS_AUTHOR>',
         }
         author_var_template_lookup = {
-            'prior_comment_count_bin' : '<COMMENT_COUNT_%d_AUTHOR>',
-            'prior_comment_len_bin': '<COMMENT_LEN_%d_AUTHOR>',
+            # 'prior_comment_count_bin' : '<COMMENT_COUNT_%d_AUTHOR>',
+            # 'prior_comment_len_bin': '<COMMENT_LEN_%d_AUTHOR>',
+            'expert_pct_bin' : '<EXPERT_PCT_%d_AUTHOR>',
+            'relative_time_bin' : '<RESPONSE_TIME_%d_AUTHOR>',
         }
-        author_vars = ['location_region', 'prior_comment_count_bin', 'prior_comment_len_bin']
+        # author_vars = ['location_region', 'prior_comment_count_bin', 'prior_comment_len_bin']
         author_txt_data = []
         source_text_var = 'source_text'
         pad_space = 1 # need to remove tokens from start and end to make space for pads
         # add author variable value to each source text
-        for data_idx, data_i in clean_data.iterrows():
+        no_author_data = clean_data[clean_data.isna().loc[:, author_vars].apply(lambda x: all(x), axis=1)]
+        valid_author_data = clean_data.dropna(axis=0, subset=author_vars, how='all')
+        for data_idx, data_i in valid_author_data.iterrows():
             # tokenize, fit to max length
             source_text_i = data_i.loc[source_text_var]
             source_text_tokens_i = tokenizer.tokenize(source_text_i)
             source_text_tokens_i = source_text_tokens_i[pad_space:(max_source_length-1-pad_space)]
-            for author_var in author_vars:
+            # filter to valid vars
+            valid_author_vars = data_i.loc[author_vars].dropna().index
+            for author_var in valid_author_vars:
+                # if(not np.isnan(data_i.loc[author_var])):
                 data_j = data_i.copy()
                 source_text_tokens_j = list(source_text_tokens_i)
                 author_val_i = data_i.loc[author_var]
@@ -466,13 +518,18 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
                 source_text_j = tokenizer.convert_tokens_to_string(source_text_tokens_j)
                 data_j.loc[source_text_var] = source_text_j
                 author_txt_data.append(data_j)
-        clean_data = pd.concat(author_txt_data, axis=1).transpose()
+        author_txt_data = pd.concat(author_txt_data, axis=1).transpose()
+        # recombine data without-author and with-author
+        clean_data = pd.concat([no_author_data, author_txt_data], axis=0)
+
         # tmp debugging: check for author vars
         for author_token in author_tokens:
             for txt_i in clean_data.loc[:, 'source_text'].values:
                 if(author_token in txt_i):
                     logging.debug(f'found author token {author_token} in at least one doc')
                     break
+        # remove author data to avoid NAN bugs in later data reading
+        clean_data = clean_data.loc[:, ['source_text', 'target_text', 'article_id']]
     # optional: filter questions that have >=1 NEs shared with article
     if(article_question_NE_overlap):
         # check for NE data!! don't want to do this multiple times
@@ -519,13 +576,22 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
                         break
     ## split train/val data
     # split by articles! to avoid bleeding between train/test
-    article_ids = list(clean_data.loc[:, 'article_id'].unique())
+    article_ids = list(sorted(clean_data.loc[:, 'article_id'].unique()))
     N_train = int(len(article_ids) * train_pct)
-    np.random.shuffle(article_ids)
-    train_article_ids = article_ids[:N_train]
-    val_article_ids = article_ids[N_train:]
+    train_article_ids = np.random.choice(article_ids, N_train, replace=False)
+    val_article_ids = list(set(article_ids) - set(train_article_ids))
+    # tmp debugging lol
+    # with open('tmp_article_ids.txt', 'w') as tmp_out:
+    #     print(f'writing {len(train_article_ids)} article IDs')
+    #     tmp_out.write('\n'.join(map(str, train_article_ids)))
+    #     import sys
+    #     sys.exit(0)
+    # print(f'{len(train_article_ids)} train articles')
+    # print(f'{len(val_article_ids)} val articles')
     clean_data_train = clean_data[clean_data.loc[:, 'article_id'].isin(train_article_ids)]
     clean_data_val = clean_data[clean_data.loc[:, 'article_id'].isin(val_article_ids)]
+    # print(f'{clean_data_train.shape[0]} train data')
+    # print(f'{clean_data_val.shape[0]} val data')
     ## split train/val data by questions
     # N = clean_data.shape[0]
     # N_train = int(N * train_pct)
@@ -534,6 +600,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # clean_data_val = clean_data.iloc[N_train:, :]
     clean_data_train_out_file = os.path.join(out_dir, f'{data_name}_train_data.csv')
     clean_data_val_out_file = os.path.join(out_dir, f'{data_name}_val_data.csv')
+    # print(f'train data columns = {clean_data_train.columns}')
     # tmp debugging
     if(not os.path.exists(clean_data_train_out_file)):
         clean_data_train.to_csv(clean_data_train_out_file, sep=',', index=False)
@@ -557,6 +624,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
                                    model_type='bert',
                                    max_source_length=max_source_length,
                                    max_target_length=max_target_length)
+    # print(f'{train_data_set} train data')
+    # print(f'{len(val_data_set["source_text"])} val data')
     train_data = data_processor.process(train_data_set)
     val_data = data_processor.process(val_data_set)
     columns = ["source_ids", "target_ids", "attention_mask"]
@@ -593,7 +662,7 @@ def convert_ids_to_clean_str(token_ids, tokenizer):
 ## author identification
 
 # age
-AGE_MATCHER = re.compile('.*?(i am|i\'m) (\\d+) (years|yrs|yr) old[^e].*?') # stolen from here https://github.com/cfwelch/compositional_demographic_embeddings/blob/master/compose/find_self_statements.py
+AGE_MATCHER = re.compile('.*?(i am|i\'m) (a |an )?(\d+) (years|year|yrs|yr) old[^e].*?') # adapted from here https://github.com/cfwelch/compositional_demographic_embeddings/blob/master/compose/find_self_statements.py
 NUM_MATCHER = re.compile('\d+')
 def extract_age(text, age_matcher=None, age_err_cutoff=5):
     combined_text = ' '.join(text).lower()
@@ -764,7 +833,7 @@ def collect_all_tweets(search_url, headers, query_params, verbose=False, max_twe
             max_tweets_reached = len(combined_tweets) >= max_tweets
     if(len(combined_tweets) > 0):
         combined_tweets = pd.concat(combined_tweets, axis=0)
-   return combined_tweets
+    return combined_tweets
 
 class Zreader:
     def __init__(self, file, chunk_size=16384):
@@ -785,7 +854,7 @@ class Zreader:
             for line in lines[:-1]:
                 yield line
             self.buffer = lines[-1]
-class FileReader():
+class FileReader:
     def __init__(self, file_name):
         self.file_name = file_name
         if(file_name.endswith('.xz')):
@@ -794,3 +863,77 @@ class FileReader():
             self.file_iter = Zreader(file_name).readlines()
     def __iter__(self):
         return self.file_iter.__iter__()
+
+## load json data
+def load_zipped_json_data(data_file):
+    data = []
+    try:
+        for l_i in gzip.open(data_file, 'rt'):
+            data_i = json.loads(l_i.strip())
+            data.append(data_i)
+    except Exception as e:
+        print(f'ending data collection early because error {e}')
+    data = pd.DataFrame(data)
+    return data
+
+## text overlap
+def tokenize_stem_text(text, stemmer, word_tokenizer, sent_tokenizer):
+    text_sents = sent_tokenizer.tokenize(text)
+    # tokenize and stem
+    text_sent_tokens = list(map(lambda x:list(map(lambda y:stemmer.stem(y),word_tokenizer.tokenize(x))),text_sents))
+    return text_sent_tokens
+def compute_word_overlap(text_1, text_2):
+    # Jaccard similarity
+    word_overlap = set(text_1) & set(text_2)
+    word_union = set(text_1) | set(text_2)
+    word_overlap_sim = len(word_overlap) / len(word_union)
+    return word_overlap_sim
+def compute_sent_word_overlap(text_1, text_2):
+    # compute word overlap for all pairs of sentences
+    # then get max score
+    sent_pairs = list(product(text_1, text_2))
+    sent_word_overlap_scores = np.array([compute_word_overlap(sent_i, sent_j) for sent_i, sent_j in sent_pairs])
+    max_word_overlap_score = max(sent_word_overlap_scores)
+    max_word_overlap_sent_pair = sent_pairs[np.argmax(sent_word_overlap_scores)]
+    return max_word_overlap_score, max_word_overlap_sent_pair
+
+## text cleaning
+
+def remove_edit_data(text):
+    # remove edit data based on structure
+    # "EDIT( #): ...\n"
+    edit_span = re.search('^edit( [0-9]+)?:[^\n]+$|\nedit( [0-9]+)?:[^\n]+', text.lower())
+    if(edit_span is not None):
+        span_start, span_end = edit_span.span()
+        text = text[:span_start] + text[span_end:]
+    return text
+
+## Reddit API
+def load_reddit_api(reddit_auth_file):
+    reddit_auth = pd.read_csv(reddit_auth_file, sep=',', index_col=False).iloc[
+                  0, :]
+    client_id = reddit_auth.loc['client_id']
+    client_secret = reddit_auth.loc['client_secret']
+    user_agent = 'user_agent_123'
+    reddit_api = Reddit(
+        client_id=client_id,
+        client_secret=client_secret,
+        user_agent=user_agent,
+        check_for_async=False,
+    )
+    pushshift_reddit_api = PushshiftAPI(reddit_api)
+    return reddit_api, pushshift_reddit_api
+
+def flatten_columns(df, cols):
+    """Flattens multiple columns in a data frame, cannot specify all columns!"""
+    flattened_cols = {}
+    for col in cols:
+        flattened_cols[col] = pd.DataFrame([(index, value) for (index, values) in tqdm(df[col].iteritems()) for value in values],
+                                           columns=['index', col]).set_index('index')
+    flattened_df = df.drop(cols, axis=1)
+    for col in cols:
+        flattened_df = flattened_df.join(flattened_cols[col])
+    # remove null vals??
+    for col in cols:
+        flattened_df = flattened_df[~flattened_df.loc[:, col].apply(lambda x: type(x) is float and np.isnan(x))]
+    return flattened_df

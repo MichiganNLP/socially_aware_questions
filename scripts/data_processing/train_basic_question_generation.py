@@ -18,6 +18,13 @@ from argparse import ArgumentParser
 np.random.seed(123)
 torch.manual_seed(123)
 
+def sample_dataset(data, sample_pct):
+    N = len(data)
+    N_sample = int(N * sample_pct)
+    data = data.select(
+        np.random.choice(list(range(N)), N_sample, replace=False))
+    return data
+
 def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, max_source_len, max_target_len, model_type='bart'):
     training_args = DataArguments(model_out_dir)
     training_args.train_file_path = train_data_file
@@ -41,7 +48,10 @@ def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, m
     training_args.fp16 = False
     training_args.label_names = None
     ## TODO: bigger batches with LongFormer!! training takes too long
-    training_args.per_device_train_batch_size = 1
+    # longformer batch sizes
+    # training_args.per_device_train_batch_size = 1
+    # training_args.per_device_eval_batch_size = 2
+    training_args.per_device_train_batch_size = 2
     training_args.per_device_eval_batch_size = 2
     # training_args.train_batch_size = 32
     # training_args.eval_batch_size = 32
@@ -80,7 +90,7 @@ def main():
     out_dir = args['out_dir']
     model_type = args['model_type']
     # author_data = args['author_data']
-    # sample_pct = args['sample_pct']
+    sample_pct = args['sample_pct']
     model_cache_dir = args['model_cache_dir']
     pretrained_model = args['pretrained_model']
     if(not os.path.exists(out_dir)):
@@ -160,6 +170,11 @@ def main():
     val_dataset = torch.load(val_data_file)
     train_dataset = train_dataset['train']
     val_dataset = val_dataset['train']
+    ## TODO: how to stop sampling from breaking training loop?
+    if(sample_pct < 1.0):
+        train_dataset = sample_dataset(train_dataset, sample_pct)
+        val_dataset = sample_dataset(val_dataset, sample_pct)
+        # print(f'sample train data has {len(train_dataset)} data')
     # get max source/target len
     max_source_len = len(train_dataset['source_ids'][0])
     max_target_len = len(train_dataset['target_ids'][0])
@@ -174,8 +189,6 @@ def main():
     model_out_dir = os.path.join(out_dir, 'question_generation_model/')
     if (not os.path.exists(model_out_dir)):
         os.mkdir(model_out_dir)
-    # tmp debugging
-    print(f'model output directory {model_out_dir}')
 
     training_args = load_training_args(model_out_dir, train_data_file, model_out_dir, val_data_file, max_source_len, max_target_len, model_type=model_type)
     model_args = {
