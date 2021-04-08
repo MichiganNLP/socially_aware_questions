@@ -35,11 +35,11 @@
 #TRAIN_DATA=../../data/nyt_comments/full_data/author_type_NE_overlap_NYT_full_long_input_train_data.pt
 #VAL_DATA=../../data/nyt_comments/full_data/author_type_NE_overlap_NYT_full_long_input_val_data.pt
 ## reddit data
-#TRAIN_DATA=../../data/reddit_data/advice_subreddit_train_data.pt
-#VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
+TRAIN_DATA=../../data/reddit_data/advice_subreddit_train_data.pt
+VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
 ## reddit+author data
-TRAIN_DATA=../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_train_data.pt
-VAL_DATA=../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_val_data.pt
+#TRAIN_DATA=../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_train_data.pt
+#VAL_DATA=../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_val_data.pt
 # regular model
 #OUT_DIR=../../data/nyt_comments/
 #OUT_DIR=../../data/CNN_articles/cnn/
@@ -52,7 +52,8 @@ VAL_DATA=../../data/reddit_data/author_text_data/author_type_advice_subreddit_au
 # debug model
 #OUT_DIR=../../data/nyt_comments/debug_model/
 # reddit model
-OUT_DIR=../../data/reddit_data/author_text_data/
+OUT_DIR=../../data/reddit_data/
+#OUT_DIR=../../data/reddit_data/author_text_data/
 # regular transformer
 MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML

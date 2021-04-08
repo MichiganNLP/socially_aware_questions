@@ -498,7 +498,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
             source_text_tokens_i = tokenizer.tokenize(source_text_i)
             source_text_tokens_i = source_text_tokens_i[pad_space:(max_source_length-1-pad_space)]
             # filter to valid vars
-            valid_author_vars = data_i.loc[author_vars].dropna().index
+            valid_author_data_i = data_i.loc[author_vars].dropna()
+            valid_author_vars = valid_author_data_i.index
             for author_var in valid_author_vars:
                 # if(not np.isnan(data_i.loc[author_var])):
                 data_j = data_i.copy()
@@ -927,7 +928,7 @@ def load_reddit_api(reddit_auth_file):
 def flatten_columns(df, flat_col):
     """Flattens multiple columns in a data frame, cannot specify all columns!"""
     flat_data = []
-    for idx_i, data_i in df.iterrows():
+    for idx_i, data_i in tqdm(df.iterrows()):
         flat_col_vals = data_i.loc[flat_col]
         for val_j in flat_col_vals:
             data_j = data_i.copy()
