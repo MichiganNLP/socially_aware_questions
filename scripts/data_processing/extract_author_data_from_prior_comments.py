@@ -101,7 +101,7 @@ def main():
     author_static_data_cols = ['age', 'location']
     if(not os.path.exists(author_static_data_file)):
         with gzip.open(author_static_data_file, 'wt') as author_static_data_out:
-            author_data_col_str = "\t".join(author_static_data_cols)
+            author_data_col_str = "\t".join(['author'] + author_static_data_cols)
             author_static_data_out.write(author_data_col_str + '\n')
             for author_file_i in tqdm(author_data_files):
                 author_i = author_file_i.replace('_comments.gz', '')
@@ -129,7 +129,7 @@ def main():
             bin_var_i : np.digitize(combined_author_data.loc[:, category_var_i], bins=bin_vals)
         })
     author_static_data = pd.read_csv(author_static_data_file, sep='\t', compression='gzip', index_col=False)
-    combined_author_data = pd.merge(combined_author_data, author_static_data, on=['author'])
+    combined_author_data = pd.merge(combined_author_data, author_static_data, on='author')
     # add location regions
     location_region_lookup = {'us' : 'US'}
     location_region_lookup.update({x : 'NONUS' for x in combined_author_data.loc[:, 'location'].unique() if x not in {'UNK', 'us'}})

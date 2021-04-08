@@ -25,12 +25,12 @@
 DATA_FILE=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
 COMMENT_DATA=../../data/reddit_data/advice_subreddit_comment_question_data.gz
 # text-only
-#DATA_NAME=advice_subreddit
-#OUT_DIR=../../data/reddit_data/
+DATA_NAME=advice_subreddit
+OUT_DIR=../../data/reddit_data/
 # reddit + author
-DATA_NAME=advice_subreddit_author
-AUTHOR_DATA=../../data/reddit_data/author_data/combined_author_prior_comment_data.gz # contains static and dynamic author data
-OUT_DIR=../../data/reddit_data/author_text_data/
+#DATA_NAME=advice_subreddit_author
+#AUTHOR_DATA=../../data/reddit_data/author_data/combined_author_prior_comment_data.gz # contains static and dynamic author data
+#OUT_DIR=../../data/reddit_data/author_text_data/
 MODEL_TYPE=bart
 #MODEL_TYPE=longformer
 # enforce named entity overlap between article and question (>=1 NE overlap per question/article)
@@ -43,6 +43,6 @@ SAMPLE_PCT=0.1
 # CNN
 #python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --sample_pct $SAMPLE_PCT
 # reddit
-#python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --sample_pct $SAMPLE_PCT
+python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --sample_pct $SAMPLE_PCT
 # reddit + author
-python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT
+#python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT
