@@ -75,6 +75,7 @@ def filter_comments_by_post_overlap(comment_data, post_data):
         ['post_question_overlap_score', 'id', 'question_id']],
         on=['id', 'question_id']
     )
+    print(f'{valid_overlap_comment_data.shape[0]}/{post_data.shape[0]} questions retained after filtering for overlap')
     return comment_data
 
 def filter_comments_by_valid_question_prob(comment_data, model_file):
@@ -87,9 +88,9 @@ def filter_comments_by_valid_question_prob(comment_data, model_file):
     comment_data = comment_data.assign(
         **{'valid_question_prob': question_valid_probs[:, 1]})
     valid_prob_cutoff = 0.5
-    comment_data = comment_data[
-        comment_data.loc[:, 'valid_question_prob'] > valid_prob_cutoff]
-    return comment_data
+    valid_comment_data = comment_data[comment_data.loc[:, 'valid_question_prob'] > valid_prob_cutoff]
+    print(f'{valid_comment_data.shape[0]}/{comment_data.shape[0]} comments retained after filtering for P(valid question)')
+    return valid_comment_data
 
 def main():
     parser = ArgumentParser()
@@ -157,6 +158,7 @@ def main():
     # remove null posts
     post_data = post_data[~post_data.loc[:, 'parent_id'].apply(lambda x: type(x) is float and np.isnan(x))]
     post_data = post_data[~post_data.loc[:, 'parent_edited'].apply(lambda x: type(x) is float and np.isnan(x))]
+    post_data = post_data[post_data.loc[:, 'parent_text'].apply(lambda x: type(x) is str)]
     # remove edited posts
     bool_matcher = re.compile('True|False')
     post_data = post_data[post_data.loc[:, 'parent_edited'].apply(lambda x: bool_matcher.match(str(x)) is not None and not literal_eval(bool_matcher.match(x).group(0)))]

@@ -41,7 +41,7 @@ def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, m
     training_args.output_dir = model_out_dir
     model_type_train_epoch_lookup = {
         'longformer' : 5,
-        'bart' : 20,
+        'bart' : 10,
     }
     training_args.num_train_epochs = model_type_train_epoch_lookup[model_type]
     # training_args.max_steps = 1

@@ -498,7 +498,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
             source_text_tokens_i = tokenizer.tokenize(source_text_i)
             source_text_tokens_i = source_text_tokens_i[pad_space:(max_source_length-1-pad_space)]
             # filter to valid vars
-            valid_author_vars = data_i.loc[author_vars].dropna().index
+            valid_author_data_i = data_i.loc[author_vars].dropna()
+            valid_author_vars = valid_author_data_i.index
             for author_var in valid_author_vars:
                 # if(not np.isnan(data_i.loc[author_var])):
                 data_j = data_i.copy()
