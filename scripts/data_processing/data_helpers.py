@@ -176,6 +176,7 @@ class DataProcessor:
             'source_ids': source_encoding['input_ids'],
             'target_ids': target_encoding['input_ids'],
             'attention_mask': source_encoding['attention_mask'],
+            'article_id' : example_batch['article_id'],
         }
 
         return encodings
@@ -575,11 +576,16 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
                         break
     ## split train/val data
     # split by articles! to avoid bleeding between train/test
-    article_ids = list(clean_data.loc[:, 'article_id'].unique())
+    article_ids = list(sorted(clean_data.loc[:, 'article_id'].unique()))
     N_train = int(len(article_ids) * train_pct)
-    np.random.shuffle(article_ids)
-    train_article_ids = article_ids[:N_train]
-    val_article_ids = article_ids[N_train:]
+    train_article_ids = np.random.choice(article_ids, N_train, replace=False)
+    val_article_ids = list(set(article_ids) - set(train_article_ids))
+    # tmp debugging lol
+    # with open('tmp_article_ids.txt', 'w') as tmp_out:
+    #     print(f'writing {len(train_article_ids)} article IDs')
+    #     tmp_out.write('\n'.join(map(str, train_article_ids)))
+    #     import sys
+    #     sys.exit(0)
     # print(f'{len(train_article_ids)} train articles')
     # print(f'{len(val_article_ids)} val articles')
     clean_data_train = clean_data[clean_data.loc[:, 'article_id'].isin(train_article_ids)]
@@ -918,16 +924,33 @@ def load_reddit_api(reddit_auth_file):
     pushshift_reddit_api = PushshiftAPI(reddit_api)
     return reddit_api, pushshift_reddit_api
 
-def flatten_columns(df, cols):
+def flatten_columns(df, flat_col):
     """Flattens multiple columns in a data frame, cannot specify all columns!"""
-    flattened_cols = {}
-    for col in cols:
-        flattened_cols[col] = pd.DataFrame([(index, value) for (index, values) in tqdm(df[col].iteritems()) for value in values],
-                                           columns=['index', col]).set_index('index')
-    flattened_df = df.drop(cols, axis=1)
-    for col in cols:
-        flattened_df = flattened_df.join(flattened_cols[col])
-    # remove null vals??
-    for col in cols:
-        flattened_df = flattened_df[~flattened_df.loc[:, col].apply(lambda x: type(x) is float and np.isnan(x))]
-    return flattened_df
+    flat_data = []
+    for idx_i, data_i in tqdm(df.iterrows()):
+        flat_col_vals = data_i.loc[flat_col]
+        for val_j in flat_col_vals:
+            data_j = data_i.copy()
+            data_j.drop(flat_col, inplace=True)
+            data_j = data_j.append(pd.Series({flat_col : val_j}))
+            flat_data.append(data_j)
+    flat_data = pd.concat(flat_data, axis=1).transpose()
+    # NOTE: this approach mixed up the order of comments w.r.t. posts;
+    # made it hard to re-connect with parent submissions
+    # flattened_cols = {}
+    # for col in cols:
+    #     if(join_col is None):
+    #         flattened_cols[col] = pd.DataFrame([(index, value) for (index, values) in tqdm(df.loc[:, col].iteritems()) for value in values],
+    #                                            columns=['index', col]).set_index('index')
+    #     else:
+    #         flattened_cols[col] = pd.DataFrame([(index, value, values[1]) for (index, values) in tqdm(df.loc[:, [col, join_col]].iteritems()) for value in values[0]], columns=['index', col, join_col]).set_index('index')
+    # flattened_df = df.drop(cols, axis=1)
+    # for col in cols:
+    #     if(join_col is None):
+    #         flattened_df = flattened_df.join(flattened_cols[col])
+    #     else:
+    #         flattened_df = flattened_df.join(flattened_cols[col], on=join_col)
+    # # remove null vals??
+    # for col in cols:
+    #     flattened_df = flattened_df[~flattened_df.loc[:, col].apply(lambda x: type(x) is float and np.isnan(x))]
+    return flat_data

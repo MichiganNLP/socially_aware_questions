@@ -11,8 +11,8 @@
 
 ## data
 ## CNN data
-TRAIN_DATA=../../data/CNN_articles/cnn/article_question_generation_train_data.pt
-VAL_DATA=../../data/CNN_articles/cnn/article_question_generation_val_data.pt
+#TRAIN_DATA=../../data/CNN_articles/cnn/article_question_generation_train_data.pt
+#VAL_DATA=../../data/CNN_articles/cnn/article_question_generation_val_data.pt
 # long data
 #TRAIN_DATA=../../data/CNN_articles/cnn/CNN_long_train_data.pt
 #VAL_DATA=../../data/CNN_articles/cnn/CNN_long_val_data.pt
@@ -37,9 +37,12 @@ VAL_DATA=../../data/CNN_articles/cnn/article_question_generation_val_data.pt
 ## reddit data
 #TRAIN_DATA=../../data/reddit_data/advice_subreddit_train_data.pt
 #VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
+## reddit+author data
+TRAIN_DATA=../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_train_data.pt
+VAL_DATA=../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_val_data.pt
 # regular model
 #OUT_DIR=../../data/nyt_comments/
-OUT_DIR=../../data/CNN_articles/cnn/
+#OUT_DIR=../../data/CNN_articles/cnn/
 # model with author information
 #OUT_DIR=../../data/nyt_comments/author_data_model/
 #OUT_DIR=../../data/nyt_comments/cnn_fine_tune/
@@ -49,7 +52,7 @@ OUT_DIR=../../data/CNN_articles/cnn/
 # debug model
 #OUT_DIR=../../data/nyt_comments/debug_model/
 # reddit model
-#OUT_DIR=../../data/reddit_data/text_only_model/
+OUT_DIR=../../data/reddit_data/author_text_data/
 # regular transformer
 MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML

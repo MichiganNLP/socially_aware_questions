@@ -93,15 +93,17 @@ def main():
                     print(f'failed to read file {author_comment_file_i} because error {e}')
                 # author_data.append(combined_author_data_j)
     # author_data = pd.DataFrame(author_data, columns=author_data_cols)
-    ## TODO: static data: location, age
-    nlp_pipeline = stanza.Pipeline(lang='en', processors='tokenize,ner', use_gpu=False)
-    location_matcher = re.compile('(?<=i\'m from )[a-z0-9\, ]+|(?<=i am from )[a-z0-9\, ]+|(?<=i live in )[a-z0-9\, ]+')
-    sent_tokenizer = PunktSentenceTokenizer()
+    ## collect static data: location, age
     author_static_data_file = os.path.join(author_data_dir, 'author_static_prior_comment_data.gz')
     author_static_data_cols = ['age', 'location']
     if(not os.path.exists(author_static_data_file)):
+        nlp_pipeline = stanza.Pipeline(lang='en', processors='tokenize,ner',
+                                       use_gpu=False)
+        location_matcher = re.compile(
+            '(?<=i\'m from )[a-z0-9\, ]+|(?<=i am from )[a-z0-9\, ]+|(?<=i live in )[a-z0-9\, ]+')
+        sent_tokenizer = PunktSentenceTokenizer()
         with gzip.open(author_static_data_file, 'wt') as author_static_data_out:
-            author_data_col_str = "\t".join(author_static_data_cols)
+            author_data_col_str = "\t".join(['author'] + author_static_data_cols)
             author_static_data_out.write(author_data_col_str + '\n')
             for author_file_i in tqdm(author_data_files):
                 author_i = author_file_i.replace('_comments.gz', '')
@@ -129,7 +131,7 @@ def main():
             bin_var_i : np.digitize(combined_author_data.loc[:, category_var_i], bins=bin_vals)
         })
     author_static_data = pd.read_csv(author_static_data_file, sep='\t', compression='gzip', index_col=False)
-    combined_author_data = pd.merge(combined_author_data, author_static_data, on=['author'])
+    combined_author_data = pd.merge(combined_author_data, author_static_data, on='author')
     # add location regions
     location_region_lookup = {'us' : 'US'}
     location_region_lookup.update({x : 'NONUS' for x in combined_author_data.loc[:, 'location'].unique() if x not in {'UNK', 'us'}})

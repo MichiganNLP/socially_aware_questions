@@ -5,8 +5,6 @@ We expect the format:
 article ID | article text | question text
 """
 import os
-# need GPU to extract NEs from comments/articles
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import re
 from argparse import ArgumentParser
 import pandas as pd
@@ -17,6 +15,7 @@ from data_helpers import prepare_question_data
 from transformers import BartTokenizer, LongformerTokenizer
 from datetime import datetime
 import logging
+np.random.seed(123)
 
 def load_all_articles(data_dir, data_name):
     article_files = list(map(lambda x: os.path.join(data_dir, x), os.listdir(data_dir)))
@@ -154,7 +153,7 @@ def main():
         # fix ID var
         question_data.rename(columns={'parent_id' : 'article_id'}, inplace=True)
         question_data = question_data.loc[:, ['article_id', 'id', 'question', 'author']]
-       article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
+        article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
         # print(f'article data cols {article_data.columns}')
     elif(args.get('comment_dir') is not None):
         comment_dir = args['comment_dir']
@@ -172,6 +171,12 @@ def main():
     if (sample_pct < 1.0):
         N_sample = int(article_data.shape[0] * sample_pct)
         article_data_idx = np.random.choice(article_data.index, N_sample, replace=False)
+        # tmp debugging
+        tmp_out_file = 'tmp.txt'
+        with open(tmp_out_file, 'w') as tmp_out:
+            tmp_out.write('\n'.join(article_data_idx))
+            import sys
+            sys.exit(0)
         article_data = article_data.loc[article_data_idx, :]
     train_pct = 0.8
     author_data = args['author_data']

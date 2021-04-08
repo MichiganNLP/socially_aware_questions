@@ -6,6 +6,8 @@ import pickle
 from argparse import ArgumentParser
 import re
 import os
+from ast import literal_eval
+
 from nltk import WordPunctTokenizer, PunktSentenceTokenizer, PorterStemmer
 from sklearn.feature_extraction.text import CountVectorizer
 from data_helpers import load_zipped_json_data, extract_questions_all_data, flatten_columns, tokenize_stem_text, compute_sent_word_overlap
@@ -14,22 +16,18 @@ import numpy as np
 from tqdm import tqdm
 tqdm.pandas()
 
-def filter_comments_by_post_overlap(comment_data, post_data_file):
-    post_data = load_zipped_json_data(post_data_file)
-    post_data.rename(columns={
-        'id': 'parent_id', 'created_utc': 'parent_created',
-        'selftext': 'parent_text', 'title': 'parent_title',
-        'edited': 'parent_edited', 'author': 'parent_author'
-    }, inplace=True)
+def filter_comments_by_post_overlap(comment_data, post_data):
     # restrict to valid posts
+    # tmp debugging
+    # print(f'comment IDs {comment_data.loc[:, "parent_id"].unique()[:10]}')
+    # print(f'post IDs {post_data.loc[:, "parent_id"].unique()[:10]}')
     valid_post_ids = set(comment_data.loc[:, 'parent_id'].unique()) & set(post_data.loc[:, 'parent_id'].unique())
-    post_data = post_data[post_data.loc[:, 'parent_id'].isin(valid_post_ids)]
-    comment_data = comment_data[comment_data.loc[:, 'parent_id'].isin(valid_post_ids)]
+    print(f'{len(valid_post_ids)}/{post_data.loc[:, "parent_id"].nunique()} valid post IDs')
+    # print(f'{len(valid_post_ids)} valid post IDs')
+    # post_data = post_data[post_data.loc[:, 'parent_id'].isin(valid_post_ids)]
+    # comment_data = comment_data[comment_data.loc[:, 'parent_id'].isin(valid_post_ids)]
     # print(f'post IDs {post_data.loc[:, "parent_id"].unique()[:10]}')
     # print(f'comment parent IDs {comment_data.loc[:, "parent_id"].unique()[:10]}')
-    # remove edits
-    post_data = post_data[post_data.loc[:, 'parent_edited'].apply(
-        lambda x: type(x) is bool and not x)]
     ## combine with questions
     post_cols = ['parent_id', 'parent_created', 'parent_sents', 'parent_title',
                  'parent_edited', 'parent_author']
@@ -66,8 +64,8 @@ def filter_comments_by_post_overlap(comment_data, post_data_file):
                                       'post_question_overlap'].apply(
             lambda x: x[1][0]),
     })
-    # restrict to overlap [0.1, 0.5] based on earlier tests
-    overlap_score_range = [0.1, 0.5]
+    # restrict to overlap [0.05, 0.5] based on earlier tests
+    overlap_score_range = [0.05, 0.5]
     valid_overlap_comment_data = post_data[(post_data.loc[:,'post_question_overlap_score'] >= overlap_score_range[0]) &
                                            (post_data.loc[:, 'post_question_overlap_score'] < overlap_score_range[1])]
     # valid_comment_ids = valid_overlap_comment_data.loc[:, 'id']
@@ -112,13 +110,11 @@ def main():
     comment_data = comment_data.assign(**{
         'parent_id' : comment_data.loc[:, 'parent_id'].apply(lambda x: x.split('_')[-1])
     })
-    # don't add submission data because of space (M submissions x N comments x O questions/comment = a lot)
-    # submission_data =
     # remove comments without parents
     comment_data = comment_data[comment_data.loc[:, 'parent_id'].apply(lambda x: type(x) is not float)]
     print(f'{comment_data.shape[0]} comments before filtering')
     # tmp debugging
-    # comment_data = comment_data.iloc[:5000000, :]
+    # comment_data = comment_data.iloc[:50000, :]
 
     ## extract questions
     print(f'extracting questions')
@@ -129,7 +125,7 @@ def main():
     # remove comment body to save space!!
     comment_data.drop('body', axis=1, inplace=True)
     # remove invalid questions: quotes, bots
-    quote_matcher = re.compile('&gt;[^\n]+\n')
+    quote_matcher = re.compile('&gt;.+')
     comment_data = comment_data.assign(**{
         'questions': comment_data.loc[:, 'questions'].apply(
             lambda x: list(
@@ -138,26 +134,44 @@ def main():
     invalid_authors = ['LocationBot', 'AutoModerator']
     comment_data = comment_data[~comment_data.loc[:, 'author'].isin(invalid_authors)]
     ## remove bad comments
-    # remove comments with no parent
-    comment_data = comment_data[comment_data.loc[:, 'parent_id'].apply(lambda x: type(x) is not float)]
     # remove null questions
     comment_data = comment_data[~comment_data.loc[:, 'questions'].apply(lambda x: type(x) is float and np.isnan(x))]
+
     # flatten, add question ID for later comparisons
-    flat_cols = ['questions']
-    comment_data = flatten_columns(comment_data, cols=flat_cols)
+    flat_col = 'questions'
+    comment_data = flatten_columns(comment_data, flat_col=flat_col)
     comment_data.rename(columns={'questions': 'question'}, inplace=True)
     comment_data = comment_data.assign(**{'question_id' : comment_data.loc[:, 'question'].apply(lambda x: hash(x))})
     # remove duplicates
     comment_data.drop_duplicates(['parent_id', 'question_id'], inplace=True)
+    # tmp debugging: save to inspect parent ID overlap
+    # comment_data.to_csv('tmp_comment_question_data_flat.gz', sep='\t', compression='gzip', index=False)
+    # import sys
+    # sys.exit(0)
 
     ## filter for post overlap
-    if(args.get('post_data') is not None):
-        print(f'computing post overlap')
-        comment_data = filter_comments_by_post_overlap(comment_data, args['post_data'])
+    # post_data = load_zipped_json_data(args['post_data'])
+    post_data_cols = ['id', 'created_utc', 'selftext', 'title', 'edited', 'author']
+    post_data = pd.read_csv(args['post_data'], sep='\t', compression='gzip', index_col=False, usecols=post_data_cols)
+    post_data.rename(columns={'id': 'parent_id', 'created_utc': 'parent_created', 'selftext': 'parent_text', 'title': 'parent_title', 'edited': 'parent_edited', 'author': 'parent_author'}, inplace=True)
+    # remove null posts
+    post_data = post_data[~post_data.loc[:, 'parent_id'].apply(lambda x: type(x) is float and np.isnan(x))]
+    post_data = post_data[~post_data.loc[:, 'parent_edited'].apply(lambda x: type(x) is float and np.isnan(x))]
+    # remove edited posts
+    bool_matcher = re.compile('True|False')
+    post_data = post_data[post_data.loc[:, 'parent_edited'].apply(lambda x: bool_matcher.match(str(x)) is not None and not literal_eval(bool_matcher.match(x).group(0)))]
+    # if(args.get('post_data') is not None):
+    print(f'computing post overlap')
+    comment_data = filter_comments_by_post_overlap(comment_data, post_data)
     ## filter for valid clarification questions
     if(args.get('valid_question_model') is not None):
         model_file = args['valid_question_model']
         comment_data = filter_comments_by_valid_question_prob(comment_data, model_file)
+    # remove comments written by post author
+    comment_post_data = pd.merge(comment_data, post_data.loc[:, ['parent_id', 'parent_author']], on='parent_id', how='inner')
+    comment_post_data = comment_post_data[comment_post_data.loc[:, 'author'] != comment_post_data.loc[:, 'parent_author']]
+    valid_comment_ids = comment_post_data.loc[:, 'id'].unique()
+    comment_data = comment_data[comment_data.loc[:, 'id'].isin(valid_comment_ids)]
 
     ## write to file
     data_name = args['data_name']

@@ -3,53 +3,30 @@ Get sample questions for annotation:
 (1) relevance; (2) asking for more information.
 """
 import os
-<<<<<<< HEAD
-=======
 import re
->>>>>>> c8d6ad4e780815caaf8c1cc205115d4e5773e584
-from argparse import ArgumentParser
+rom argparse import ArgumentParser
 import numpy as np
 np.random.seed(123)
 import pandas as pd
-<<<<<<< HEAD
-=======
 from data_helpers import load_zipped_json_data
->>>>>>> c8d6ad4e780815caaf8c1cc205115d4e5773e584
 
 def main():
     parser = ArgumentParser()
     parser.add_argument('question_data')
-<<<<<<< HEAD
-=======
     parser.add_argument('post_data')
->>>>>>> c8d6ad4e780815caaf8c1cc205115d4e5773e584
     parser.add_argument('--sample_questions_per_group', type=int, default=200)
     parser.add_argument('--out_dir', default='../../data/reddit_data/')
     args = vars(parser.parse_args())
     question_data_file = args['question_data']
-<<<<<<< HEAD
-    sample_questions_per_group = args['sample_questions_per_group']
-    out_dir = args['out_dir']
-=======
     post_data_file = args['post_data']
     sample_questions_per_group = args['sample_questions_per_group']
     out_dir = args['out_dir']
     if(not os.path.exists(out_dir)):
         os.mkdir(out_dir)
->>>>>>> c8d6ad4e780815caaf8c1cc205115d4e5773e584
-
     ## load data
     question_data = pd.read_csv(question_data_file, sep='\t', compression='gzip', index_col=False)
     # remove edited posts
-<<<<<<< HEAD
-    question_data = question_data[question_data.loc[:, 'parent_edited'].apply(lambda x: type(x) is bool and not x)]
-
-    ## sample data
-    sample_data = []
-    data_cols = ['parent_title', 'parent_text', 'question']
-    for group_i, data_i in question_data.groupby('subreddit'):
-=======
-    # question_data = question_data[question_data.loc[:, 'edited'].apply(lambda x: type(x) is bool and not x)]
+   # question_data = question_data[question_data.loc[:, 'edited'].apply(lambda x: type(x) is bool and not x)]
     # fix parent ID
     question_data = question_data.assign(**{'parent_id' : question_data.loc[:, 'parent_id'].apply(lambda x: x.split('_')[-1])})
     # print(question_data.loc[:, 'parent_id'].iloc[:10])
@@ -73,7 +50,6 @@ def main():
     print(f'subreddit counts = {question_post_data.loc[:, "subreddit"].value_counts()}')
     for group_i, data_i in question_post_data.groupby('subreddit'):
         print(f'group = {group_i}, data = {data_i.shape[0]}')
->>>>>>> c8d6ad4e780815caaf8c1cc205115d4e5773e584
         data_i = data_i.loc[:, data_cols]
         sample_data_i = data_i.loc[np.random.choice(data_i.index, sample_questions_per_group, replace=False), :]
         sample_data.append(sample_data_i)
@@ -85,11 +61,7 @@ def main():
     })
 
     ## write to file
-<<<<<<< HEAD
-    data_name = question_data_file.replace('.gz', '_annotation_sample.tsv')
-=======
     data_name = os.path.basename(question_data_file).replace('.gz', '_annotation_sample.tsv')
->>>>>>> c8d6ad4e780815caaf8c1cc205115d4e5773e584
     out_file = os.path.join(out_dir, data_name)
     sample_data.to_csv(out_file, sep='\t', index=False)
 
