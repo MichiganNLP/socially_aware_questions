@@ -51,7 +51,6 @@ class AuthorTextEncoder(BartPretrainedModel):
         self.layernorm_embedding = nn.LayerNorm(embed_dim)
 
         self.author_embed_network = nn.Linear(self.config.author_embeds, embed_dim)
-
         self.init_weights()
 
     def forward(
@@ -183,7 +182,7 @@ class AuthorTextEncoder(BartPretrainedModel):
                         hidden_states,
                         attention_mask,
                         # layer_head_mask=(head_mask[idx] if head_mask is not None else None), # only in new version??
-                        output_attentions=output_attentions,
+                       output_attentions=output_attentions,
                     )
 
                 hidden_states = layer_outputs[0]
@@ -286,7 +285,7 @@ class BartAuthorTextModel(BartPretrainedModel):
             encoder_attention_mask=attention_mask,
             # head_mask=decoder_head_mask,
             # encoder_head_mask=head_mask,
-            past_key_values=past_key_values,
+           past_key_values=past_key_values,
             inputs_embeds=decoder_inputs_embeds,
             use_cache=use_cache,
             output_attentions=output_attentions,
