@@ -93,13 +93,15 @@ def main():
                     print(f'failed to read file {author_comment_file_i} because error {e}')
                 # author_data.append(combined_author_data_j)
     # author_data = pd.DataFrame(author_data, columns=author_data_cols)
-    ## TODO: static data: location, age
-    nlp_pipeline = stanza.Pipeline(lang='en', processors='tokenize,ner', use_gpu=False)
-    location_matcher = re.compile('(?<=i\'m from )[a-z0-9\, ]+|(?<=i am from )[a-z0-9\, ]+|(?<=i live in )[a-z0-9\, ]+')
-    sent_tokenizer = PunktSentenceTokenizer()
+    ## collect static data: location, age
     author_static_data_file = os.path.join(author_data_dir, 'author_static_prior_comment_data.gz')
     author_static_data_cols = ['age', 'location']
     if(not os.path.exists(author_static_data_file)):
+        nlp_pipeline = stanza.Pipeline(lang='en', processors='tokenize,ner',
+                                       use_gpu=False)
+        location_matcher = re.compile(
+            '(?<=i\'m from )[a-z0-9\, ]+|(?<=i am from )[a-z0-9\, ]+|(?<=i live in )[a-z0-9\, ]+')
+        sent_tokenizer = PunktSentenceTokenizer()
         with gzip.open(author_static_data_file, 'wt') as author_static_data_out:
             author_data_col_str = "\t".join(['author'] + author_static_data_cols)
             author_static_data_out.write(author_data_col_str + '\n')

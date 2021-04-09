@@ -171,6 +171,12 @@ def main():
     if (sample_pct < 1.0):
         N_sample = int(article_data.shape[0] * sample_pct)
         article_data_idx = np.random.choice(article_data.index, N_sample, replace=False)
+        # tmp debugging
+        tmp_out_file = 'tmp.txt'
+        with open(tmp_out_file, 'w') as tmp_out:
+            tmp_out.write('\n'.join(article_data_idx))
+            import sys
+            sys.exit(0)
         article_data = article_data.loc[article_data_idx, :]
         # tmp debugging
         # tmp_out_file = 'tmp.txt'
