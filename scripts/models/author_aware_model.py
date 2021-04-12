@@ -186,7 +186,6 @@ class AuthorTextEncoder(BartPretrainedModel):
                         # layer_head_mask=(head_mask[idx] if head_mask is not None else None), # only in new version??
                         output_attentions=output_attentions,
                     )
-
                 hidden_states = layer_outputs[0]
 
             if output_attentions:
