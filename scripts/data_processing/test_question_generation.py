@@ -61,6 +61,7 @@ def main():
         pred_data = generate_predictions(generation_model, test_data, model_tokenizer,
                                              generation_method=generation_method,
                                              num_beams=num_beams,)
+        pred_data = np.array(pred_data)
         with gzip.open(generated_text_out_file, 'wt') as generated_text_out:
             generated_text_out.write('\n'.join(pred_data))
     else:
