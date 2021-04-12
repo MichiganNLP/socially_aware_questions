@@ -127,10 +127,8 @@ class AuthorTextEncoder(BartPretrainedModel):
         hidden_states = inputs_embeds + embed_pos
         hidden_states = self.layernorm_embedding(hidden_states)
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
-        # print(f'hidden states before author embeds have shape = {hidden_states.shape}')
         ## add author embeddings
         if(author_embeds is not None):
-            pass
             # remove final token from input, replace with author embedding
             # TODO: add author embedding before padding? not sure that it matters
             hidden_states = hidden_states[:, :-1, :]
@@ -142,7 +140,6 @@ class AuthorTextEncoder(BartPretrainedModel):
         # expand attention_mask
         if attention_mask is not None:
             if (author_embeds is not None):
-                # pass
                 attention_mask[:, -1] = 1
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
             attention_mask = _expand_mask(attention_mask, inputs_embeds.dtype)
@@ -185,7 +182,7 @@ class AuthorTextEncoder(BartPretrainedModel):
                         attention_mask,
                         # layer_head_mask=(head_mask[idx] if head_mask is not None else None), # only in new version??
                         output_attentions=output_attentions,
-                    )
+                   )
 
                 hidden_states = layer_outputs[0]
 
