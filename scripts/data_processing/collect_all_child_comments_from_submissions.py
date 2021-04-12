@@ -7,7 +7,7 @@ import os
 from argparse import ArgumentParser
 import pandas as pd
 from nltk.tokenize import WordPunctTokenizer
-from data_helpers import FileReader
+from data_helpers import FileReader, load_zipped_json_data
 from tqdm import tqdm
 import logging
 
@@ -31,8 +31,8 @@ def main():
                         level=logging.INFO)
 
     ## load submission data
-    # submission_data = pd.read_json(submission_data_file, compression='gzip')
-    submission_data = pd.DataFrame([pd.Series(json.loads(x.strip())) for x in gzip.open(submission_data_file, 'rt')])
+    submission_data = pd.read_csv(submission_data_file, sep='\t', compression='gzip', index_col=False)
+    # submission_data = pd.DataFrame([pd.Series(json.loads(x.strip())) for x in gzip.open(submission_data_file, 'rt')])
     parent_ids = submission_data.loc[:, 'id'].unique()
 
     ## collect comments

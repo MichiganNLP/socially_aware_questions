@@ -498,7 +498,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
             source_text_tokens_i = tokenizer.tokenize(source_text_i)
             source_text_tokens_i = source_text_tokens_i[pad_space:(max_source_length-1-pad_space)]
             # filter to valid vars
-            valid_author_vars = data_i.loc[author_vars].dropna().index
+            valid_author_data_i = data_i.loc[author_vars].dropna()
+            valid_author_vars = valid_author_data_i.index
             for author_var in valid_author_vars:
                 # if(not np.isnan(data_i.loc[author_var])):
                 data_j = data_i.copy()
@@ -924,16 +925,33 @@ def load_reddit_api(reddit_auth_file):
     pushshift_reddit_api = PushshiftAPI(reddit_api)
     return reddit_api, pushshift_reddit_api
 
-def flatten_columns(df, cols):
+def flatten_columns(df, flat_col):
     """Flattens multiple columns in a data frame, cannot specify all columns!"""
-    flattened_cols = {}
-    for col in cols:
-        flattened_cols[col] = pd.DataFrame([(index, value) for (index, values) in tqdm(df[col].iteritems()) for value in values],
-                                           columns=['index', col]).set_index('index')
-    flattened_df = df.drop(cols, axis=1)
-    for col in cols:
-        flattened_df = flattened_df.join(flattened_cols[col])
-    # remove null vals??
-    for col in cols:
-        flattened_df = flattened_df[~flattened_df.loc[:, col].apply(lambda x: type(x) is float and np.isnan(x))]
-    return flattened_df
+    flat_data = []
+    for idx_i, data_i in tqdm(df.iterrows()):
+        flat_col_vals = data_i.loc[flat_col]
+        for val_j in flat_col_vals:
+            data_j = data_i.copy()
+            data_j.drop(flat_col, inplace=True)
+            data_j = data_j.append(pd.Series({flat_col : val_j}))
+            flat_data.append(data_j)
+    flat_data = pd.concat(flat_data, axis=1).transpose()
+    # NOTE: this approach mixed up the order of comments w.r.t. posts;
+    # made it hard to re-connect with parent submissions
+    # flattened_cols = {}
+    # for col in cols:
+    #     if(join_col is None):
+    #         flattened_cols[col] = pd.DataFrame([(index, value) for (index, values) in tqdm(df.loc[:, col].iteritems()) for value in values],
+    #                                            columns=['index', col]).set_index('index')
+    #     else:
+    #         flattened_cols[col] = pd.DataFrame([(index, value, values[1]) for (index, values) in tqdm(df.loc[:, [col, join_col]].iteritems()) for value in values[0]], columns=['index', col, join_col]).set_index('index')
+    # flattened_df = df.drop(cols, axis=1)
+    # for col in cols:
+    #     if(join_col is None):
+    #         flattened_df = flattened_df.join(flattened_cols[col])
+    #     else:
+    #         flattened_df = flattened_df.join(flattened_cols[col], on=join_col)
+    # # remove null vals??
+    # for col in cols:
+    #     flattened_df = flattened_df[~flattened_df.loc[:, col].apply(lambda x: type(x) is float and np.isnan(x))]
+    return flat_data

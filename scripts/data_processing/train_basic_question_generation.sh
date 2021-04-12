@@ -52,6 +52,7 @@ VAL_DATA=../../data/reddit_data/author_text_data/author_type_advice_subreddit_au
 # debug model
 #OUT_DIR=../../data/nyt_comments/debug_model/
 # reddit model
+#OUT_DIR=../../data/reddit_data/
 OUT_DIR=../../data/reddit_data/author_text_data/
 # regular transformer
 MODEL_CACHE_DIR=../../data/model_cache/

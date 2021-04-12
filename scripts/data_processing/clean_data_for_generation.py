@@ -187,6 +187,8 @@ def main():
         author_data = author_data.assign(**{
             'date_day': author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, date_day_fmt) if type(x) is str else x)
         })
+        # fix UNKs
+        author_data.replace('UNK', np.nan, inplace=True)
         # drop data without authors
         article_data = article_data[~article_data.loc[:, 'author'].apply(lambda x: type(x) is not str and np.isnan(x))]
     NE_overlap = args['NE_overlap']
