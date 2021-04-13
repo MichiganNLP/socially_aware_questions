@@ -30,6 +30,8 @@ COMMENT_DATA=../../data/reddit_data/advice_subreddit_comment_question_data.gz
 # reddit + author
 DATA_NAME=advice_subreddit_author
 AUTHOR_DATA=../../data/reddit_data/author_data/combined_author_prior_comment_data.gz # contains static and dynamic author data
+#AUTHOR_DATA_TYPE=tokens
+AUTHOR_DATA_TYPE=embeds
 OUT_DIR=../../data/reddit_data/author_text_data/
 MODEL_TYPE=bart
 #MODEL_TYPE=longformer
@@ -44,4 +46,4 @@ SAMPLE_PCT=0.25
 # reddit
 #python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --sample_pct $SAMPLE_PCT
 # reddit + author
-python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT
+python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --author_data_type $AUTHOR_DATA_TYPE --sample_pct $SAMPLE_PCT

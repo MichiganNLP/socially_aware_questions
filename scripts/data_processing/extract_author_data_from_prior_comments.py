@@ -9,20 +9,33 @@ import gzip
 import os
 import re
 from argparse import ArgumentParser
+from ast import literal_eval
 from datetime import datetime
 from nltk import PunktSentenceTokenizer
 from tqdm import tqdm
-from data_helpers import load_zipped_json_data, extract_age, \
-    full_location_pipeline
+from data_helpers import extract_age, full_location_pipeline
 import numpy as np
 import pandas as pd
 import stanza
+
+def assign_date_bin(date, date_bins):
+    diffs = date - date_bins
+    valid_diffs = diffs[diffs > 0]
+    if (len(valid_diffs) > 0):
+        min_diff = min(valid_diffs)
+        min_diff_idx = np.where(diffs == min_diff)[0][0]
+        date_bin = date_bins[min_diff_idx]
+        date_bin = datetime.fromtimestamp(date_bin)
+    else:
+        date_bin = -1
+    return date_bin
 
 def main():
     parser = ArgumentParser()
     parser.add_argument('author_data_dir')
     parser.add_argument('question_data') # need question data for time of author questions => get all comments before specified time(s)
     parser.add_argument('post_data')
+    parser.add_argument('--author_embeddings_data', default=None)
     args = vars(parser.parse_args())
     author_data_dir = args['author_data_dir']
     question_data_file = args['question_data']
@@ -120,7 +133,7 @@ def main():
                     print(
                         f'failed to read file {author_comment_file_i} because error {e}')
 
-    ## TODO: reload, convert to categorical with percentiles, etc.
+    ## reload, convert to categorical with percentiles, etc.
     combined_author_data = pd.read_csv(author_data_out_file, sep='\t', index_col=False, compression='gzip')
     category_cutoff_pct_vals = [95, 50]
     category_vars = ['expert_pct', 'relative_time']
@@ -139,6 +152,19 @@ def main():
     combined_author_data = combined_author_data.assign(**{
         'location_region' : combined_author_data.loc[:, 'location'].apply(location_region_lookup.get)
     })
+
+    ## optional: add author embeddings
+    author_embeddings_data_file = args.get('author_embeddings_data')
+    if(author_embeddings_data_file is not None):
+        combined_author_data = combined_author_data.assign(**{'date_day' : combined_author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))})
+        author_embeddings_data = pd.read_csv(author_embeddings_data_file, sep='\t', compression='gzip', index_col=False, converters={'subreddit_embedding' : literal_eval})
+        author_embeddings_data = author_embeddings_data.assign(**{'date_bin' : author_embeddings_data.loc[:, 'date_bin'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d'))})
+        ## join via date
+        embedding_date_bins = author_embeddings_data.loc[:, 'date_bin'].apply(lambda x: x.timestamp()).unique()
+        combined_author_data = combined_author_data.assign(**{
+            'date_bin' : combined_author_data.loc[:, 'date_day'].apply(lambda x: assign_date_bin(x.timestamp(), embedding_date_bins))
+        })
+        combined_author_data = pd.merge(combined_author_data, author_embeddings_data.loc[:, ['author', 'date_bin', 'subreddit_embed']], on=['author', 'date_bin'], how='left')
 
     # save to single file
     combined_author_data_file = os.path.join(author_data_dir, 'combined_author_prior_comment_data.gz')
