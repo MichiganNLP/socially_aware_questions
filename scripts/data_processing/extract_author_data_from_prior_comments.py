@@ -9,6 +9,7 @@ import gzip
 import os
 import re
 from argparse import ArgumentParser
+from ast import literal_eval
 from datetime import datetime
 from nltk import PunktSentenceTokenizer
 from tqdm import tqdm
@@ -23,6 +24,7 @@ def main():
     parser.add_argument('author_data_dir')
     parser.add_argument('question_data') # need question data for time of author questions => get all comments before specified time(s)
     parser.add_argument('post_data')
+    parser.add_argument('--author_embeddings_data', default=None)
     args = vars(parser.parse_args())
     author_data_dir = args['author_data_dir']
     question_data_file = args['question_data']
@@ -139,6 +141,13 @@ def main():
     combined_author_data = combined_author_data.assign(**{
         'location_region' : combined_author_data.loc[:, 'location'].apply(location_region_lookup.get)
     })
+
+    ## optional: add author embeddings
+    author_embeddings_data_file = args.get('author_embeddings_data')
+    if(author_embeddings_data_file is not None):
+        author_embeddings_data = pd.read_csv(author_embeddings_data_file, sep='\t', compression='gzip', index_col=False, converters={'subreddit_embedding' : literal_eval})
+        ## join via date??
+        
 
     # save to single file
     combined_author_data_file = os.path.join(author_data_dir, 'combined_author_prior_comment_data.gz')

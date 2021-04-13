@@ -13,7 +13,7 @@ from transformers import AutoModelForSeq2SeqLM
 import os
 # tmp debugging
 from trainer import Trainer
-from data_helpers import DataArguments
+from model_helpers import DataArguments
 from argparse import ArgumentParser
 np.random.seed(123)
 torch.manual_seed(123)
