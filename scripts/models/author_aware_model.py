@@ -129,6 +129,7 @@ class AuthorTextEncoder(BartPretrainedModel):
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
         ## add author embeddings
         if(author_embeds is not None):
+        ## add author embeddings
             # remove final token from input, replace with author embedding
             # TODO: add author embedding before padding? not sure that it matters
             hidden_states = hidden_states[:, :-1, :]
