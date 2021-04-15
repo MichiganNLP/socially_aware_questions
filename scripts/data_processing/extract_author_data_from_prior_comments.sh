@@ -8,4 +8,5 @@ EMBEDDING_DATA=../../data/reddit_data/author_data/author_date_subreddits.gz
 MAX_MEMORY=10000000000 # 10G
 (python extract_author_data_from_prior_comments.py $AUTHOR_DATA_DIR $QUESTION_DATA $POST_DATA --author_embeddings_data $EMBEDDING_DATA)&
 PID=$!1
-prlimit -p $PID --as=$MAX_MEMORY
+echo $PID
+prlimit --pid $PID --as=$MAX_MEMORY

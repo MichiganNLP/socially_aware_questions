@@ -7,6 +7,8 @@ article ID | article text | question text
 import os
 import re
 from argparse import ArgumentParser
+from ast import literal_eval
+
 import pandas as pd
 from nltk.tokenize import WordPunctTokenizer
 from nltk.tokenize import sent_tokenize
@@ -16,6 +18,9 @@ from transformers import BartTokenizer, LongformerTokenizer
 from datetime import datetime
 import logging
 np.random.seed(123)
+
+def clean_str_array(x, space_matcher):
+    return np.array(literal_eval(space_matcher.sub(',', x)))
 
 def load_all_articles(data_dir, data_name):
     article_files = list(map(lambda x: os.path.join(data_dir, x), os.listdir(data_dir)))
@@ -125,6 +130,7 @@ def main():
     parser.add_argument('--comment_month_year_pairs', nargs='+', default=None) # 'April_2018'
     parser.add_argument('--sample_pct', type=float, default=1.0)
     parser.add_argument('--author_data', default=None)
+    parser.add_argument('--author_data_type', default=None) # {tokens, embeds}
     parser.add_argument('--model_type', default='bart')
     parser.add_argument('--NE_overlap', type=bool, default=False)
     args = vars(parser.parse_args())
@@ -147,7 +153,7 @@ def main():
         article_data = article_data[article_data.loc[:, 'created_utc'].apply(lambda x: str(x).isdigit())]
         article_data = article_data.assign(**{'created_utc' : article_data.loc[:, 'created_utc'].astype(int)})
 
-    ## optional: get questions from comments
+    ## get questions from comments
     if(args.get('comment_data') is not None):
         question_data = pd.read_csv(args['comment_data'], sep='\t', compression='gzip', index_col=False)
         # fix ID var
@@ -164,7 +170,7 @@ def main():
         # tmp debugging
         print(f'loaded {question_data} questions total from {len(comment_month_year_pairs)} month year pairs')
         article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
-    print(f'loaded {article_data.shape[0]} data')
+    print(f'loaded article/question {article_data.shape[0]} data')
 
     ## prepare data for training
     sample_pct = args['sample_pct']
@@ -172,11 +178,11 @@ def main():
         N_sample = int(article_data.shape[0] * sample_pct)
         article_data_idx = np.random.choice(article_data.index, N_sample, replace=False)
         # tmp debugging
-        tmp_out_file = 'tmp.txt'
-        with open(tmp_out_file, 'w') as tmp_out:
-            tmp_out.write('\n'.join(article_data_idx))
-            import sys
-            sys.exit(0)
+        # tmp_out_file = 'tmp.txt'
+        # with open(tmp_out_file, 'w') as tmp_out:
+        #     tmp_out.write('\n'.join(article_data_idx))
+        #     import sys
+        #     sys.exit(0)
         article_data = article_data.loc[article_data_idx, :]
         # tmp debugging
         # tmp_out_file = 'tmp.txt'
@@ -188,16 +194,43 @@ def main():
     author_data = args.get('author_data')
     author_data_type = args.get('author_data_type')
     if (author_data is not None):
-        author_data = pd.read_csv(author_data, sep='\t', compression='gzip', index_col=False)
+        author_data = pd.read_csv(author_data, sep='\t', compression='gzip', index_col=False, parse_dates=['date_day', 'date_bin'])
         # fix date
-        date_day_fmt = '%Y-%m-%d %H:%M:%S'
         author_data = author_data.assign(**{
-            'date_day': author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, date_day_fmt) if type(x) is str else x)
+            'date_bin' : author_data.loc[:, 'date_bin'].apply(lambda x: x.timestamp()).astype(float)
         })
+        # date_day_fmt = '%Y-%m-%d %H:%M:%S'
+        # date_day_fmt = '%Y-%m-%d'
+        # author_data = author_data.assign(**{
+        #     'date_day': author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, date_day_fmt) if type(x) is str else x)
+        # })
+        # author_data = author_data[author_data.loc[:, 'date_bin'].apply(lambda x: type(x) is str)]
+        # author_data = author_data.assign(**{
+        #     'date_bin' : author_data.loc[:, 'date_bin'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d'))
+        # })
+        # author_data.loc[:, 'date_bin'] = author_data.loc[:, 'date_bin'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d'))
+        # fix date bin type??
+        # author_data = author_data.assign(**{
+        #     'date_bin' : author_data.loc[:, 'date_bin'].apply(lambda x: x.to_pydatetime())
+        # })
+        # print(f'author data date bin sample ({author_data.loc[:, "date_bin"].iloc[0]}) has type {type(author_data.loc[:, "date_bin"].iloc[0])}')
         # fix UNKs
         author_data.replace('UNK', np.nan, inplace=True)
+        # fix subreddit embeds
+        if ('subreddit_embed' in author_data.columns):
+            space_matcher = re.compile('(?<=\d)[\n\s]+(?=[\d\-])')
+            author_data = author_data.assign(**{
+                'subreddit_embed' : author_data.loc[:, 'subreddit_embed'].apply(lambda x: clean_str_array(x, space_matcher) if type(x) is str else None)
+            })
+            # remove authors with null embeddings
+            # author_data = author_data[author_data.loc[:, 'subreddit_embed'].apply(lambda x: x is not None)]
+            # tmp debugging
+            # print(f'sample embed {author_data.loc[:, "subreddit_embed"].iloc[0]}')
         # drop data without authors
         article_data = article_data[~article_data.loc[:, 'author'].apply(lambda x: type(x) is not str and np.isnan(x))]
+        # tmp debugging
+        # overlap_authors = set(article_data.loc[:, "author"].unique()) & set(author_data.loc[:, 'author'].unique())
+        # print(f'{len(overlap_authors)} author overlap in articles/questions')
     NE_overlap = args['NE_overlap']
     if (NE_overlap):
         data_name = f'NE_overlap_{data_name}'
@@ -247,6 +280,7 @@ def main():
     ## save raw data to file
     out_file_name = os.path.join(out_dir, f'{data_name}_question_data.gz')
     article_data.to_csv(out_file_name, sep='\t', index=False, compression='gzip')
+
 
 if __name__ == '__main__':
     main()

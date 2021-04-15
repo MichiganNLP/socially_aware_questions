@@ -8,5 +8,7 @@ scripts/data_processing/*.txt
 scripts/data_processing/runs/
 scripts/data_processing/debug_training.py
 scripts/data_processing/pointer-generator/
+scripts/models/question_generation/
+scripts/models/runs/
 scripts/*/__pycache__/
 logs/

@@ -17,18 +17,8 @@ from data_helpers import extract_age, full_location_pipeline
 import numpy as np
 import pandas as pd
 import stanza
+from data_helpers import assign_date_bin
 
-def assign_date_bin(date, date_bins):
-    diffs = date - date_bins
-    valid_diffs = diffs[diffs > 0]
-    if (len(valid_diffs) > 0):
-        min_diff = min(valid_diffs)
-        min_diff_idx = np.where(diffs == min_diff)[0][0]
-        date_bin = date_bins[min_diff_idx]
-        date_bin = datetime.fromtimestamp(date_bin)
-    else:
-        date_bin = -1
-    return date_bin
 
 def main():
     parser = ArgumentParser()
