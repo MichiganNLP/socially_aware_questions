@@ -185,7 +185,8 @@ def main():
         #     import sys
         #     sys.exit(0)
     train_pct = 0.8
-    author_data = args['author_data']
+    author_data = args.get('author_data')
+    author_data_type = args.get('author_data_type')
     if (author_data is not None):
         author_data = pd.read_csv(author_data, sep='\t', compression='gzip', index_col=False)
         # fix date
@@ -215,13 +216,14 @@ def main():
     max_source_length, max_target_length = max_len_lookup[model_type]
     if (not os.path.exists(train_data_file)):
         if(author_data is not None):
-            data_name_base = f'author_type_{data_name}'
+            data_name_base = f'author_type_{data_name}_data={author_data_type}'
         else:
             data_name_base = data_name
         tokenizer = tokenizer_class.from_pretrained(tokenizer_name)
         prepare_question_data(article_data, out_dir, data_name_base,
                               tokenizer=tokenizer, train_pct=train_pct,
                               author_data=author_data,
+                              author_data_type=author_data_type,
                               max_source_length=max_source_length,
                               max_target_length=max_target_length,
                               article_question_NE_overlap=NE_overlap,
