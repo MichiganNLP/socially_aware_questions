@@ -221,9 +221,6 @@ def main():
         # optimizer=(),
     )
 
-    ## tmp debugging
-    print(f'evaluation strategy = {trainer.args.evaluation_strategy}')
-
     ## train
     torch.cuda.empty_cache()
     trainer.train(

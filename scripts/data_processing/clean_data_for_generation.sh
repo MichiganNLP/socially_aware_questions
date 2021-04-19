@@ -31,11 +31,11 @@ COMMENT_DATA=../../data/reddit_data/advice_subreddit_comment_question_data.gz
 DATA_NAME=advice_subreddit_author
 AUTHOR_DATA=../../data/reddit_data/author_data/combined_author_prior_comment_data.gz # contains static and dynamic author data
 # token author representation
-#AUTHOR_DATA_TYPE=tokens
-#OUT_DIR=../../data/reddit_data/author_text_data/
+AUTHOR_DATA_TYPE=tokens
+OUT_DIR=../../data/reddit_data/author_text_data/
 # embed author representation
-AUTHOR_DATA_TYPE=embeds
-OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
+#AUTHOR_DATA_TYPE=embeds
+#OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
 MODEL_TYPE=bart
 #MODEL_TYPE=longformer
 # enforce named entity overlap between article and question (>=1 NE overlap per question/article)
