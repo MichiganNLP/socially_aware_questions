@@ -7,11 +7,12 @@ import gzip
 import os
 from argparse import ArgumentParser
 from rouge_score.rouge_scorer import RougeScorer
-from data_helpers import generate_predictions, compute_text_bleu
+from model_helpers import generate_predictions, compute_text_bleu
 import torch
-from transformers import AutoModelForSeq2SeqLM, BartTokenizer
+from transformers import AutoModelForSeq2SeqLM, BartTokenizer, BartConfig
 import pandas as pd
 import numpy as np
+from author_aware_model import AuthorTextGenerationModel
 
 def main():
     parser = ArgumentParser()
@@ -32,26 +33,37 @@ def main():
         os.mkdir(out_dir)
 
     ## load model, data
+    if(model_type.startswith('bart_')):
+        base_model_type = 'bart'
+    else:
+        base_model_type = model_type
     model_name_lookup = {
-        'bart' : 'facebook/bart-base'
+        'bart' : 'facebook/bart-base',
     }
     model_full_name_lookup = {
         'bart' : 'BART',
     }
-    full_model_name = model_name_lookup[model_type]
+    full_model_name = model_name_lookup[base_model_type]
     data_dir = os.path.dirname(test_data)
-    tokenizer_file = os.path.join(data_dir, f'{model_full_name_lookup[model_type]}_tokenizer.pt')
+    tokenizer_file = os.path.join(data_dir, f'{model_full_name_lookup[base_model_type]}_tokenizer.pt')
     if(os.path.exists(tokenizer_file)):
         model_tokenizer = torch.load(tokenizer_file)
     else:
         model_tokenizer = BartTokenizer.from_pretrained(full_model_name, cache_dir=model_cache_dir)
-    generation_model = AutoModelForSeq2SeqLM.from_pretrained(full_model_name,
-                                                             cache_dir=model_cache_dir)
+    if (model_type == 'bart_author'):
+        ## custom loading
+        config_file = os.path.join(model_cache_dir, 'BART_config.json')
+        config = BartConfig.from_json_file(config_file)
+        config.author_embeds = 100
+        generation_model = AuthorTextGenerationModel(config)
+    else:
+        generation_model = AutoModelForSeq2SeqLM.from_pretrained(full_model_name,
+                                                                 cache_dir=model_cache_dir)
     generation_model.resize_token_embeddings(len(model_tokenizer))
     if (model_file is not None):
         model_weights = torch.load(model_file)
         generation_model.load_state_dict(model_weights)
-    test_data = torch.load(test_data)['train']
+    test_data = torch.load(test_data)#['train']
 
     ## generate lol
     generated_text_out_file = os.path.join(out_dir, 'test_data_output_text.gz')
@@ -59,8 +71,9 @@ def main():
         generation_method = 'beam_search'
         num_beams = 8
         pred_data = generate_predictions(generation_model, test_data, model_tokenizer,
-                                             generation_method=generation_method,
-                                             num_beams=num_beams,)
+                                         generation_method=generation_method,
+                                         num_beams=num_beams,)
+        pred_data = np.array(pred_data)
         with gzip.open(generated_text_out_file, 'wt') as generated_text_out:
             generated_text_out.write('\n'.join(pred_data))
     else:

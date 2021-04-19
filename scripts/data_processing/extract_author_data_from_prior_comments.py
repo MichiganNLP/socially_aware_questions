@@ -17,6 +17,8 @@ from data_helpers import extract_age, full_location_pipeline
 import numpy as np
 import pandas as pd
 import stanza
+from data_helpers import assign_date_bin
+
 
 def assign_date_bin(date, date_bins):
     diffs = date - date_bins

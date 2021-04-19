@@ -29,6 +29,8 @@ import zstandard
 import lzma
 from praw import Reddit
 from psaw import PushshiftAPI
+# from datasets.arrow_dataset import Dataset
+from nlp.arrow_dataset import Dataset
 
 def assign_label_by_cutoff_pct(data, label_var='gender', min_pct=0.75):
     """
@@ -400,8 +402,12 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
                                               (~author_data.loc[:, 'subreddit'].isna())]
             static_author_data = author_data.drop_duplicates(author_var, inplace=False)
             data = pd.merge(data, dynamic_author_data.loc[:, [author_var, date_var, community_var] + dynamic_vars], on=[author_var, date_var, community_var], how='left')
-            # print(f'post-author-merge data shape 1={data.shape}')
             data = pd.merge(data, static_author_data.loc[:, [author_var]+static_vars], on=author_var, how='left')
+            # tmp debugging
+            valid_author_attr_data = data.dropna(subset=dynamic_vars, axis=0, how='any')
+            logging.info(f'{valid_author_attr_data.shape[0]}/{data.shape[0]} data with valid dynamic author attributes')
+            valid_author_attr_data = data.dropna(subset=static_vars, axis=0, how='any')
+            logging.info(f'{valid_author_attr_data.shape[0]}/{data.shape[0]} data with valid static author attributes')
             # remove null authors
             data = data[~data.loc[:, 'author'].isna()]
             # print(f'post-author-merge data shape 2={data.shape}')
@@ -409,12 +415,58 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
             author_vars = static_vars + dynamic_vars
             data_vars.extend(author_vars)
         elif(author_data_type == 'embeds'):
-            dynamic_author_data = author_data[(~author_data.loc[:, date_var].isna()) &
-                                              (~author_data.loc[:, community_var].isna()) &
-                                              (~author_data.loc[:, 'subreddit_embeds'].isna())]
-            data = pd.merge(data, dynamic_author_data.loc[:, [author_var, date_var, 'subreddit_embeds']], on=[author_var, date_var], how='left')
-            data.rename(columns={'subreddit_embeds' : 'author_embeds'}, inplace=True)
-            data_vars.append('author_embed')
+           # tmp debugging
+            logging.info(f'before combining author/post data: author data and post data have {len(set(author_data[author_data.loc[:, "subreddit_embed"].apply(lambda x: type(x) is not float and x is not None)].loc[:, "author"].unique()) & set(data.loc[:, "author"].unique()))} shared authors')
+            ## add date bin var
+            date_bins = author_data.loc[:, 'date_bin'].unique()
+            # tmp debugging
+            # print(f'date bins {date_bins}')
+            data = data.assign(**{
+                'date_bin' : data.loc[:, date_var].apply(lambda x: assign_date_bin(x.timestamp(), date_bins))
+            })
+            # remove data that can't be linked to valid dates
+            data = data[data.loc[:, 'date_bin']!=-1]
+            # fix date type
+            data = data.assign(**{'date_bin' : data.loc[:, 'date_bin'].apply(lambda x: x.timestamp())})
+            # print(f'data date bin sample {type(data.loc[:, "date_bin"].iloc[0])}')
+            # print(f'author data date bin sample {type(author_data.loc[:, "date_bin"].iloc[0])}')
+            # dynamic_author_data = author_data[
+            #     (~author_data.loc[:, date_var].isna()) # &
+            #     (~author_data.loc[:, community_var].isna()) &
+            #     (~author_data.loc[:, 'subreddit_embed'].isna())
+            #     ]
+            # print(f'sample embed: {type(author_data[author_data.loc[:, "subreddit_embed"].apply(lambda x: type(x) is not float and x is not None)].loc[:, "subreddit_embed"].iloc[0])}')
+            dynamic_author_data = author_data[author_data.loc[:, 'subreddit_embed'].apply(lambda x: type(x) is not float and x is not None)]
+            # tmp debugging
+            # print(f'author data has {dynamic_author_data.shape[0]} author-date embeddings; {dynamic_author_data.loc[:, "author"].nunique()} authors')
+            # print(f'author data has sample authors {dynamic_author_data.loc[:, "author"].unique()[:50]}')
+            print(f'author data and post data have {len(set(dynamic_author_data.loc[:, "author"].unique()) & set(data.loc[:, "author"].unique()))} shared authors')
+            # merge with author-date pairs
+            # data = pd.merge(data, dynamic_author_data.loc[:, ['author', 'date_bin', 'subreddit_embed']], on=['author', 'date_bin'], how='left')
+            # tmp debugging
+            # tmp debugging: merge with author regardless of date
+            data = pd.merge(data, dynamic_author_data.loc[:, ['author', 'subreddit_embed']].drop_duplicates('author'), on='author', how='left')
+            author_embed_var = 'author_embeds'
+            data.rename(columns={'subreddit_embed' : author_embed_var}, inplace=True)
+            data_vars.append(author_embed_var)
+            # add null embed for all data with missing embed
+            embed_dim = len(dynamic_author_data.loc[:, 'subreddit_embed'].iloc[0])
+            print(f'{data[data.loc[:, author_embed_var].apply(lambda x: type(x) is not float and x is not None)].shape[0]}/{data.shape[0]} data with author embeds')
+            # null_embed = [0,]*embed_dim
+            # data.fillna(value={author_embed_var : null_embed}, inplace=True)
+            generate_null_embed = lambda : np.random.randn(embed_dim)
+            data = data.assign(**{
+                author_embed_var : data.loc[:, author_embed_var].apply(lambda x: generate_null_embed() if type(x) is float or x is None else x)
+            })
+            # data_with_author_embeds = data[data.loc[:, author_embed_var].apply(lambda x: not all(np.array(x)==0))]
+
+            # tmp debugging
+            # import sys
+            # sys.exit(0)
+            # remove authors without embeds
+            # data.dropna(axis=0, subset=[author_embed_var], inplace=True)
+            # print(f'{data.shape[0]} data with author embeds')
+            # print(f'author embed data sample {data.head()}')
     # change to clean source/target format
     clean_data = data.loc[:, data_vars].rename(
         columns={'article_text': 'source_text', 'question': 'target_text'})
@@ -471,22 +523,29 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # np.random.shuffle(clean_data.values)
     # clean_data_train = clean_data.iloc[:N_train, :]
     # clean_data_val = clean_data.iloc[N_train:, :]
-    clean_data_train_out_file = os.path.join(out_dir, f'{data_name}_train_data.csv')
-    clean_data_val_out_file = os.path.join(out_dir, f'{data_name}_val_data.csv')
-    # print(f'train data columns = {clean_data_train.columns}')
+    # clean_data_train_out_file = os.path.join(out_dir, f'{data_name}_train_data.csv')
+    # clean_data_val_out_file = os.path.join(out_dir, f'{data_name}_val_data.csv')
+    # # print(f'train data columns = {clean_data_train.columns}')
+    # # tmp debugging
+    # if(not os.path.exists(clean_data_train_out_file)):
+    #     clean_data_train.to_csv(clean_data_train_out_file, sep=',', index=False)
+    #     clean_data_val.to_csv(clean_data_val_out_file, sep=',', index=False)
+    # # reload data into correct format lol
+    # data_dir = os.path.dirname(clean_data_train_out_file)
+    # # every time we load data, we have to re-download csv loader? yikes
+    # train_data_set = nlp.load_dataset('csv', data_files=clean_data_train_out_file, data_dir=data_dir)
+    # val_data_set = nlp.load_dataset('csv', data_files=clean_data_val_out_file, data_dir=data_dir)
+    # # remove temporary directory...ugh
+    # tmp_data_dir = os.path.join(data_dir, 'csv')
+    # if(os.path.exists(tmp_data_dir)):
+    #     shutil.rmtree(tmp_data_dir)
     # tmp debugging
-    if(not os.path.exists(clean_data_train_out_file)):
-        clean_data_train.to_csv(clean_data_train_out_file, sep=',', index=False)
-        clean_data_val.to_csv(clean_data_val_out_file, sep=',', index=False)
-    # reload data into correct format lol
-    data_dir = os.path.dirname(clean_data_train_out_file)
-    # every time we load data, we have to re-download csv loader? yikes
-    train_data_set = nlp.load_dataset('csv', data_files=clean_data_train_out_file, data_dir=data_dir)
-    val_data_set = nlp.load_dataset('csv', data_files=clean_data_val_out_file, data_dir=data_dir)
-    # remove temporary directory...ugh
-    tmp_data_dir = os.path.join(data_dir, 'csv')
-    if(os.path.exists(tmp_data_dir)):
-        shutil.rmtree(tmp_data_dir)
+    # print(f'train data sample = {clean_data_train.head()}')
+    dataset_columns = ['source_text', 'target_text', 'article_id']
+    if(author_data_type == 'embeds'):
+        dataset_columns.append('author_embeds')
+    train_data_set = convert_dataframe_to_data_set(clean_data_train, dataset_columns)
+    val_data_set = convert_dataframe_to_data_set(clean_data_val, dataset_columns)
     #     tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
     # get max lengths
     # source_text_tokens = clean_data.loc[:, 'source_text'].apply(lambda x: tokenizer.tokenize(x))
@@ -501,10 +560,12 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # print(f'{len(val_data_set["source_text"])} val data')
     train_data = data_processor.process(train_data_set)
     val_data = data_processor.process(val_data_set)
-    columns = ["source_ids", "target_ids", "attention_mask"]
+    data_columns = ["source_ids", "target_ids", "attention_mask"]
+    if(author_data_type == 'embeds'):
+        data_columns.append('author_embeds')
     # columns = ["source_ids", "target_ids", "attention_mask", "source_text", "target_text"]
-    train_data.set_format(type='torch', columns=columns)
-    val_data.set_format(type='torch', columns=columns)
+    train_data.set_format(type='torch', columns=data_columns)
+    val_data.set_format(type='torch', columns=data_columns)
     #     logging.debug(f'train data {train_data}')
     train_data_out_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
     val_data_out_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
@@ -519,6 +580,17 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     tokenizer_out_file = os.path.join(out_dir, f'{tokenizer_name}_tokenizer.pt')
     torch.save(tokenizer, tokenizer_out_file)
 
+
+def convert_dataframe_to_data_set(data_frame, dataset_columns):
+    data_dict = {
+        k: data_frame.loc[:, k].values.tolist() for k in dataset_columns
+    }
+    data_set = Dataset.from_dict(data_dict)
+    # vec_columns = ['author_embed']
+    # vec_columns = list(filter(lambda x: x in dataset_columns, vec_columns))
+    # data_set.set_format(type='torch', columns=vec_columns)
+    # 'source_text', 'target_text'
+    return data_set
 
 def filter_data_NE_overlap(NE_data_dir, clean_data, data_name):
     # check for NE data!! don't want to do this multiple times
@@ -934,3 +1006,16 @@ def flatten_columns(df, flat_col):
     # for col in cols:
     #     flattened_df = flattened_df[~flattened_df.loc[:, col].apply(lambda x: type(x) is float and np.isnan(x))]
     return flat_data
+
+
+def assign_date_bin(date, date_bins):
+    diffs = date - date_bins
+    valid_diffs = diffs[diffs > 0]
+    if (len(valid_diffs) > 0):
+        min_diff = min(valid_diffs)
+        min_diff_idx = np.where(diffs == min_diff)[0][0]
+        date_bin = date_bins[min_diff_idx]
+        date_bin = datetime.fromtimestamp(date_bin)
+    else:
+        date_bin = -1
+    return date_bin
