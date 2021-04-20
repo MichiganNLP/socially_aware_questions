@@ -26,7 +26,7 @@ MODEL_CACHE_DIR=../../data/model_cache/
 MODEL_TYPE='bart'
 #MODEL_TYPE='bart_author'
 # set GPU
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=2
 
 # no model (i.e. zero-shot)
 #python test_question_generation.py $TEST_DATA --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR

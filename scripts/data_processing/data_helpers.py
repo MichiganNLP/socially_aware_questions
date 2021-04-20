@@ -415,7 +415,6 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
             author_vars = static_vars + dynamic_vars
             data_vars.extend(author_vars)
         elif(author_data_type == 'embeds'):
-            # tmp debugging
             logging.info(f'before combining author/post data: author data and post data have {len(set(author_data[author_data.loc[:, "subreddit_embed"].apply(lambda x: type(x) is not float and x is not None)].loc[:, "author"].unique()) & set(data.loc[:, "author"].unique()))} shared authors')
             ## add date bin var
             date_bins = author_data.loc[:, 'date_bin'].unique()
@@ -591,7 +590,6 @@ def convert_dataframe_to_data_set(data_frame, dataset_columns):
     # data_set.set_format(type='torch', columns=vec_columns)
     # 'source_text', 'target_text'
     return data_set
-
 
 def filter_data_NE_overlap(NE_data_dir, clean_data, data_name):
     # check for NE data!! don't want to do this multiple times
