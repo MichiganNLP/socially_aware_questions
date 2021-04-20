@@ -38,8 +38,12 @@
 #TRAIN_DATA=../../data/reddit_data/advice_subreddit_train_data.pt
 #VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
 ## reddit+author data
-TRAIN_DATA=../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_train_data.pt
-VAL_DATA=../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_val_data.pt
+# author tokens
+TRAIN_DATA='../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_data=tokens_train_data.pt'
+VAL_DATA='../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_data=tokens_val_data.pt'
+# author embeds
+#TRAIN_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_train_data.pt'
+#VAL_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_val_data.pt'
 # regular model
 #OUT_DIR=../../data/nyt_comments/
 #OUT_DIR=../../data/CNN_articles/cnn/
@@ -53,21 +57,29 @@ VAL_DATA=../../data/reddit_data/author_text_data/author_type_advice_subreddit_au
 #OUT_DIR=../../data/nyt_comments/debug_model/
 # reddit model
 #OUT_DIR=../../data/reddit_data/
+# reddit author model
+# author token
 OUT_DIR=../../data/reddit_data/author_text_data/
+# author embed
+#OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
 # regular transformer
 MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML
 #MODEL_CACHE_DIR=../../data/longformer_cache/
 #DEVICE='cpu' # debug with small data ;_;
+# regular model
 MODEL_TYPE="bart"
+# long input model
 #MODEL_TYPE='longformer'
+# author embedding model
+#MODEL_TYPE="bart_author"
 # model with author information
 #AUTHOR_DATA=../../data/nyt_comments/author_comment_social_data.tsv
 # optional: pretrained model
 #PRETRAINED_MODEL=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
 export CUDA_VISIBLE_DEVICES=1
-SAMPLE_PCT=1.0
+#SAMPLE_PCT=1.0
 # regular model
-python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --sample_pct $SAMPLE_PCT
+python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR
 # pretrained model
 #python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --device $DEVICE --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --pretrained_model $PRETRAINED_MODEL

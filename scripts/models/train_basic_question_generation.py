@@ -2,19 +2,19 @@
 Train basic question generation on top of
 pre-trained language models (e.g. BART).
 """
-import numpy as np
-# import pandas as pd
-import torch
-import sys
-if ('question_generation' not in sys.path):
-    sys.path.append('question_generation')
+# import sys
+# if ('question_generation' not in sys.path):
+#     sys.path.append('question_generation')
 from data_collator import T2TDataCollator
-from transformers import AutoModelForSeq2SeqLM
+from transformers import AutoModelForSeq2SeqLM, BartConfig
+from author_aware_model import AuthorTextGenerationModel
 import os
 # tmp debugging
 from trainer import Trainer
 from model_helpers import DataArguments
 from argparse import ArgumentParser
+import numpy as np
+import torch
 np.random.seed(123)
 torch.manual_seed(123)
 
@@ -129,6 +129,7 @@ def main():
     # reload tokenizer with all processed tokens
     model_type_tokenizer_lookup = {
         'bart' : 'BART',
+        'bart_author' : 'BART',
         'longformer': 'LongFormer',
         'bart_copy' : 'BART',
     }
@@ -146,30 +147,42 @@ def main():
         'longformer' : 'allenai/led-base-16384',
         'bart_copy' : 'facebook/bart-base',
     }
-    if (model_type == 'bart_copy'):
+    if (model_type == 'bart_author'):
         ## custom loading
-        pass
+        config_file = os.path.join(model_cache_dir, 'BART_config.json')
+        config = BartConfig.from_json_file(config_file)
+        config.author_embeds = 100
+        model = AuthorTextGenerationModel(config)
+        base_model_type = model_type.split('_')[0]
     else:
         model_path = model_type_path_lookup[model_type]
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_path,
             cache_dir=model_cache_dir,
         )
+        base_model_type = model_type
     if(pretrained_model is not None):
         pretrained_model_weights = torch.load(pretrained_model)
         model.load_state_dict(pretrained_model_weights)
     model.resize_token_embeddings(len(tokenizer))
-    # TODO: save model to cache again to update embedding size
-    # device = torch.device(device_name)
-    # model.to(device)
 
     ## load data
     # train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
     # val_data_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
     train_dataset = torch.load(train_data_file)
     val_dataset = torch.load(val_data_file)
-    train_dataset = train_dataset['train']
-    val_dataset = val_dataset['train']
+    # tmp debugging
+    # print(f'sample train data {train_dataset[0]}')
+    # print(f'sample val data {val_dataset[0]}')
+    # for data_i in train_dataset:
+    #     try:
+    #         data_i['source_ids']
+    #     except Exception as e:
+    #         print(f'bad data {data_i}')
+    #         break
+    # old dumb data loading
+    # train_dataset = train_dataset['train']
+    # val_dataset = val_dataset['train']
     ## TODO: how to stop sampling from breaking training loop?
     if(sample_pct < 1.0):
         train_dataset = sample_dataset(train_dataset, sample_pct)
@@ -182,7 +195,7 @@ def main():
     # data collator
     data_collator = T2TDataCollator(
         tokenizer=tokenizer,
-        model_type=model_type,
+        model_type=base_model_type,
         mode="training",
         using_tpu=False
     )
@@ -190,7 +203,7 @@ def main():
     if (not os.path.exists(model_out_dir)):
         os.mkdir(model_out_dir)
 
-    training_args = load_training_args(model_out_dir, train_data_file, model_out_dir, val_data_file, max_source_len, max_target_len, model_type=model_type)
+    training_args = load_training_args(model_out_dir, train_data_file, model_out_dir, val_data_file, max_source_len, max_target_len, model_type=base_model_type)
     model_args = {
         'label_smoothing': 0,
     }
@@ -207,9 +220,6 @@ def main():
         label_smoothing=model_args['label_smoothing'],
         # optimizer=(),
     )
-
-    ## tmp debugging
-    print(f'evaluation strategy = {trainer.args.evaluation_strategy}')
 
     ## train
     torch.cuda.empty_cache()

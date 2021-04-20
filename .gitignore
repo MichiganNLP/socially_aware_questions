@@ -9,4 +9,5 @@ scripts/data_processing/runs/
 scripts/data_processing/debug_training.py
 scripts/data_processing/pointer-generator/
 scripts/*/__pycache__/
+scripts/models/question_generation/
 logs/

@@ -38,7 +38,8 @@ def main():
     sample_author_start_dates = []
     for group_i, data_i in comment_data.groupby('subreddit'):
         authors_i = list(set(data_i.loc[:, 'author'].unique()) - sample_authors)
-        sample_authors_i = np.random.choice(authors_i, sample_authors_per_group, replace=False)
+        sample_authors_per_group_i = min(sample_authors_per_group, len(authors_i))
+        sample_authors_i = np.random.choice(authors_i, sample_authors_per_group_i, replace=False)
         data_i = data_i[data_i.loc[:, 'author'].isin(sample_authors_i)]
         # get earliest post date
         author_min_post_dates_i = data_i.groupby('author').apply(lambda x: x.loc[:, 'post_date'].min()).reset_index().rename(columns={0:'post_date'})
