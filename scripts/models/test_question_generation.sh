@@ -10,9 +10,9 @@
 #MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-215000/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/
 # reddit+author embed data
-TEST_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_val_data.pt'
-MODEL_FILE=../../data/reddit_data/author_text_data/author_embed_data/question_generation_model/checkpoint-170500/pytorch_model.bin
-OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
+#TEST_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_val_data.pt'
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_embed_data/question_generation_model/checkpoint-170500/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
 # no training
 #OUT_DIR=../../data/reddit_data/no_train_model/
 # CNN QA data

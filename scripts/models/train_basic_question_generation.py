@@ -2,12 +2,12 @@
 Train basic question generation on top of
 pre-trained language models (e.g. BART).
 """
-import sys
-if ('question_generation' not in sys.path):
-    sys.path.append('question_generation')
+# import sys
+# if ('question_generation' not in sys.path):
+#     sys.path.append('question_generation')
 from data_collator import T2TDataCollator
 from transformers import AutoModelForSeq2SeqLM, BartConfig
-from author_aware_model import BartAuthorTextModel, AuthorTextGenerationModel
+from author_aware_model import AuthorTextGenerationModel
 import os
 # tmp debugging
 from trainer import Trainer

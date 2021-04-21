@@ -129,6 +129,7 @@ class AuthorTextEncoder(BartPretrainedModel):
         hidden_states = self.layernorm_embedding(hidden_states)
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
         ## add author embeddings
+        ## NOTE: early fusion
         if(author_embeds is not None):
         ## add author embeddings
             # remove final token from input, replace with author embedding
@@ -141,6 +142,7 @@ class AuthorTextEncoder(BartPretrainedModel):
 
         # expand attention_mask
         if attention_mask is not None:
+            # set attention to 1 for author embeds!
             if (author_embeds is not None):
                 attention_mask[:, -1] = 1
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
