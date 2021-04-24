@@ -31,7 +31,6 @@ def get_generation_scores(pred_data, test_data, model, word_embed_file=None, sam
     """
     Get generation scores for all predicted data, compute
     mean and SDS
-
     :param pred_data:
     :param test_data:
     :return:

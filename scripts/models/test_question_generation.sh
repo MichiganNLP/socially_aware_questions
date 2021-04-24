@@ -19,7 +19,7 @@
 TEST_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_val_data.pt'
 MODEL_FILE=../../data/reddit_data/author_text_data/author_embed_data/question_generation_model/checkpoint-170500/pytorch_model.bin
 OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
-## metadata to test sub-sets of data
+# metadata to test sub-sets of data
 POST_METADATA=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
 # model params
 MODEL_CACHE_DIR=../../data/model_cache/
