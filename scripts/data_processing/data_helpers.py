@@ -415,7 +415,6 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
             author_vars = static_vars + dynamic_vars
             data_vars.extend(author_vars)
         elif(author_data_type == 'embeds'):
-            # tmp debugging
             logging.info(f'before combining author/post data: author data and post data have {len(set(author_data[author_data.loc[:, "subreddit_embed"].apply(lambda x: type(x) is not float and x is not None)].loc[:, "author"].unique()) & set(data.loc[:, "author"].unique()))} shared authors')
             ## add date bin var
             date_bins = author_data.loc[:, 'date_bin'].unique()
@@ -544,6 +543,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     dataset_columns = ['source_text', 'target_text', 'article_id']
     if(author_data_type == 'embeds'):
         dataset_columns.append('author_embeds')
+    elif(author_data_type == 'tokens'):
+        dataset_columns.extend(['reader_token', 'reader_token_str'])
     train_data_set = convert_dataframe_to_data_set(clean_data_train, dataset_columns)
     val_data_set = convert_dataframe_to_data_set(clean_data_val, dataset_columns)
     #     tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
@@ -564,8 +565,12 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     if(author_data_type == 'embeds'):
         data_columns.append('author_embeds')
     # columns = ["source_ids", "target_ids", "attention_mask", "source_text", "target_text"]
-    train_data.set_format(type='torch', columns=data_columns)
-    val_data.set_format(type='torch', columns=data_columns)
+    train_data.set_format(type='torch', columns=data_columns, output_all_columns=True)
+    val_data.set_format(type='torch', columns=data_columns, output_all_columns=True)
+    # tmp debugging
+    # for data_i in train_data:
+    #     print(f'post-cleaned train data sample: {data_i}')
+    #     break
     #     logging.debug(f'train data {train_data}')
     train_data_out_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
     val_data_out_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
@@ -591,7 +596,6 @@ def convert_dataframe_to_data_set(data_frame, dataset_columns):
     # data_set.set_format(type='torch', columns=vec_columns)
     # 'source_text', 'target_text'
     return data_set
-
 
 def filter_data_NE_overlap(NE_data_dir, clean_data, data_name):
     # check for NE data!! don't want to do this multiple times
@@ -638,6 +642,7 @@ def add_author_tokens(author_vars, clean_data, max_source_length, tokenizer):
         '<EXPERT_PCT_0_AUTHOR>', '<EXPERT_PCT_1_AUTHOR>',  # prior comment activity in subreddit
         '<RESPONSE_TIME_0_AUTHOR>', '<RESPONSE_TIME_1_AUTHOR>',  # question response time
     ]
+    author_token_id_lookup = dict(zip(author_tokens+['UNK'], range(len(author_tokens)+1)))
     # for author_token in author_tokens:
     # tokenizer.add_special_tokens({'cls_token': author_token})
     tokenizer.add_tokens(author_tokens, special_tokens=True)
@@ -677,6 +682,8 @@ def add_author_tokens(author_vars, clean_data, max_source_length, tokenizer):
             else:
                 # convert bin value to token e.g. "0" + "prior_comment_count_bin" = <COMMENT_COUNT_0_AUTHOR>
                 author_token_val_i = author_var_template_lookup[author_var] % (author_val_i)
+            data_j.loc['reader_token_str'] = author_token_val_i
+            data_j.loc['reader_token'] = author_token_id_lookup[author_token_val_i]
             source_text_tokens_j.append(author_token_val_i)
             # tmp debugging
             # if(len(source_text_tokens_j) > max_source_length):
@@ -687,6 +694,8 @@ def add_author_tokens(author_vars, clean_data, max_source_length, tokenizer):
             data_j.loc[source_text_var] = source_text_j
             author_txt_data.append(data_j)
     author_txt_data = pd.concat(author_txt_data, axis=1).transpose()
+    ## add dummy tokens to no-author data
+    no_author_data = no_author_data.assign(**{'reader_token_str' : 'UNK', 'reader_token' : author_token_id_lookup['UNK']})
     # recombine data without-author and with-author
     clean_data = pd.concat([no_author_data, author_txt_data], axis=0)
     # tmp debugging: check for author vars
@@ -696,7 +705,7 @@ def add_author_tokens(author_vars, clean_data, max_source_length, tokenizer):
                 logging.debug(f'found author token {author_token} in at least one doc')
                 break
     # remove author data to avoid NAN bugs in later data reading
-    clean_data = clean_data.loc[:, ['source_text', 'target_text', 'article_id']]
+    clean_data = clean_data.loc[:, ['source_text', 'target_text', 'article_id', 'reader_token', 'reader_token_str']]
     return clean_data
 
 def convert_ids_to_clean_str(token_ids, tokenizer):

@@ -59,22 +59,24 @@ VAL_DATA='../../data/reddit_data/author_text_data/author_type_advice_subreddit_a
 #OUT_DIR=../../data/reddit_data/
 # reddit author model
 # author token
-OUT_DIR=../../data/reddit_data/author_text_data/
+#OUT_DIR=../../data/reddit_data/author_text_data/
 # author embed
 #OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
+# author attention
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
 # regular transformer
 MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML
 #MODEL_CACHE_DIR=../../data/longformer_cache/
 #DEVICE='cpu' # debug with small data ;_;
 # regular model
-MODEL_TYPE="bart"
+#MODEL_TYPE="bart"
 # long input model
 #MODEL_TYPE='longformer'
 # author embedding model
 #MODEL_TYPE="bart_author"
-# model with author information
-#AUTHOR_DATA=../../data/nyt_comments/author_comment_social_data.tsv
+# author attention model
+MODEL_TYPE="bart_author_attention"
 # optional: pretrained model
 #PRETRAINED_MODEL=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
 export CUDA_VISIBLE_DEVICES=1

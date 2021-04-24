@@ -132,7 +132,7 @@ def main():
     parser.add_argument('--author_data', default=None)
     parser.add_argument('--author_data_type', default=None) # {tokens, embeds}
     parser.add_argument('--model_type', default='bart')
-    parser.add_argument('--NE_overlap', type=bool, default=False)
+    # parser.add_argument('--NE_overlap', type=bool, default=False)
     args = vars(parser.parse_args())
     out_dir = args['out_dir']
     if(not os.path.exists(out_dir)):
@@ -231,9 +231,9 @@ def main():
         # tmp debugging
         # overlap_authors = set(article_data.loc[:, "author"].unique()) & set(author_data.loc[:, 'author'].unique())
         # print(f'{len(overlap_authors)} author overlap in articles/questions')
-    NE_overlap = args['NE_overlap']
-    if (NE_overlap):
-        data_name = f'NE_overlap_{data_name}'
+    # NE_overlap = args['NE_overlap']
+    # if (NE_overlap):
+    #     data_name = f'NE_overlap_{data_name}'
     train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
     model_type = args['model_type']
     tokenizer_lookup = {
@@ -259,7 +259,6 @@ def main():
                               author_data_type=author_data_type,
                               max_source_length=max_source_length,
                               max_target_length=max_target_length,
-                              article_question_NE_overlap=NE_overlap,
                               NE_data_dir=out_dir)
     # if we include author data: also generate "clean" no-author data for comparison
     # if(author_data is not None):

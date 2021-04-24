@@ -1,23 +1,124 @@
 """
-Author-aware model: uses latent author representation
-to generate text.
+Author-group attention model,
+i.e. different attention module
+for different reader groups.
 """
-## transformer boilerplate
+## reader-specific encoder
 from math import sqrt
+import random
 from typing import Optional
+
 import torch
 from torch import nn
-import random
-import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss
-from transformers import BartPretrainedModel, BartConfig
-from transformers.modeling_outputs import BaseModelOutput, Seq2SeqModelOutput, Seq2SeqLMOutput
-from transformers.models.bart.modeling_bart import BartDecoder, \
-    shift_tokens_right, _expand_mask, BartEncoderLayer, \
-    BartLearnedPositionalEmbedding, BartForConditionalGeneration
+from transformers import BartConfig
+from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput, Seq2SeqModelOutput
+from transformers.models.bart.modeling_bart import BartAttention, ACT2FN, BartLearnedPositionalEmbedding, BartEncoderLayer, _expand_mask, BartPretrainedModel, BartEncoder, BartModel, BartDecoder, BartForConditionalGeneration, \
+    shift_tokens_right
+import torch.nn.functional as F
 
+class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
+    def __init__(self, config: BartConfig, reader_group_types):
+        super().__init__(config)
+        self.embed_dim = config.d_model
+        # NOTE we need to include "OTHER" in reader_groups
+        # to provide catch-all category
+        ## TODO: align attention module matrices between groups?
+        self.self_attn_per_group = {
+            reader_group : BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout).to(torch.cuda.current_device())
+            for reader_group in reader_group_types
+        }
+        # self.self_attn = BartAttention(
+        #     embed_dim=self.embed_dim,
+        #     num_heads=config.encoder_attention_heads,
+        #     dropout=config.attention_dropout,
+        # )
+        self.self_attn_layer_norm = nn.LayerNorm(self.embed_dim)
+        self.dropout = config.dropout
+        self.activation_fn = ACT2FN[config.activation_function]
+        self.activation_dropout = config.activation_dropout
+        self.fc1 = nn.Linear(self.embed_dim, config.encoder_ffn_dim)
+        self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
+        self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
-class AuthorTextEncoder(BartPretrainedModel):
+    def forward(
+            self,
+            hidden_states: torch.Tensor,
+            attention_mask: torch.Tensor,
+            reader_token : torch.Tensor,
+            # layer_head_mask: torch.Tensor,
+            output_attentions: bool = False,
+    ):
+        """
+        Args:
+            hidden_states (:obj:`torch.FloatTensor`): input to the layer of shape `(batch, seq_len, embed_dim)`
+            reader_groups : reader group labels for specific attention layer (e.g. "US_AUTHOR")
+            attention_mask (:obj:`torch.FloatTensor`): attention mask of size
+                `(batch, 1, tgt_len, src_len)` where padding elements are indicated by very large negative values.
+            layer_head_mask (:obj:`torch.FloatTensor`): mask for attention heads in a given layer of size
+                `(config.encoder_attention_heads,)`.
+            output_attentions (:obj:`bool`, `optional`):
+                Whether or not to return the attentions tensors of all attention layers. See ``attentions`` under
+                returned tensors for more detail.
+        """
+        residual = hidden_states
+        # run the hidden states, attention masks through each
+        # reader-group specific module separately, then
+        # recombine after
+        combined_hidden_states = []
+        combined_attn_weights = []
+        # tmp debugging
+        # print(f'encoder: reader tokens {reader_token}')
+        for i, reader_group_i in enumerate(reader_token):
+            reader_group_attn_i = self.self_attn_per_group[int(reader_group_i)]
+            # tmp debug
+            # print(f'encoder layer: hidden states {hidden_states[[i], :, :].shape}')
+            # print(f'encoder layer: attention {attention_mask[[i], :, :, :].shape}')
+            # print(f'attention module {reader_group_attn_i}')
+            # print(f'attention forward = {help(reader_group_attn_i.forward)}')
+            hidden_states_i, attn_weights_i, _ = reader_group_attn_i(
+                hidden_states=hidden_states[[i], :, :],
+                attention_mask=attention_mask[[i], :, :, :],
+                # key_value_states=None,
+                # past_key_value=None,
+                # layer_head_mask=layer_head_mask,
+                output_attentions=output_attentions,
+            )
+            # print(f'output = attention weights {attn_weights_i}')
+            combined_hidden_states.append(hidden_states_i)
+            combined_attn_weights.append(attn_weights_i)
+        hidden_states = torch.cat(combined_hidden_states, axis=0)
+        if(not any(list(map(lambda x: x is None, combined_attn_weights)))):
+            attn_weights = torch.cat(combined_attn_weights, axis=0)
+        else:
+            attn_weights = None
+
+        hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
+        hidden_states = residual + hidden_states
+        hidden_states = self.self_attn_layer_norm(hidden_states)
+
+        residual = hidden_states
+        hidden_states = self.activation_fn(self.fc1(hidden_states))
+        hidden_states = F.dropout(hidden_states, p=self.activation_dropout, training=self.training)
+        hidden_states = self.fc2(hidden_states)
+        hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
+        hidden_states = residual + hidden_states
+        hidden_states = self.final_layer_norm(hidden_states)
+
+        if hidden_states.dtype == torch.float16 and (
+                torch.isinf(hidden_states).any() or torch.isnan(hidden_states).any()
+        ):
+            clamp_value = torch.finfo(hidden_states.dtype).max - 1000
+            hidden_states = torch.clamp(hidden_states, min=-clamp_value, max=clamp_value)
+
+        outputs = (hidden_states,)
+
+        if output_attentions:
+            outputs += (attn_weights,)
+
+        return outputs
+
+class AuthorGroupAttentionEncoder(BartEncoder):
     """
     Transformer encoder consisting of *config.encoder_layers* self attention layers. Each layer is a
     :class:`BartEncoderLayer`.
@@ -27,7 +128,7 @@ class AuthorTextEncoder(BartPretrainedModel):
         embed_tokens (torch.nn.Embedding): output embedding
     """
 
-    def __init__(self, config: BartConfig, embed_tokens: Optional[nn.Embedding] = None):
+    def __init__(self, config: BartConfig, embed_tokens: Optional[nn.Embedding] = None, reader_group_types = []):
         super().__init__(config)
 
         self.dropout = config.dropout
@@ -48,18 +149,21 @@ class AuthorTextEncoder(BartPretrainedModel):
             embed_dim,
             self.padding_idx,
         )
-        self.layers = nn.ModuleList([BartEncoderLayer(config) for _ in range(config.encoder_layers)])
+        encoder_list = [AuthorGroupAttentionEncoderLayer(config, reader_group_types=reader_group_types)]
+        # tmp debug
+        # encoder_list = [BartEncoderLayer(config)]
+        for i in range(config.encoder_layers-1):
+            encoder_list.append(BartEncoderLayer(config))
+        self.layers = nn.ModuleList(encoder_list)
         self.layernorm_embedding = nn.LayerNorm(embed_dim)
 
-        self.author_embed_network = nn.Linear(self.config.author_embeds, embed_dim)
-        self.author_embed_layernorm = nn.LayerNorm(embed_dim)
         self.init_weights()
 
     def forward(
         self,
         input_ids=None,
-        author_embeds=None,
         attention_mask=None,
+        reader_token=None,
         head_mask=None,
         inputs_embeds=None,
         output_attentions=None,
@@ -103,6 +207,8 @@ class AuthorTextEncoder(BartPretrainedModel):
             return_dict (:obj:`bool`, `optional`):
                 Whether or not to return a :class:`~transformers.file_utils.ModelOutput` instead of a plain tuple.
         """
+        # tmp debugging
+        # print(f'model forward pass: reader token = {reader_token}')
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -128,23 +234,9 @@ class AuthorTextEncoder(BartPretrainedModel):
         hidden_states = inputs_embeds + embed_pos
         hidden_states = self.layernorm_embedding(hidden_states)
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
-        ## add author embeddings
-        ## NOTE: early fusion
-        if(author_embeds is not None):
-        ## add author embeddings
-            # remove final token from input, replace with author embedding
-            # TODO: add author embedding before padding? not sure that it matters
-            hidden_states = hidden_states[:, :-1, :]
-            author_embeds = author_embeds.reshape(author_embeds.shape[0], 1, author_embeds.shape[1])
-            author_embeds_hidden = self.author_embed_network(author_embeds)
-            author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
-            hidden_states = torch.cat([hidden_states, author_embeds_hidden], axis=1)
 
         # expand attention_mask
         if attention_mask is not None:
-            # set attention to 1 for author embeds!
-            if (author_embeds is not None):
-                attention_mask[:, -1] = 1
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
             attention_mask = _expand_mask(attention_mask, inputs_embeds.dtype)
 
@@ -179,14 +271,23 @@ class AuthorTextEncoder(BartPretrainedModel):
                         (head_mask[idx] if head_mask is not None else None),
                     )
                 else:
-                    # tmp debugging
-                    # print(f'encoder layer {idx}: {encoder_layer}')
-                    layer_outputs = encoder_layer(
-                        hidden_states,
-                        attention_mask,
-                        # layer_head_mask=(head_mask[idx] if head_mask is not None else None), # only in new version??
-                        output_attentions=output_attentions,
-                   )
+                    # use reader token on first layer to get
+                    # reader-specific attention
+                    if(idx == 0):
+                        layer_outputs = encoder_layer(
+                            hidden_states=hidden_states,
+                            attention_mask=attention_mask,
+                            reader_token=reader_token,
+                            # layer_head_mask=(head_mask[idx] if head_mask is not None else None),
+                            output_attentions=output_attentions,
+                        )
+                    else:
+                        layer_outputs = encoder_layer(
+                            hidden_states,
+                            attention_mask,
+                            # layer_head_mask=(head_mask[idx] if head_mask is not None else None),
+                            output_attentions=output_attentions,
+                        )
 
                 hidden_states = layer_outputs[0]
 
@@ -203,36 +304,23 @@ class AuthorTextEncoder(BartPretrainedModel):
         )
 
 
-class BartAuthorTextModel(BartPretrainedModel):
-    def __init__(self, config: BartConfig):
+class AuthorGroupAttentionModel(BartModel):
+    def __init__(self, config: BartConfig, reader_group_types=[]):
         super().__init__(config)
 
         padding_idx, vocab_size = config.pad_token_id, config.vocab_size
         self.shared = nn.Embedding(vocab_size, config.d_model, padding_idx)
 
-        self.encoder = AuthorTextEncoder(config, self.shared)
+        self.encoder = AuthorGroupAttentionEncoder(config, self.shared, reader_group_types=reader_group_types)
         self.decoder = BartDecoder(config, self.shared)
+
         self.init_weights()
-
-    def get_input_embeddings(self):
-        return self.shared
-
-    def set_input_embeddings(self, value):
-        self.shared = value
-        self.encoder.embed_tokens = self.shared
-        self.decoder.embed_tokens = self.shared
-
-    def get_encoder(self):
-        return self.encoder
-
-    def get_decoder(self):
-        return self.decoder
 
     def forward(
         self,
         input_ids=None,
-        author_embeds=None,
         attention_mask=None,
+        reader_token=None,
         decoder_input_ids=None,
         decoder_attention_mask=None,
         head_mask=None,
@@ -246,6 +334,8 @@ class BartAuthorTextModel(BartPretrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
+        # tmp debugging
+        # print(f'mid model forward pass: reader token = {reader_token}')
 
         # different to other models, Bart automatically creates decoder_input_ids from
         # input_ids if no decoder_input_ids are provided
@@ -264,8 +354,8 @@ class BartAuthorTextModel(BartPretrainedModel):
         if encoder_outputs is None:
             encoder_outputs = self.encoder(
                 input_ids=input_ids,
-                author_embeds=author_embeds,
                 attention_mask=attention_mask,
+                reader_token=reader_token,
                 head_mask=head_mask,
                 inputs_embeds=inputs_embeds,
                 output_attentions=output_attentions,
@@ -310,47 +400,21 @@ class BartAuthorTextModel(BartPretrainedModel):
             encoder_attentions=encoder_outputs.attentions,
         )
 
-class AuthorTextGenerationModel(BartForConditionalGeneration):
+class AuthorGroupAttentionModelConditionalGeneration(BartForConditionalGeneration):
 
-    def __init__(self, config: BartConfig):
+    def __init__(self, config: BartConfig, reader_group_types=[]):
         super().__init__(config)
-        self.model = BartAuthorTextModel(config)
+        self.model = AuthorGroupAttentionModel(config, reader_group_types=reader_group_types)
         self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
         self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
 
         self.init_weights()
-    #
-    # def get_encoder(self):
-    #     return self.model.get_encoder()
-    #
-    # def get_decoder(self):
-    #     return self.model.get_decoder()
-    #
-    # def resize_token_embeddings(self, new_num_tokens: int) -> nn.Embedding:
-    #     new_embeddings = super().resize_token_embeddings(new_num_tokens)
-    #     self._resize_final_logits_bias(new_num_tokens)
-    #     return new_embeddings
-    #
-    # def _resize_final_logits_bias(self, new_num_tokens: int) -> None:
-    #     old_num_tokens = self.final_logits_bias.shape[-1]
-    #     if new_num_tokens <= old_num_tokens:
-    #         new_bias = self.final_logits_bias[:, :new_num_tokens]
-    #     else:
-    #         extra_bias = torch.zeros((1, new_num_tokens - old_num_tokens), device=self.final_logits_bias.device)
-    #         new_bias = torch.cat([self.final_logits_bias, extra_bias], dim=1)
-    #     self.register_buffer("final_logits_bias", new_bias)
-    #
-    # def get_output_embeddings(self):
-    #     return self.lm_head
-    #
-    # def set_output_embeddings(self, new_embeddings):
-    #     self.lm_head = new_embeddings
-    #
+
     def forward(
         self,
         input_ids=None,
         attention_mask=None,
-        author_embeds=None,
+        reader_token=None,
         decoder_input_ids=None,
         decoder_attention_mask=None,
         head_mask=None,
@@ -374,6 +438,8 @@ class AuthorTextGenerationModel(BartForConditionalGeneration):
         Returns:
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        # tmp debugging
+        # print(f'top model forward pass: reader token = {reader_token}')
 
         if labels is not None:
             if decoder_input_ids is None:
@@ -385,7 +451,7 @@ class AuthorTextGenerationModel(BartForConditionalGeneration):
             input_ids,
             attention_mask=attention_mask,
             decoder_input_ids=decoder_input_ids,
-            author_embeds=author_embeds,
+            reader_token=reader_token,
             encoder_outputs=encoder_outputs,
             decoder_attention_mask=decoder_attention_mask,
             head_mask=head_mask,
@@ -420,41 +486,3 @@ class AuthorTextGenerationModel(BartForConditionalGeneration):
             encoder_hidden_states=outputs.encoder_hidden_states,
             encoder_attentions=outputs.encoder_attentions,
         )
-    #
-    #
-    # def prepare_inputs_for_generation(
-    #     self,
-    #     decoder_input_ids,
-    #     past=None,
-    #     attention_mask=None,
-    #     head_mask=None,
-    #     use_cache=None,
-    #     encoder_outputs=None,
-    #     **kwargs
-    # ):
-    #     # cut decoder_input_ids if past is used
-    #     if past is not None:
-    #         decoder_input_ids = decoder_input_ids[:, -1:]
-    #
-    #     return {
-    #         "input_ids": None,  # encoder_outputs is defined. input_ids not needed
-    #         "encoder_outputs": encoder_outputs,
-    #         "past_key_values": past,
-    #         "decoder_input_ids": decoder_input_ids,
-    #         "attention_mask": attention_mask,
-    #         "head_mask": head_mask,
-    #         "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
-    #     }
-    #
-    # def prepare_decoder_input_ids_from_labels(self, labels: torch.Tensor):
-    #     return shift_tokens_right(labels, self.config.pad_token_id, self.config.decoder_start_token_id)
-    #
-    # @staticmethod
-    # def _reorder_cache(past, beam_idx):
-    #     reordered_past = ()
-    #     for layer_past in past:
-    #         # cached cross_attention states don't have to be reordered -> they are always the same
-    #         reordered_past += (
-    #             tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
-    #         )
-    #     return reordered_past

@@ -19,7 +19,6 @@ import pandas as pd
 import stanza
 from data_helpers import assign_date_bin
 
-
 def main():
     parser = ArgumentParser()
     parser.add_argument('author_data_dir')

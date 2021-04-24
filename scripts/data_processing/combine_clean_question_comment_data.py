@@ -98,6 +98,7 @@ def main():
     parser.add_argument('--data_name', default='advice_subreddit')
     parser.add_argument('--post_data', default=None) # ../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
     parser.add_argument('--valid_question_model', default=None) # ../../data/reddit_data/valid_question_detection_model.pkl
+    parser.add_argument('--filter_overlap', type=bool, default=True) # filter by post overlap
     args = vars(parser.parse_args())
     data_dir = args['data_dir']
 
@@ -151,20 +152,22 @@ def main():
     # sys.exit(0)
 
     ## filter for post overlap
-    # post_data = load_zipped_json_data(args['post_data'])
-    post_data_cols = ['id', 'created_utc', 'selftext', 'title', 'edited', 'author']
-    post_data = pd.read_csv(args['post_data'], sep='\t', compression='gzip', index_col=False, usecols=post_data_cols)
-    post_data.rename(columns={'id': 'parent_id', 'created_utc': 'parent_created', 'selftext': 'parent_text', 'title': 'parent_title', 'edited': 'parent_edited', 'author': 'parent_author'}, inplace=True)
-    # remove null posts
-    post_data = post_data[~post_data.loc[:, 'parent_id'].apply(lambda x: type(x) is float and np.isnan(x))]
-    post_data = post_data[~post_data.loc[:, 'parent_edited'].apply(lambda x: type(x) is float and np.isnan(x))]
-    post_data = post_data[post_data.loc[:, 'parent_text'].apply(lambda x: type(x) is str)]
-    # remove edited posts
-    bool_matcher = re.compile('True|False')
-    post_data = post_data[post_data.loc[:, 'parent_edited'].apply(lambda x: bool_matcher.match(str(x)) is not None and not literal_eval(bool_matcher.match(x).group(0)))]
-    # if(args.get('post_data') is not None):
-    print(f'computing post overlap')
-    comment_data = filter_comments_by_post_overlap(comment_data, post_data)
+    filter_overlap = args['filter_overlap']
+    if(filter_overlap):
+        # post_data = load_zipped_json_data(args['post_data'])
+        post_data_cols = ['id', 'created_utc', 'selftext', 'title', 'edited', 'author']
+        post_data = pd.read_csv(args['post_data'], sep='\t', compression='gzip', index_col=False, usecols=post_data_cols)
+        post_data.rename(columns={'id': 'parent_id', 'created_utc': 'parent_created', 'selftext': 'parent_text', 'title': 'parent_title', 'edited': 'parent_edited', 'author': 'parent_author'}, inplace=True)
+        # remove null posts
+        post_data = post_data[~post_data.loc[:, 'parent_id'].apply(lambda x: type(x) is float and np.isnan(x))]
+        post_data = post_data[~post_data.loc[:, 'parent_edited'].apply(lambda x: type(x) is float and np.isnan(x))]
+        post_data = post_data[post_data.loc[:, 'parent_text'].apply(lambda x: type(x) is str)]
+        # remove edited posts
+        bool_matcher = re.compile('True|False')
+        post_data = post_data[post_data.loc[:, 'parent_edited'].apply(lambda x: bool_matcher.match(str(x)) is not None and not literal_eval(bool_matcher.match(x).group(0)))]
+        # if(args.get('post_data') is not None):
+        print(f'computing post overlap')
+        comment_data = filter_comments_by_post_overlap(comment_data, post_data)
     ## filter for valid clarification questions
     if(args.get('valid_question_model') is not None):
         model_file = args['valid_question_model']
