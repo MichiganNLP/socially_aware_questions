@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import List, Dict
 
 import torch
 
@@ -18,11 +18,13 @@ def trim_batch(
 # this is necessacry because the trainer directly passes this dict as arguments to the model
 # so make sure the keys match the parameter names of the forward method
 class T2TDataCollator():
-    def __init__(self, tokenizer, model_type="t5", mode='training', using_tpu=False):
+    def __init__(self, tokenizer, model_type="t5", mode='training', using_tpu=False, extra_args=[], extra_arg_types=[]):
         self.tokenizer = tokenizer
         self.model_type = model_type
         self.mode = mode
         self.using_tpu = using_tpu
+        self.extra_args = extra_args
+        self.extra_arg_types = extra_arg_types
 
     def __call__(self, batch: List) -> Dict[str, torch.Tensor]:
         """
@@ -60,6 +62,12 @@ class T2TDataCollator():
             "labels": lm_labels,
             "decoder_input_ids": decoder_input_ids
         }
+        for extra_arg, extra_arg_type in zip(self.extra_args, self.extra_arg_types):
+            if(extra_arg_type == 'tensor'):
+                params[extra_arg] = torch.stack([example[extra_arg] for example in batch])
+            # convert numeric vals to tensors
+            elif(extra_arg_type=='int'):
+                params[extra_arg] = torch.LongTensor([example[extra_arg] for example in batch])
         
         return params
     

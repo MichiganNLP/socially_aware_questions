@@ -8,25 +8,35 @@ import os
 from argparse import ArgumentParser
 from rouge_score.rouge_scorer import RougeScorer
 from sklearn.metrics.pairwise import cosine_distances
+from stop_words import get_stop_words
+from tqdm import tqdm
 
 from model_helpers import generate_predictions, compute_text_bleu, load_vectors
 import torch
+CPU_COUNT=10
+torch.set_num_threads(CPU_COUNT)
 from transformers import AutoModelForSeq2SeqLM, BartTokenizer, BartConfig
 import pandas as pd
 import numpy as np
 from author_aware_model import AuthorTextGenerationModel
 from nltk.tokenize import WordPunctTokenizer
 
-def get_generation_scores(pred_data, test_data, model, word_embed_file=None):
+STOP_WORDS = set(get_stop_words('en'))
+# remove question words from stops
+question_words = {'where', 'when', 'what', 'how', 'why', 'which', 'did', 'could', 'can', 'would', 'should'}
+referent_words = {'he', 'she', 'they', 'his', 'her', 'their'}
+STOP_WORDS = STOP_WORDS - question_words
+STOP_WORDS = STOP_WORDS - referent_words
+def get_generation_scores(pred_data, test_data, model, word_embed_file=None, sample_size=1000):
     """
     Get generation scores for all predicted data, compute
-    mean and SD.
+    mean and SDS
 
     :param pred_data:
     :param test_data:
     :return:
     """
-    generation_score_data = test_question_overlap(pred_data, test_data, word_embed_file=word_embed_file)
+    generation_score_data = test_question_overlap(pred_data, test_data, word_embed_file=word_embed_file, stop_words=STOP_WORDS)
     # compute mean/sd
     generation_score_means = generation_score_data.mean(axis=0)
     generation_score_sd = generation_score_data.std(axis=0)
@@ -35,34 +45,44 @@ def get_generation_scores(pred_data, test_data, model, word_embed_file=None):
         generation_score_sd,
     ], axis=1).transpose()
     generation_score_data.index = ['mean', 'sd']
-    ## TODO: add perplexity
     # compute perplexity!
     log_likelihoods = []
-    model_data_cols = ['source_ids', 'attention_mask']
-    model_data_col_lookup = {'source_ids' : 'input_ids'}
-    with torch.no_grad():
-        model.eval()
-        for data_i in test_data:
-            # data_dict_i = {data_col : torch.LongTensor(data_i.get(data_col)).unsqueeze(0) for data_col in model_data_cols}
-            # reshape tensors for model
-            data_dict_i = {data_col: torch.LongTensor(data_i.get(data_col)).unsqueeze(0) for data_col in model_data_cols}
-            # rename column to match model input FML
-            for k,v in model_data_col_lookup.items():
-                data_dict_i[v] = data_dict_i[k]
-                data_dict_i.pop(k)
-            # tmp debugging
-            # print(f'data dict {data_dict_i}')
-            # output_i = model(**data_dict_i)
-            output_i = model(input_ids=data_dict_i['input_ids'], attention_mask=data_dict_i['attention_mask'])
-            log_likelihoods.append(output_i[0])
-    perplexity = torch.exp(-1 * torch.stack(log_likelihoods).mean())
-    perplexity_data = pd.DataFrame([perplexity, 0.], index=['PPL'], columns=['mean', 'sd'])
-    generation_score_data = pd.concat(generation_score_data, perplexity_data, axis=1)
+    model_data_cols = ['source_ids', 'attention_mask', 'target_ids']
+    model_data_col_lookup = {'source_ids' : 'input_ids', 'target_ids' : 'labels'}
+    # sample data to save time on perplexity
+    sample_size = min(sample_size, len(test_data))
+    sample_test_data = test_data.select(np.random.choice(list(range(len(test_data))), sample_size, replace=False))
+    device = torch.cuda.current_device()
+    for data_i in tqdm(sample_test_data):
+        # reshape tensors for model
+        data_dict_i = {data_col : torch.LongTensor(data_i.get(data_col)).unsqueeze(0).to(device) for data_col in model_data_cols}
+        # data_dict_i = {data_col: torch.LongTensor(data_i.get(data_col)).unsqueeze(0).cpu() for data_col in model_data_cols}
+        # rename column to match model input FML
+        for k,v in model_data_col_lookup.items():
+            data_dict_i[v] = data_dict_i[k]
+            data_dict_i.pop(k)
+        # tmp debugging
+        # print(f'data dict {data_dict_i}')
+        # output_i = model(**data_dict_i)
+        with torch.no_grad():
+            model.eval()
+            data_dict_i = {k : v.to(device) for k,v in data_dict_i.items()}
+            output_i = model(input_ids=data_dict_i['input_ids'], attention_mask=data_dict_i['attention_mask'], labels=data_dict_i['labels'])
+            data_dict_i = {k: v.to('cpu') for k, v in data_dict_i.items()}
+            ll = output_i[0].cpu()
+            # print(f'log likelihood = {ll}')
+            log_likelihoods.append(ll)
+            # clear cache??
+            del(output_i)
+            # torch.cuda.empty_cache()
+    perplexity = torch.exp(torch.stack(log_likelihoods).mean())
+    perplexity_data = pd.DataFrame([perplexity, 0.], columns=['PPL'], index=['mean', 'sd'])
+    generation_score_data = pd.concat([generation_score_data, perplexity_data], axis=1)
     # fix score format
     generation_score_data = generation_score_data.reset_index().rename(columns={'index': 'stat'})
     return generation_score_data
 
-def test_question_overlap(pred_data, test_data, word_embed_file=None):
+def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words=[]):
     text_overlap_scores = []
     bleu_weights = [1.0, 0., 0., 0.]  # 100% 1-grams, 0% 2-grams, etc.
     rouge_scorer = RougeScorer(['rougeL'], use_stemmer=True)
@@ -72,6 +92,7 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None):
         word_embeds = load_vectors(word_embed_file)
         tokenizer = WordPunctTokenizer()
         score_cols.append('WMD')
+        word_embed_vocab = set(word_embeds.index) - stop_words
     for test_data_i, pred_data_i in zip(test_data['target_text'], pred_data):
         bleu_score_i = compute_text_bleu(test_data_i, pred_data_i,
                                          weights=bleu_weights)
@@ -80,9 +101,17 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None):
         rouge_score_i = rouge_score_data_i['rougeL'].fmeasure
         generation_scores_i = [bleu_score_i, rouge_score_i]
         if(word_embed_file is not None):
-            pred_tokens_i = list(filter(lambda x: x in word_embeds.index, tokenizer.tokenize(pred_data_i)))
-            test_tokens_i = list(filter(lambda x: x in word_embeds.index, tokenizer.tokenize(test_data_i)))
-            word_mover_dist_i = compute_word_mover_dist(pred_tokens_i, test_tokens_i, word_embeds)
+            # tokenize/normalize data
+            pred_tokens_i = list(map(lambda x: x.lower(), tokenizer.tokenize(pred_data_i)))
+            test_tokens_i = list(map(lambda x: x.lower(), tokenizer.tokenize(test_data_i)))
+            clean_pred_tokens_i = list(filter(lambda x: x in word_embed_vocab, pred_tokens_i))
+            clean_test_tokens_i = list(filter(lambda x: x in word_embed_vocab, test_tokens_i))
+            word_mover_dist_i = 1.
+            if(len(clean_pred_tokens_i) > 0 and len(clean_test_tokens_i) > 0):
+                word_mover_dist_i = compute_word_mover_dist(clean_pred_tokens_i, clean_test_tokens_i, word_embeds)
+            # tmp debugging: which tokens do we drop from word embeddings?
+            else:
+                print(f'missing tokens: pred tokens={pred_tokens_i}; test tokens={test_tokens_i}')
             generation_scores_i.append(word_mover_dist_i)
         text_overlap_scores.append(generation_scores_i)
     # tmp debugging
@@ -93,8 +122,17 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None):
 def compute_word_mover_dist(tokens_1, tokens_2, word_embeds):
     embed_1 = word_embeds.loc[tokens_1, :]
     embed_2 = word_embeds.loc[tokens_2, :]
-    word_mover_dist_i = cosine_distances(embed_1.mean(axis=0).values.reshape(1, -1),
-                                         embed_2.mean(axis=0).values.reshape(1, -1))[0][0]
+    # remove nan values
+    # embed_1.dropna(axis=0, how='any', inplace=True)
+    # embed_2.dropna(axis=0, how='any', inplace=True)
+    mean_embed_1 = embed_1.mean(axis=0).values.reshape(1, -1)
+    mean_embed_2 = embed_2.mean(axis=0).values.reshape(1, -1)
+    word_mover_dist_i = 1.
+    try:
+        word_mover_dist_i = cosine_distances(mean_embed_1, mean_embed_2)[0][0]
+    except Exception as e:
+        print(f'WMD exception {e}')
+        # print(f'bad tokens:\n1={tokens_1};\n2={tokens_2}')
     return word_mover_dist_i
 
 def main():
@@ -120,10 +158,15 @@ def main():
     ## load model, data
     data_dir = os.path.dirname(test_data)
     generation_model, model_tokenizer = load_model(model_cache_dir, model_file, model_type, data_dir)
+    # tmp debugging
+    generation_model.to(torch.cuda.current_device())
     test_data = torch.load(test_data)#['train']
     if('train' in test_data):
         test_data = test_data['train']
-    test_data.set_format('torch', columns=['source_ids', 'target_ids', 'attention_mask'])
+    data_cols = ['source_ids', 'target_ids', 'attention_mask']
+    if(model_type == 'bart_author_embed'):
+        data_cols.append('author_embed')
+    test_data.set_format('torch', columns=data_cols, output_all_columns=True)
 
     ## generate lol
     generated_text_out_file = os.path.join(out_dir, 'test_data_output_text.gz')
@@ -142,7 +185,11 @@ def main():
     ## get aggregate scores
     generated_text_score_out_file = os.path.join(out_dir,
                                                  'test_data_output_scores.tsv')
+    # print(f'generated score file {generated_text_score_out_file}')
     if(not os.path.exists(generated_text_score_out_file)):
+        # tmp debugging
+        # test_data = test_data.select(list(range(100)))
+        # pred_data = pred_data[:100]
         generation_score_data = get_generation_scores(pred_data, test_data, generation_model, word_embed_file=word_embed_file)
         ## write things to file
         generation_score_data.to_csv(generated_text_score_out_file, sep='\t', index=False)
