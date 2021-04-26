@@ -16,23 +16,17 @@
 #MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-215000/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/
 # reddit+author embed data
-#TEST_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_val_data.pt'
-#MODEL_FILE=../../data/reddit_data/author_text_data/author_embed_data/question_generation_model/checkpoint-170500/pytorch_model.bin
-#OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
-# reddit+author group-attention data
-TEST_DATA='../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_data=tokens_val_data.pt'
-MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/question_generation_model/checkpoint-215000/pytorch_model.bin
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
-## metadata to test sub-sets of data
+TEST_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_val_data.pt'
+MODEL_FILE=../../data/reddit_data/author_text_data/author_embed_data/question_generation_model/checkpoint-170500/pytorch_model.bin
+OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
+# metadata to test sub-sets of data
 POST_METADATA=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
 # model params
 MODEL_CACHE_DIR=../../data/model_cache/
 # regular model
 #MODEL_TYPE='bart'
-# reader token model
-#MODEL_TYPE='bart_author'
-# reader attention model
-MODEL_TYPE='bart_author_attention'
+# embed model
+MODEL_TYPE='bart_author'
 # set GPU
 export CUDA_VISIBLE_DEVICES=1
 
