@@ -24,15 +24,17 @@
 ## reddit data
 DATA_FILE=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
 COMMENT_DATA=../../data/reddit_data/advice_subreddit_comment_question_data.gz
+# combined data
+DATA_NAME=combined_data
+OUT_DIR=../../data/reddit_data/
 # text-only
 #DATA_NAME=advice_subreddit
 #OUT_DIR=../../data/reddit_data/
 # reddit + author
-DATA_NAME=advice_subreddit_author
 AUTHOR_DATA=../../data/reddit_data/author_data/combined_author_prior_comment_data.gz # contains static and dynamic author data
 # token author representation
 AUTHOR_DATA_TYPE=tokens
-OUT_DIR=../../data/reddit_data/author_text_data/
+#OUT_DIR=../../data/reddit_data/authUr_text_data/
 # embed author representation
 #AUTHOR_DATA_TYPE=embeds
 #OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
@@ -51,5 +53,5 @@ SAMPLE_PCT=0.25
 # reddit + author
 (python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --author_data_type $AUTHOR_DATA_TYPE --sample_pct $SAMPLE_PCT)&
 PID=$!
-MAX_MEMORY=50000000000 # 50G
+MAX_MEMORY=60000000000 # 50G
 prlimit --pid $PID --as=$MAX_MEMORY

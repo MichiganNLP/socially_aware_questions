@@ -675,7 +675,7 @@ class BartAuthorTextModel(BartModel):
         padding_idx, vocab_size = config.pad_token_id, config.vocab_size
         self.shared = nn.Embedding(vocab_size, config.d_model, padding_idx)
 
-        self.author_embed_module = config.author_embed_module
+        self.author_embed_module = config.__dict__['author_embed_module']
         self.encoder = AuthorTextEncoder(config, self.shared)
         self.decoder = AuthorTextDecoder(config, self.shared)
         self.init_weights()

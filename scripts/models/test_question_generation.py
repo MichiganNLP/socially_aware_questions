@@ -13,6 +13,9 @@ from tqdm import tqdm
 
 from model_helpers import generate_predictions, compute_text_bleu, load_vectors
 import torch
+
+from author_group_attention_model import AuthorGroupAttentionModel
+
 CPU_COUNT=10
 torch.set_num_threads(CPU_COUNT)
 from transformers import AutoModelForSeq2SeqLM, BartTokenizer, BartConfig
@@ -27,7 +30,7 @@ question_words = {'where', 'when', 'what', 'how', 'why', 'which', 'did', 'could'
 referent_words = {'he', 'she', 'they', 'his', 'her', 'their'}
 STOP_WORDS = STOP_WORDS - question_words
 STOP_WORDS = STOP_WORDS - referent_words
-def get_generation_scores(pred_data, test_data, model, word_embed_file=None, sample_size=1000):
+def get_generation_scores(pred_data, test_data, model, word_embed_file=None, sample_size=1000, train_data=None):
     """
     Get generation scores for all predicted data, compute
     mean and SDS
@@ -45,6 +48,17 @@ def get_generation_scores(pred_data, test_data, model, word_embed_file=None, sam
         generation_score_sd,
     ], axis=1).transpose()
     generation_score_data.index = ['mean', 'sd']
+    # compute diversity = % unique data
+    diversity_score = len(pred_data) / len(set(pred_data))
+    diversity_score = pd.DataFrame([diversity_score, 0.], index=['mean', 'sd'], columns=['diversity'])
+    generation_score_data = pd.concat([generation_score_data, diversity_score], axis=1)
+    # compute redundancy = copying from train data
+    if(train_data is not None):
+        train_data_text = set(train_data['target_text'])
+        pred_data_overlap = list(filter(lambda x: x in train_data_text, pred_data))
+        redundancy_score = len(pred_data_overlap) / len(pred_data)
+        redundancy_score = pd.DataFrame([redundancy_score, 0.], index=['mean', 'sd'], columns=['redundancy'])
+        generation_score_data = pd.concat([generation_score_data, redundancy_score], axis=1)
     # compute perplexity!
     log_likelihoods = []
     model_data_cols = ['source_ids', 'attention_mask', 'target_ids']
@@ -135,9 +149,49 @@ def compute_word_mover_dist(tokens_1, tokens_2, word_embeds):
         # print(f'bad tokens:\n1={tokens_1};\n2={tokens_2}')
     return word_mover_dist_i
 
+def load_model(model_cache_dir, model_file, model_type, data_dir):
+    if (model_type.startswith('bart_')):
+        base_model_type = 'bart'
+    else:
+        base_model_type = model_type
+    model_name_lookup = {
+        'bart': 'facebook/bart-base',
+    }
+    model_full_name_lookup = {
+        'bart': 'BART',
+    }
+    full_model_name = model_name_lookup[base_model_type]
+    tokenizer_file = os.path.join(data_dir, f'{model_full_name_lookup[base_model_type]}_tokenizer.pt')
+    if (os.path.exists(tokenizer_file)):
+        model_tokenizer = torch.load(tokenizer_file)
+    else:
+        model_tokenizer = BartTokenizer.from_pretrained(full_model_name, cache_dir=model_cache_dir)
+    if (model_type == 'bart_author'):
+        ## custom loading
+        config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
+        config = BartConfig.from_json_file(config_file)
+        config.author_embeds = 100
+        generation_model = AuthorTextGenerationModel(config)
+    elif(model_type == 'bart_author_attention'):
+        ## TODO: config file for author attention
+        config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
+        config = BartConfig.from_json_file(config_file)
+        reader_group_types = config.__dict__['reader_group_types']
+        generation_model = AuthorGroupAttentionModel(config, reader_group_types=reader_group_types)
+        pass
+    else:
+        generation_model = AutoModelForSeq2SeqLM.from_pretrained(full_model_name,
+                                                                 cache_dir=model_cache_dir)
+    generation_model.resize_token_embeddings(len(model_tokenizer))
+    if (model_file is not None):
+        model_weights = torch.load(model_file)
+        generation_model.load_state_dict(model_weights)
+    return generation_model, model_tokenizer
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('test_data')
+    parser.add_argument('--train_data', default=None)
     parser.add_argument('--model_file', default=None)
     parser.add_argument('--model_cache_dir', default='../../data/model_cache/')
     parser.add_argument('--model_type', default='bart')
@@ -149,6 +203,7 @@ def main():
     model_cache_dir = args['model_cache_dir']
     model_type = args['model_type']
     test_data = args['test_data']
+    train_data = args.get('train_data')
     out_dir = args['out_dir']
     post_metadata = args.get('post_metadata')
     word_embed_file = args.get('word_embed_file')
@@ -167,7 +222,8 @@ def main():
     if(model_type == 'bart_author_embed'):
         data_cols.append('author_embed')
     test_data.set_format('torch', columns=data_cols, output_all_columns=True)
-
+    if(train_data is not None):
+        train_data = torch.load(train_data)
     ## generate lol
     generated_text_out_file = os.path.join(out_dir, 'test_data_output_text.gz')
     if(not os.path.exists(generated_text_out_file)):
@@ -190,10 +246,24 @@ def main():
         # tmp debugging
         # test_data = test_data.select(list(range(100)))
         # pred_data = pred_data[:100]
-        generation_score_data = get_generation_scores(pred_data, test_data, generation_model, word_embed_file=word_embed_file)
+        generation_score_data = get_generation_scores(pred_data, test_data, generation_model, word_embed_file=word_embed_file, train_data=train_data)
         ## write things to file
         generation_score_data.to_csv(generated_text_score_out_file, sep='\t', index=False)
     ## optional: same thing but for different subsets of post data
+    ## reader groups
+    reader_groups = list(set(test_data['reader_group_token_str']))
+    reader_group_scores = []
+    for reader_group_i in reader_groups:
+        idx_i = np.where(test_data['reader_group_token_str']==reader_group_i)[0]
+        test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
+        pred_data_i = pred_data[idx_i]
+        generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, word_embed_file=word_embed_file, train_data=train_data)
+        generation_score_data_i.assign(**{'reader_group' : reader_group_i})
+        reader_group_scores.append(generation_score_data_i)
+    reader_group_scores = pd.concat(reader_group_scores, axis=0)
+    reader_group_score_out_file = os.path.join(out_dir, 'test_data_scores_reader_groups.tsv')
+    reader_group_scores.to_csv(reader_group_score_out_file, sep='\t', index=False)
+    ## per-community
     if(post_metadata is not None):
         post_metadata = pd.read_csv(post_metadata, sep='\t',
                                     compression='gzip', index_col=False,
@@ -211,45 +281,12 @@ def main():
             #                         post_article_ids.reshape(1, -1)))[0]
             test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
             pred_data_i = pred_data[idx_i]
-            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, word_embed_file=word_embed_file)
+            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, word_embed_file=word_embed_file, train_data=train_data)
             generation_score_data_i = generation_score_data_i.assign(**{'community' : community_i})
             community_scores.append(generation_score_data_i)
         community_scores = pd.concat(community_scores, axis=0)
         community_score_out_file = os.path.join(out_dir, f'test_data_output_scores_communities.tsv')
         community_scores.to_csv(community_score_out_file, sep='\t', index=False)
-
-
-def load_model(model_cache_dir, model_file, model_type, data_dir):
-    if (model_type.startswith('bart_')):
-        base_model_type = 'bart'
-    else:
-        base_model_type = model_type
-    model_name_lookup = {
-        'bart': 'facebook/bart-base',
-    }
-    model_full_name_lookup = {
-        'bart': 'BART',
-    }
-    full_model_name = model_name_lookup[base_model_type]
-    tokenizer_file = os.path.join(data_dir, f'{model_full_name_lookup[base_model_type]}_tokenizer.pt')
-    if (os.path.exists(tokenizer_file)):
-        model_tokenizer = torch.load(tokenizer_file)
-    else:
-        model_tokenizer = BartTokenizer.from_pretrained(full_model_name, cache_dir=model_cache_dir)
-    if (model_type == 'bart_author'):
-        ## custom loading
-        config_file = os.path.join(model_cache_dir, 'BART_config.json')
-        config = BartConfig.from_json_file(config_file)
-        config.author_embeds = 100
-        generation_model = AuthorTextGenerationModel(config)
-    else:
-        generation_model = AutoModelForSeq2SeqLM.from_pretrained(full_model_name,
-                                                                 cache_dir=model_cache_dir)
-    generation_model.resize_token_embeddings(len(model_tokenizer))
-    if (model_file is not None):
-        model_weights = torch.load(model_file)
-        generation_model.load_state_dict(model_weights)
-    return generation_model, model_tokenizer
 
 
 if __name__ == '__main__':

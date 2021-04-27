@@ -38,13 +38,14 @@
 #TRAIN_DATA=../../data/reddit_data/advice_subreddit_train_data.pt
 #VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
 ## reddit+author data
-## TODO: consolidate author data => source text | source text with reader tokens | author embed | reader token
+TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
+VAL_DATA=../../data/reddit_data/combined_data_val_data.pt
 # author tokens
 #TRAIN_DATA='../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_data=tokens_train_data.pt'
 #VAL_DATA='../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_data=tokens_val_data.pt'
 # author embeds
-TRAIN_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_train_data.pt'
-VAL_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_val_data.pt'
+#TRAIN_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_train_data.pt'
+#VAL_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_val_data.pt'
 # regular model
 #OUT_DIR=../../data/nyt_comments/
 #OUT_DIR=../../data/CNN_articles/cnn/
@@ -62,9 +63,12 @@ VAL_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_
 # author token
 #OUT_DIR=../../data/reddit_data/author_text_data/
 # author embed
+# subreddit
 #OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
+# text
+OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
 # author (decoder) embed
-OUT_DIR=../../data/reddit_data/author_text_data/author_encoder_embed_data/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_decoder_embed_data/
 # author attention
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
 # regular transformer
@@ -72,10 +76,12 @@ MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML
 #MODEL_CACHE_DIR=../../data/longformer_cache/
 #DEVICE='cpu' # debug with small data ;_;
+## model type
 # regular model
 #MODEL_TYPE="bart"
 # long input model
 #MODEL_TYPE='longformer'
+# NOTE: if using author model, change settings in data/model_cache/BART_author_model_config.json
 # author model w/ tokens
 #MODEL_TYPE="bart_author"
 # author embedding
