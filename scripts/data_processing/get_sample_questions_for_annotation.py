@@ -116,5 +116,25 @@ def main():
             annotator_data_file_i = os.path.join(out_dir, data_name.replace('.tsv', f'_{annotator_id_i}.tsv'))
             annotator_data_i.to_csv(annotator_data_file_i, sep='\t', index=True)
 
+    ## optional: split by annotator
+    ## split by annotator
+    if (annotators > 1):
+        ## assign same number of subreddit posts per annotator
+        annotator_data = defaultdict(list)
+        annotator_idx = list(range(annotators))
+        for subreddit_i, data_i in sample_data.groupby('subreddit'):
+            questions_per_annotator_i = int(data_i.shape[0] / annotators * annotators_per_question)
+            data_idx_j = list(reduce(lambda x,y: x+y, [data_i.index.tolist(),]*annotators_per_question))
+            # ex. [0,66], [66,123], [123:200]
+            for annotator_j, annotator_id_j in enumerate(annotator_idx):
+                annotator_data[annotator_id_j] += data_i.loc[data_idx_j[(annotator_j*questions_per_annotator_i):((annotator_j+1)*questions_per_annotator_i)]]
+            ## rotate annotator IDs to distribute data evenly
+            annotator_idx = annotator_idx[1:] + [annotator_idx[0]]
+        ## save each annotator data file separately
+        for annotator_id_i, annotator_data_i in annotator_data.items():
+            annotator_data_i = pd.concat(annotator_data_i, axis=1)
+            annotator_data_file_i = os.path.join(out_dir, data_name.replace('.tsv', f'_{annotator_id_i}.tsv'))
+            annotator_data_i.to_csv(annotator_data_file_i, sep='\t', index=True)
+
 if __name__ == '__main__':
     main()

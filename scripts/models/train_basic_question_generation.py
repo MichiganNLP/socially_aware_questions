@@ -10,6 +10,7 @@ from transformers import AutoModelForSeq2SeqLM, BartConfig
 from author_aware_model import AuthorTextGenerationModel
 import os
 # tmp debugging
+from author_group_attention_model import AuthorGroupAttentionModelConditionalGeneration
 from trainer import Trainer
 from model_helpers import DataArguments
 from argparse import ArgumentParser
@@ -126,19 +127,28 @@ def main():
     # tmp debugging
     # import sys
     # sys.exit()
+    # get base model type for modified models e.g. "bart_author"
+    if('_' in model_type):
+        base_model_type = model_type.split('_')[0]
+    else:
+        base_model_type = model_type
     # reload tokenizer with all processed tokens
     model_type_tokenizer_lookup = {
         'bart' : 'BART',
-        'bart_author' : 'BART',
         'longformer': 'LongFormer',
-        'bart_copy' : 'BART',
     }
     data_dir = os.path.dirname(train_data_file)
-    tokenizer_name = model_type_tokenizer_lookup[model_type]
+    tokenizer_name = model_type_tokenizer_lookup[base_model_type]
     tokenizer_file = os.path.join(data_dir, f'{tokenizer_name}_tokenizer.pt')
     tokenizer = torch.load(tokenizer_file)
 
-    ## train model
+    ## load data
+    # train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
+    # val_data_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
+    train_dataset = torch.load(train_data_file)
+    val_dataset = torch.load(val_data_file)
+
+    ## initialize model
     if(model_cache_dir is None):
         model_cache_dir = os.path.join(out_dir, 'model_cache/')
     # tokenizer = torch.load('../../data/CNN_articles/cnn/BART_tokenizer.pt')
@@ -147,30 +157,29 @@ def main():
         'longformer' : 'allenai/led-base-16384',
         'bart_copy' : 'facebook/bart-base',
     }
-    if (model_type == 'bart_author'):
+    if (model_type == 'bart_author_embeds'):
         ## custom loading
-        config_file = os.path.join(model_cache_dir, 'BART_config.json')
+        config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json') # copy of config file with author args
         config = BartConfig.from_json_file(config_file)
-        config.author_embeds = 100
         model = AuthorTextGenerationModel(config)
-        base_model_type = model_type.split('_')[0]
+    elif(model_type == 'bart_author_attention'):
+        config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
+        config = BartConfig.from_json_file(config_file)
+        reader_group_types = config.__dict__['reader_group_types']
+        model = AuthorGroupAttentionModelConditionalGeneration(config, reader_group_types=reader_group_types)
     else:
         model_path = model_type_path_lookup[model_type]
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_path,
             cache_dir=model_cache_dir,
         )
-        base_model_type = model_type
     if(pretrained_model is not None):
         pretrained_model_weights = torch.load(pretrained_model)
         model.load_state_dict(pretrained_model_weights)
     model.resize_token_embeddings(len(tokenizer))
+    # send to same device
+    model.to(torch.cuda.current_device())
 
-    ## load data
-    # train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
-    # val_data_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
-    train_dataset = torch.load(train_data_file)
-    val_dataset = torch.load(val_data_file)
     # tmp debugging
     # print(f'sample train data {train_dataset[0]}')
     # print(f'sample val data {val_dataset[0]}')
@@ -193,11 +202,17 @@ def main():
     max_target_len = len(train_dataset['target_ids'][0])
     tokenizer.model_max_length = max_source_len
     # data collator
+    extra_data_collate_args = []
+    if(model_type in {'bart_author', 'bart_author_attention'}):
+        extra_data_collate_args.append(('reader_token', 'reader_token', 'int'))
+    elif(model_type == 'bart_author_embeds'):
+        extra_data_collate_args.append((config.__dict__['author_embed_type'], 'author_embeds', 'tensor'))
     data_collator = T2TDataCollator(
         tokenizer=tokenizer,
         model_type=base_model_type,
         mode="training",
-        using_tpu=False
+        using_tpu=False,
+        extra_args=extra_data_collate_args,
     )
     model_out_dir = os.path.join(out_dir, 'question_generation_model/')
     if (not os.path.exists(model_out_dir)):
@@ -207,7 +222,10 @@ def main():
     model_args = {
         'label_smoothing': 0,
     }
-    # tmp debugging
+    ## tmp debugging
+    # for data_i in train_dataset:
+    #     print(f'sample data before trainer: {data_i}')
+    #     break
     # print(f'training device {training_args.device}')
     ## TODO: prevent model from saving optimizer after every 500 training steps!!
     trainer = Trainer(
@@ -220,6 +238,12 @@ def main():
         label_smoothing=model_args['label_smoothing'],
         # optimizer=(),
     )
+
+    ## tmp debugging
+    # for data_i in train_dataset:
+    #     print(f'sample data after trainer: {data_i}')
+    #     break
+    # print(f'train data {train_dataset}')
 
     ## train
     torch.cuda.empty_cache()

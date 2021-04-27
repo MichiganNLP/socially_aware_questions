@@ -119,6 +119,18 @@ def load_all_comment_questions(comment_dir, comment_month_years=[('April', '2018
     # print(f'sample question data {question_data.head(10)}')
     return question_data
 
+def read_clean_author_data(author_data):
+    author_data = pd.read_csv(author_data, sep='\t', compression='gzip', index_col=False, parse_dates=['date_day', 'date_day_bin'])
+    # fix date
+    author_data = author_data.assign(**{
+        'date_day_bin': author_data.loc[:, 'date_day_bin'].apply(lambda x: x.timestamp()).astype(float)
+    })
+    # read embeds
+    embed_cols = list(filter(lambda x: x.endswith('embed'), author_data.columns))
+    for embed_col in embed_cols:
+        author_data = author_data.assign(**{embed_col: author_data.loc[:, embed_col].apply(lambda x: literal_eval(x) if type(x) is not float else x)})
+    return author_data
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('out_dir')
@@ -191,37 +203,33 @@ def main():
         #     import sys
         #     sys.exit(0)
     train_pct = 0.8
-    author_data = args.get('author_data')
+    author_data_file = args.get('author_data')
     author_data_type = args.get('author_data_type')
-    if (author_data is not None):
-        author_data = pd.read_csv(author_data, sep='\t', compression='gzip', index_col=False, parse_dates=['date_day', 'date_bin'])
-        # fix date
-        author_data = author_data.assign(**{
-            'date_bin' : author_data.loc[:, 'date_bin'].apply(lambda x: x.timestamp()).astype(float)
-        })
+    if (author_data_file is not None):
+        author_data = read_clean_author_data(author_data_file)
         # date_day_fmt = '%Y-%m-%d %H:%M:%S'
         # date_day_fmt = '%Y-%m-%d'
         # author_data = author_data.assign(**{
         #     'date_day': author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, date_day_fmt) if type(x) is str else x)
         # })
-        # author_data = author_data[author_data.loc[:, 'date_bin'].apply(lambda x: type(x) is str)]
+        # author_data = author_data[author_data.loc[:, 'date_day_bin'].apply(lambda x: type(x) is str)]
         # author_data = author_data.assign(**{
-        #     'date_bin' : author_data.loc[:, 'date_bin'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d'))
+        #     'date_day_bin' : author_data.loc[:, 'date_day_bin'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d'))
         # })
-        # author_data.loc[:, 'date_bin'] = author_data.loc[:, 'date_bin'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d'))
+        # author_data.loc[:, 'date_day_bin'] = author_data.loc[:, 'date_day_bin'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d'))
         # fix date bin type??
         # author_data = author_data.assign(**{
-        #     'date_bin' : author_data.loc[:, 'date_bin'].apply(lambda x: x.to_pydatetime())
+        #     'date_day_bin' : author_data.loc[:, 'date_day_bin'].apply(lambda x: x.to_pydatetime())
         # })
-        # print(f'author data date bin sample ({author_data.loc[:, "date_bin"].iloc[0]}) has type {type(author_data.loc[:, "date_bin"].iloc[0])}')
+        # print(f'author data date bin sample ({author_data.loc[:, "date_day_bin"].iloc[0]}) has type {type(author_data.loc[:, "date_day_bin"].iloc[0])}')
         # fix UNKs
         author_data.replace('UNK', np.nan, inplace=True)
         # fix subreddit embeds
-        if ('subreddit_embed' in author_data.columns):
-            space_matcher = re.compile('(?<=\d)[\n\s]+(?=[\d\-])')
-            author_data = author_data.assign(**{
-                'subreddit_embed' : author_data.loc[:, 'subreddit_embed'].apply(lambda x: clean_str_array(x, space_matcher) if type(x) is str else None)
-            })
+        # if ('subreddit_embed' in author_data.columns):
+        #     space_matcher = re.compile('(?<=\d)[\n\s]+(?=[\d\-])')
+        #     author_data = author_data.assign(**{
+        #         'subreddit_embed' : author_data.loc[:, 'subreddit_embed'].apply(lambda x: clean_str_array(x, space_matcher) if type(x) is str else None)
+        #     })
             # remove authors with null embeddings
             # author_data = author_data[author_data.loc[:, 'subreddit_embed'].apply(lambda x: x is not None)]
             # tmp debugging
@@ -256,7 +264,7 @@ def main():
         prepare_question_data(article_data, out_dir, data_name,
                               tokenizer=tokenizer, train_pct=train_pct,
                               author_data=author_data,
-                              author_data_type=author_data_type,
+                              # author_data_type=author_data_type,
                               max_source_length=max_source_length,
                               max_target_length=max_target_length,
                               NE_data_dir=out_dir)
@@ -279,6 +287,7 @@ def main():
     ## save raw data to file
     out_file_name = os.path.join(out_dir, f'{data_name}_question_data.gz')
     article_data.to_csv(out_file_name, sep='\t', index=False, compression='gzip')
+
 
 
 if __name__ == '__main__':
