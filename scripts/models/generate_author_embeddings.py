@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 from gensim.models import Doc2Vec
+from gensim.models.doc2vec import TaggedDocument
 from nltk import WordPunctTokenizer
 from tqdm import tqdm
 from sklearn.feature_extraction.text import CountVectorizer
@@ -50,21 +51,30 @@ def generate_embeddings(data, min_author_count=20, dim=100, embed_type='subreddi
     elif(embed_type == 'text'):
         # convert text to embedding using Doc2Vec
         tokenizer = WordPunctTokenizer()
-        data = data.assign(**{'text_tokens' : data.loc[:, 'text'].apply(lambda x: list(map(lambda y: y.lower(), x), tokenizer.tokenize(x)))})
-        train_corpus = data.loc[:, 'text_tokens'].values
+        valid_data = data[data.loc[:, 'body'].apply(lambda x: type(x) is str)]
+        valid_data = valid_data.assign(**{'text_tokens': valid_data.loc[:, 'body'].apply(lambda x: list(map(lambda y: y.lower(), tokenizer.tokenize(x))))})
+        valid_data = valid_data[valid_data.loc[:, 'text_tokens'].apply(lambda x: len(x) > 0)]
+        max_doc_size = 2000
+        train_corpus = [TaggedDocument(x[:max_doc_size], [i]) for i,x in enumerate(valid_data.loc[:, 'text_tokens'].values)]
+        # tmp debugging
+        # print(f'test doc {train_corpus[0].words}')
         # set up model
         min_count = 20
-        model = Doc2Vec(vector_size=dim, min_count=min_count, epochs=50)
+        train_epochs = 50
+        model = Doc2Vec(vector_size=dim, min_count=min_count, seed=123)
+        model.build_vocab(documents=train_corpus)
+        model.train(documents=train_corpus, total_examples=model.corpus_count, epochs=train_epochs)
         # train lol
-        model.build_vocab(train_corpus)
-        model.train(train_corpus, total_examples=model.corpus_count, epochs=model.epochs)
+        # model.build_vocab(train_corpus)
+        # model.train(train_corpus, total_examples=model.corpus_count, epochs=model.epochs)
         # compute embeds all documents
-        text_embeds = list(map(lambda x: model.infer_vector(x), train_corpus))
-        data = data.assign(**{
+        text_embeds = list(map(lambda x: model.infer_vector(x.words), train_corpus))
+        valid_data = valid_data.assign(**{
             'text_embed' : text_embeds
         })
         # compute mean vector for each author
-        embeds = data.groupby('author').apply(lambda x: x.loc[:, 'text_embed'].mean(axis=0).values.tolist()).reset_index()
+        embeds = valid_data.groupby('author').apply(lambda x: x.loc[:, 'text_embed'].mean(axis=0).tolist()).reset_index().rename(columns={0 : 'text_embed'})
+>>>>>>> 0182cbc90418a50135aca4eeddee971c0c4dcd75
     return embeds
 
 def collect_author_data(data_dir):
@@ -72,9 +82,10 @@ def collect_author_data(data_dir):
     author_data_files = list(filter(lambda x: author_file_matcher.match(x) is not None, os.listdir(data_dir)))
     author_data_files = list(map(lambda x: os.path.join(data_dir, x), author_data_files))
     # tmp debugging
-    # author_data_files = author_data_files[:5000]
+    # author_data_files = author_data_files[:100]
 
     author_data = []
+    print(f'loading {len(author_data_files)} files from {data_dir}')
     for author_data_file_i in tqdm(author_data_files):
         try:
             data_i = pd.read_csv(author_data_file_i, sep='\t',
@@ -129,8 +140,8 @@ def main():
         date_bin_embeddings.append(embeds_i)
     date_bin_embeddings = pd.concat(date_bin_embeddings, axis=0)
     ## write embeddings to file
-    embed_out_file = os.path.join(out_dir, 'author_date_embeddings_type={embed_type}.gz')
-    date_bin_embeddings.to_csv(embed_out_file, sep='\t', compression='gzip', index=True)
+    embed_out_file = os.path.join(out_dir, f'author_date_embeddings_type={embed_type}.gz')
+    date_bin_embeddings.to_csv(embed_out_file, sep='\t', compression='gzip', index=False)
     # for date_i, embeds_i in date_bin_embeddings:
     #     out_file_i = os.path.join(out_dir, f'embeddings_{date_i}_type={embed_type}.gz')
     #     embeds_i.to_csv(out_file_i, sep='\t', compression='gzip', index=True)
@@ -172,7 +183,7 @@ def bin_data_by_time_period(author_data, max_year, min_year, month_gap):
                 date_fmt) if x < len(author_time_periods) else -1)
     })
     author_data = author_data[author_data.loc[:, 'date_day_bin'] != -1]
-    print(author_data.loc[:, 'date_day_bin'].value_counts())
+    print(f'date bins {author_data.loc[:, "date_day_bin"].value_counts()}')
     return author_data
 
 
