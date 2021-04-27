@@ -24,7 +24,7 @@ def main():
     parser.add_argument('author_data_dir')
     parser.add_argument('question_data') # need question data for time of author questions => get all comments before specified time(s)
     parser.add_argument('post_data')
-    parser.add_argument('--author_embeddings_data', default=None)
+    parser.add_argument('--author_embeddings_data', nargs='+', default=None)
     args = vars(parser.parse_args())
     author_data_dir = args['author_data_dir']
     question_data_file = args['question_data']
@@ -143,17 +143,21 @@ def main():
     })
 
     ## optional: add author embeddings
-    author_embeddings_data_file = args.get('author_embeddings_data')
-    if(author_embeddings_data_file is not None):
-        combined_author_data = combined_author_data.assign(**{'date_day' : combined_author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))})
-        author_embeddings_data = pd.read_csv(author_embeddings_data_file, sep='\t', compression='gzip', index_col=False, converters={'subreddit_embedding' : literal_eval})
-        author_embeddings_data = author_embeddings_data.assign(**{'date_bin' : author_embeddings_data.loc[:, 'date_bin'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d'))})
-        ## join via date
-        embedding_date_bins = author_embeddings_data.loc[:, 'date_bin'].apply(lambda x: x.timestamp()).unique()
-        combined_author_data = combined_author_data.assign(**{
-            'date_bin' : combined_author_data.loc[:, 'date_day'].apply(lambda x: assign_date_bin(x.timestamp(), embedding_date_bins))
-        })
-        combined_author_data = pd.merge(combined_author_data, author_embeddings_data.loc[:, ['author', 'date_bin', 'subreddit_embed']], on=['author', 'date_bin'], how='left')
+    author_embeddings_data_files = args.get('author_embeddings_data')
+    if(author_embeddings_data_files is not None):
+        combined_author_data = combined_author_data.assign(**{'date_day': combined_author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))})
+        for author_embeddings_data_file in author_embeddings_data_files:
+            ## TODO: shift date bin to avoid reading the future??
+            author_embeddings_data = pd.read_csv(author_embeddings_data_file, sep='\t', compression='gzip', index_col=False)
+            embed_var = list(filter(lambda x: x.endswith('_embed'), author_embeddings_data.columns))[0]
+            author_embeddings_data = author_embeddings_data.assign(**{embed_var : author_embeddings_data.loc[:, embed_var].apply(lambda x: literal_eval(x))})
+            author_embeddings_data = author_embeddings_data.assign(**{'date_day_bin' : author_embeddings_data.loc[:, 'date_day_bin'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d'))})
+            ## join via date
+            embedding_date_bins = author_embeddings_data.loc[:, 'date_day_bin'].apply(lambda x: x.timestamp()).unique()
+            combined_author_data = combined_author_data.assign(**{
+                'date_day_bin' : combined_author_data.loc[:, 'date_day'].apply(lambda x: assign_date_bin(x.timestamp(), embedding_date_bins))
+            })
+            combined_author_data = pd.merge(combined_author_data, author_embeddings_data.loc[:, ['author', 'date_day_bin', embed_var]], on=['author', 'date_day_bin'], how='left')
 
     # save to single file
     combined_author_data_file = os.path.join(author_data_dir, 'combined_author_prior_comment_data.gz')
