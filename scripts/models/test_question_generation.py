@@ -224,6 +224,7 @@ def main():
     test_data.set_format('torch', columns=data_cols, output_all_columns=True)
     if(train_data is not None):
         train_data = torch.load(train_data)
+
     ## generate lol
     generated_text_out_file = os.path.join(out_dir, 'test_data_output_text.gz')
     if(not os.path.exists(generated_text_out_file)):
