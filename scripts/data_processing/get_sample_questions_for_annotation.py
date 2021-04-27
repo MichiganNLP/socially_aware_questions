@@ -73,23 +73,6 @@ def main():
     question_post_data.drop_duplicates('parent_id', inplace=True)
 
     ## sample data
-    sample_data = []
-    data_cols = ['post_title', 'post_text', 'question', 'parent_id']
-    # tmp debugging
-    print(f'subreddit counts = {question_post_data.loc[:, "subreddit"].value_counts()}')
-    for group_i, data_i in question_post_data.groupby('subreddit'):
-        print(f'group = {group_i}, data = {data_i.shape[0]}')
-        data_i = data_i.loc[:, data_cols]
-        sample_data_i = data_i.loc[np.random.choice(data_i.index, sample_questions_per_group, replace=False), :]
-        sample_data.append(sample_data_i)
-    sample_data = pd.concat(sample_data, axis=0)
-    # add annotation columns
-    sample_data = sample_data.assign(**{
-        'question_is_relevant': -1,
-        'question_asks_for_more_info' : -1,
-    })
-
-    ## write to file
     data_name = os.path.basename(question_data_file).replace('.gz', '_annotation_sample.tsv')
     out_file = os.path.join(out_dir, data_name)
     if(not os.path.exists(out_file)):

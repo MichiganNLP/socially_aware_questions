@@ -157,16 +157,15 @@ def main():
         'longformer' : 'allenai/led-base-16384',
         'bart_copy' : 'facebook/bart-base',
     }
-    if (model_type == 'bart_author'):
+    if (model_type == 'bart_author_embeds'):
         ## custom loading
-        config_file = os.path.join(model_cache_dir, 'BART_config.json')
+        config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json') # copy of config file with author args
         config = BartConfig.from_json_file(config_file)
-        config.author_embeds = 100
         model = AuthorTextGenerationModel(config)
     elif(model_type == 'bart_author_attention'):
-        config_file = os.path.join(model_cache_dir, 'BART_config.json')
+        config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
         config = BartConfig.from_json_file(config_file)
-        reader_group_types = list(set(train_dataset['reader_token']))
+        reader_group_types = config.__dict__['reader_group_types']
         model = AuthorGroupAttentionModelConditionalGeneration(config, reader_group_types=reader_group_types)
     else:
         model_path = model_type_path_lookup[model_type]
@@ -204,20 +203,16 @@ def main():
     tokenizer.model_max_length = max_source_len
     # data collator
     extra_data_collate_args = []
-    extra_data_collate_arg_types = []
-    if(model_type == 'bart_author' or model_type == 'bart_author_attention'):
-        extra_data_collate_args.append('reader_token')
-        extra_data_collate_arg_types.append('int')
+    if(model_type in {'bart_author', 'bart_author_attention'}):
+        extra_data_collate_args.append(('reader_token', 'reader_token', 'int'))
     elif(model_type == 'bart_author_embeds'):
-        extra_data_collate_args.append('author_embed')
-        extra_data_collate_arg_types.append('tensor')
+        extra_data_collate_args.append((config.__dict__['author_embed_type'], 'author_embeds', 'tensor'))
     data_collator = T2TDataCollator(
         tokenizer=tokenizer,
         model_type=base_model_type,
         mode="training",
         using_tpu=False,
         extra_args=extra_data_collate_args,
-        extra_arg_types=extra_data_collate_arg_types,
     )
     model_out_dir = os.path.join(out_dir, 'question_generation_model/')
     if (not os.path.exists(model_out_dir)):

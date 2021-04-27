@@ -121,7 +121,7 @@ class DataProcessor:
     Process data for conversion to matrix format.
     """
 
-    def __init__(self, tokenizer, model_type="t5", max_source_length=512, max_target_length=32):
+    def __init__(self, tokenizer, model_type="t5", max_source_length=512, max_target_length=32, extra_source_text_vars=[]):
         self.tokenizer = tokenizer
         self.max_source_length = max_source_length
         self.max_target_length = max_target_length
@@ -134,6 +134,7 @@ class DataProcessor:
             self.sep_token = "<sep>"
         else:
             self.sep_token = "[SEP]"
+        self.extra_source_text_vars = extra_source_text_vars
 
     def process(self, dataset):
         if self.model_type == "t5":
@@ -177,7 +178,16 @@ class DataProcessor:
             'attention_mask': source_encoding['attention_mask'],
             'article_id' : example_batch['article_id'],
         }
-
+        for extra_source_text_var in self.extra_source_text_vars:
+            source_encoding_i = self.tokenizer.batch_encode_plus(
+                example_batch[extra_source_text_var],
+                max_length=self.max_source_length,
+                padding='max_length',
+                pad_to_max_length=True,
+                truncation=True,
+            )
+            extra_source_text_id_var = f'{extra_source_text_var.replace("text", "ids")}'
+            encodings[extra_source_text_id_var] = source_encoding_i['input_ids']
         return encodings
 
 ## text generation
@@ -366,7 +376,7 @@ def extract_questions_all_data(data, min_question_len=5):
 def prepare_question_data(data, out_dir, data_name, tokenizer,
                           data_vars=['article_text', 'question', 'article_id'],
                           author_data=None,
-                          author_data_type='tokens', # {'tokens', 'embeddings'}
+                          # author_data_type='tokens', # {'tokens', 'embeddings'}
                           train_pct=0.8,
                           max_source_length=1024, max_target_length=64,
                           article_question_NE_overlap=False,
@@ -397,82 +407,96 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
             date_var : data.loc[:, 'created_utc'].apply(lambda x: round_date_to_day(x))
         })
         # print(f'pre-author-merge data shape={data.shape}')
-        if(author_data_type == 'tokens'):
-            dynamic_author_data = author_data[(~author_data.loc[:, 'date_day'].isna()) &
-                                              (~author_data.loc[:, 'subreddit'].isna())]
-            static_author_data = author_data.drop_duplicates(author_var, inplace=False)
-            data = pd.merge(data, dynamic_author_data.loc[:, [author_var, date_var, community_var] + dynamic_vars], on=[author_var, date_var, community_var], how='left')
-            data = pd.merge(data, static_author_data.loc[:, [author_var]+static_vars], on=author_var, how='left')
-            # tmp debugging
-            valid_author_attr_data = data.dropna(subset=dynamic_vars, axis=0, how='any')
-            logging.info(f'{valid_author_attr_data.shape[0]}/{data.shape[0]} data with valid dynamic author attributes')
-            valid_author_attr_data = data.dropna(subset=static_vars, axis=0, how='any')
-            logging.info(f'{valid_author_attr_data.shape[0]}/{data.shape[0]} data with valid static author attributes')
-            # remove null authors
-            data = data[~data.loc[:, 'author'].isna()]
-            # print(f'post-author-merge data shape 2={data.shape}')
-            # need author vars for later: we'll add author tokens to input
-            author_vars = static_vars + dynamic_vars
-            data_vars.extend(author_vars)
-        elif(author_data_type == 'embeds'):
-            logging.info(f'before combining author/post data: author data and post data have {len(set(author_data[author_data.loc[:, "subreddit_embed"].apply(lambda x: type(x) is not float and x is not None)].loc[:, "author"].unique()) & set(data.loc[:, "author"].unique()))} shared authors')
-            ## add date bin var
-            date_bins = author_data.loc[:, 'date_bin'].unique()
-            # tmp debugging
-            # print(f'date bins {date_bins}')
-            data = data.assign(**{
-                'date_bin' : data.loc[:, date_var].apply(lambda x: assign_date_bin(x.timestamp(), date_bins))
-            })
-            # remove data that can't be linked to valid dates
-            data = data[data.loc[:, 'date_bin']!=-1]
-            # fix date type
-            data = data.assign(**{'date_bin' : data.loc[:, 'date_bin'].apply(lambda x: x.timestamp())})
-            # print(f'data date bin sample {type(data.loc[:, "date_bin"].iloc[0])}')
-            # print(f'author data date bin sample {type(author_data.loc[:, "date_bin"].iloc[0])}')
-            # dynamic_author_data = author_data[
-            #     (~author_data.loc[:, date_var].isna()) # &
-            #     (~author_data.loc[:, community_var].isna()) &
-            #     (~author_data.loc[:, 'subreddit_embed'].isna())
-            #     ]
-            # print(f'sample embed: {type(author_data[author_data.loc[:, "subreddit_embed"].apply(lambda x: type(x) is not float and x is not None)].loc[:, "subreddit_embed"].iloc[0])}')
-            dynamic_author_data = author_data[author_data.loc[:, 'subreddit_embed'].apply(lambda x: type(x) is not float and x is not None)]
-            # tmp debugging
-            # print(f'author data has {dynamic_author_data.shape[0]} author-date embeddings; {dynamic_author_data.loc[:, "author"].nunique()} authors')
-            # print(f'author data has sample authors {dynamic_author_data.loc[:, "author"].unique()[:50]}')
-            print(f'author data and post data have {len(set(dynamic_author_data.loc[:, "author"].unique()) & set(data.loc[:, "author"].unique()))} shared authors')
-            # merge with author-date pairs
-            # data = pd.merge(data, dynamic_author_data.loc[:, ['author', 'date_bin', 'subreddit_embed']], on=['author', 'date_bin'], how='left')
-            # tmp debugging
-            # tmp debugging: merge with author regardless of date
-            data = pd.merge(data, dynamic_author_data.loc[:, ['author', 'subreddit_embed']].drop_duplicates('author'), on='author', how='left')
-            author_embed_var = 'author_embeds'
-            data.rename(columns={'subreddit_embed' : author_embed_var}, inplace=True)
-            data_vars.append(author_embed_var)
-            # add null embed for all data with missing embed
-            embed_dim = len(dynamic_author_data.loc[:, 'subreddit_embed'].iloc[0])
-            print(f'{data[data.loc[:, author_embed_var].apply(lambda x: type(x) is not float and x is not None)].shape[0]}/{data.shape[0]} data with author embeds')
+        ## get token-level data
+        # if(author_data_type == 'tokens'):
+
+        dynamic_author_data = author_data[(~author_data.loc[:, 'date_day'].isna()) &
+                                          (~author_data.loc[:, 'subreddit'].isna())]
+        static_author_data = author_data.drop_duplicates(author_var, inplace=False)
+        data = pd.merge(data, dynamic_author_data.loc[:, [author_var, date_var, community_var] + dynamic_vars], on=[author_var, date_var, community_var], how='left')
+        data = pd.merge(data, static_author_data.loc[:, [author_var]+static_vars], on=author_var, how='left')
+        # tmp debugging
+        valid_author_attr_data = data.dropna(subset=dynamic_vars, axis=0, how='any')
+        logging.info(f'{valid_author_attr_data.shape[0]}/{data.shape[0]} data with valid dynamic author attributes')
+        valid_author_attr_data = data.dropna(subset=static_vars, axis=0, how='any')
+        logging.info(f'{valid_author_attr_data.shape[0]}/{data.shape[0]} data with valid static author attributes')
+        # remove null authors
+        data = data[~data.loc[:, 'author'].isna()]
+        # print(f'post-author-merge data shape 2={data.shape}')
+        # need author vars for later: we'll add author tokens to input
+        author_vars = static_vars + dynamic_vars
+        data_vars.extend(author_vars)
+        ## get embedding data
+        # elif(author_data_type == 'embeds'):
+        logging.info(f'before combining author/post data: author data and post data have {len(set(author_data[author_data.loc[:, "subreddit_embed"].apply(lambda x: type(x) is not float and x is not None)].loc[:, "author"].unique()) & set(data.loc[:, "author"].unique()))} shared authors')
+        ## add date bin var
+        date_bins = author_data.loc[:, 'date_day_bin'].unique()
+        # tmp debugging
+        # print(f'date bins {date_bins}')
+        data = data.assign(**{
+            'date_day_bin' : data.loc[:, date_var].apply(lambda x: assign_date_bin(x.timestamp(), date_bins))
+        })
+        # remove data that can't be linked to valid dates
+        data = data[data.loc[:, 'date_day_bin']!=-1]
+        # fix date type
+        data = data.assign(**{'date_day_bin' : data.loc[:, 'date_day_bin'].apply(lambda x: x.timestamp())})
+        # print(f'data date bin sample {type(data.loc[:, "date_bin"].iloc[0])}')
+        # print(f'author data date bin sample {type(author_data.loc[:, "date_bin"].iloc[0])}')
+        # dynamic_author_data = author_data[
+        #     (~author_data.loc[:, date_var].isna()) # &
+        #     (~author_data.loc[:, community_var].isna()) &
+        #     (~author_data.loc[:, 'subreddit_embed'].isna())
+        #     ]
+        # print(f'sample embed: {type(author_data[author_data.loc[:, "subreddit_embed"].apply(lambda x: type(x) is not float and x is not None)].loc[:, "subreddit_embed"].iloc[0])}')
+        embed_data_vars = ['subreddit_embed', 'text_embed']
+        embed_author_data = author_data.copy()
+        embed_author_data.dropna(axis=0, how='all', subset=embed_data_vars, inplace=True)
+        # tmp debugging
+        # print(f'author data has {dynamic_author_data.shape[0]} author-date embeddings; {dynamic_author_data.loc[:, "author"].nunique()} authors')
+        # print(f'author data has sample authors {dynamic_author_data.loc[:, "author"].unique()[:50]}')
+        # print(f'author data and post data have {len(set(embed_author_data.loc[:, "author"].unique()) & set(data.loc[:, "author"].unique()))} shared authors')
+        # merge with author-date pairs
+        # data = pd.merge(data, dynamic_author_data.loc[:, ['author', 'date_bin', 'subreddit_embed']], on=['author', 'date_bin'], how='left')
+        # tmp debugging
+        # tmp debugging: merge with author regardless of date
+        data = pd.merge(data, embed_author_data.loc[:, ['author']+embed_data_vars].drop_duplicates('author'), on='author', how='left')
+        # author_embed_var = 'author_embeds'
+        # data.rename(columns={'subreddit_embed' : author_embed_var}, inplace=True)
+        data_vars.extend(embed_data_vars)
+        # add null embed for all data with missing embed
+        for embed_data_var in embed_data_vars:
+            embed_dim = len(embed_author_data.loc[:, embed_data_var].iloc[0])
+            print(f'{data[data.loc[:, embed_data_var].apply(lambda x: type(x) is not float and x is not None)].shape[0]}/{data.shape[0]} data with author embeds')
             # null_embed = [0,]*embed_dim
             # data.fillna(value={author_embed_var : null_embed}, inplace=True)
-            generate_null_embed = lambda : np.random.randn(embed_dim)
+            has_embed_var = f'author_has_{embed_data_var}'
             data = data.assign(**{
-                author_embed_var : data.loc[:, author_embed_var].apply(lambda x: generate_null_embed() if type(x) is float or x is None else x)
+                has_embed_var : data.loc[:, embed_data_var].apply(lambda x: type(x) is not float)
             })
-            # data_with_author_embeds = data[data.loc[:, author_embed_var].apply(lambda x: not all(np.array(x)==0))]
+            generate_null_embed = lambda : list(np.random.randn(embed_dim))
+            data = data.assign(**{
+                embed_data_var : data.loc[:, embed_data_var].apply(lambda x: generate_null_embed() if type(x) is float or x is None else x)
+            })
+            data_vars.append(has_embed_var)
+        # data_with_author_embeds = data[data.loc[:, author_embed_var].apply(lambda x: not all(np.array(x)==0))]
 
-            # tmp debugging
-            # import sys
-            # sys.exit(0)
-            # remove authors without embeds
-            # data.dropna(axis=0, subset=[author_embed_var], inplace=True)
-            # print(f'{data.shape[0]} data with author embeds')
-            # print(f'author embed data sample {data.head()}')
+        # tmp debugging
+        # import sys
+        # sys.exit(0)
+        # remove authors without embeds
+        # data.dropna(axis=0, subset=[author_embed_var], inplace=True)
+        # print(f'{data.shape[0]} data with author embeds')
+        # print(f'author embed data sample {data.head()}')
     # change to clean source/target format
+    # tmp debugging
+    # print(f'after merging author data: data vars = {data_vars}')
     clean_data = data.loc[:, data_vars].rename(
         columns={'article_text': 'source_text', 'question': 'target_text'})
     # deduplicate article/answer pairs
     clean_data.drop_duplicates(['source_text', 'target_text'], inplace=True)
     clean_data = clean_data[(clean_data.loc[:, 'source_text'].apply(lambda x: type(x) is str)) &
                             (clean_data.loc[:, 'target_text'].apply(lambda x: type(x) is str))]
+    # print(f'clean data cols {clean_data.columns}')
     # clean up return chars
     return_char_matcher = re.compile('[\n\r]')
     clean_data = clean_data.assign(**{
@@ -492,8 +516,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
         #     '<COMMENT_COUNT_0_AUTHOR>', '<COMMENT_COUNT_1_AUTHOR>',  # prior comment count
         #     '<COMMENT_LEN_0_AUTHOR>', '<COMMENT_LEN_1_AUTHOR>',  # prior comment length
         # ]
-        if(author_data_type == 'tokens'):
-            clean_data = add_author_tokens(author_vars, clean_data, max_source_length, tokenizer)
+        # if(author_data_type == 'tokens'):
+        clean_data = add_author_tokens(author_vars, clean_data, max_source_length, tokenizer)
     # optional: filter questions that have >=1 NEs shared with article
     if(article_question_NE_overlap):
         clean_data = filter_data_NE_overlap(NE_data_dir, clean_data, data_name)
@@ -541,10 +565,15 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # tmp debugging
     # print(f'train data sample = {clean_data_train.head()}')
     dataset_columns = ['source_text', 'target_text', 'article_id']
-    if(author_data_type == 'embeds'):
-        dataset_columns.append('author_embeds')
-    elif(author_data_type == 'tokens'):
-        dataset_columns.extend(['reader_token', 'reader_token_str'])
+    # if(author_data_type == 'embeds'):
+    if(author_data is not None):
+        dataset_columns.extend(['subreddit_embed', 'text_embed', 'author_has_subreddit_embed', 'author_has_text_embed'])
+        # elif(author_data_type == 'tokens'):
+        dataset_columns.extend(['reader_token', 'reader_token_str', 'source_text_reader_token'])
+    # tmp debug: check for data column types
+    # for dataset_col_i in dataset_columns:
+    #     dataset_col_vals_i = clean_data_train.loc[:, dataset_col_i].apply(lambda x: type(x)).value_counts()
+    #     print(f'col {dataset_col_i} has vals {dataset_col_vals_i}')
     train_data_set = convert_dataframe_to_data_set(clean_data_train, dataset_columns)
     val_data_set = convert_dataframe_to_data_set(clean_data_val, dataset_columns)
     #     tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
@@ -553,20 +582,22 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # target_text_tokens = clean_data.loc[:, 'target_text'].apply(lambda x: tokenizer.tokenize(x))
     #     max_source_length = max(source_text_tokens.apply(lambda x: len(x)))
     #     max_target_length = max(target_text_tokens.apply(lambda x: len(x)))
+    extra_source_text_vars = list(filter(lambda x: x.startswith('source_text_'), dataset_columns))
     data_processor = DataProcessor(tokenizer=tokenizer,
                                    model_type='bert',
                                    max_source_length=max_source_length,
-                                   max_target_length=max_target_length)
+                                   max_target_length=max_target_length,
+                                   extra_source_text_vars=extra_source_text_vars)
     # print(f'{train_data_set} train data')
     # print(f'{len(val_data_set["source_text"])} val data')
     train_data = data_processor.process(train_data_set)
     val_data = data_processor.process(val_data_set)
-    data_columns = ["source_ids", "target_ids", "attention_mask"]
-    if(author_data_type == 'embeds'):
-        data_columns.append('author_embeds')
+    tensor_data_columns = ["source_ids", "target_ids", "attention_mask"]
+    if(author_data is not None):
+        tensor_data_columns.extend(['subreddit_embed', 'text_embed'])
     # columns = ["source_ids", "target_ids", "attention_mask", "source_text", "target_text"]
-    train_data.set_format(type='torch', columns=data_columns, output_all_columns=True)
-    val_data.set_format(type='torch', columns=data_columns, output_all_columns=True)
+    train_data.set_format(type='torch', columns=tensor_data_columns, output_all_columns=True)
+    val_data.set_format(type='torch', columns=tensor_data_columns, output_all_columns=True)
     # tmp debugging
     # for data_i in train_data:
     #     print(f'post-cleaned train data sample: {data_i}')
@@ -660,6 +691,7 @@ def add_author_tokens(author_vars, clean_data, max_source_length, tokenizer):
     # author_vars = ['location_region', 'prior_comment_count_bin', 'prior_comment_len_bin']
     author_txt_data = []
     source_text_var = 'source_text'
+    author_source_text_var = 'source_text_reader_token'
     pad_space = 1  # need to remove tokens from start and end to make space for pads
     # add author variable value to each source text
     no_author_data = clean_data[clean_data.isna().loc[:, author_vars].apply(lambda x: all(x), axis=1)]
@@ -691,21 +723,24 @@ def add_author_tokens(author_vars, clean_data, max_source_length, tokenizer):
             # else:
             #     logging.debug(f'correct: {len(source_text_tokens_j)} tokens generated in input')
             source_text_j = tokenizer.convert_tokens_to_string(source_text_tokens_j)
-            data_j.loc[source_text_var] = source_text_j
+            data_j.loc[author_source_text_var] = source_text_j
             author_txt_data.append(data_j)
     author_txt_data = pd.concat(author_txt_data, axis=1).transpose()
     ## add dummy tokens to no-author data
     no_author_data = no_author_data.assign(**{'reader_token_str' : 'UNK', 'reader_token' : author_token_id_lookup['UNK']})
+    no_author_data = no_author_data.assign(**{
+        author_source_text_var : no_author_data.loc[:, source_text_var].values
+    })
     # recombine data without-author and with-author
     clean_data = pd.concat([no_author_data, author_txt_data], axis=0)
     # tmp debugging: check for author vars
     for author_token in author_tokens:
-        for txt_i in clean_data.loc[:, 'source_text'].values:
+        for txt_i in clean_data.loc[:, author_source_text_var].values:
             if (author_token in txt_i):
                 logging.debug(f'found author token {author_token} in at least one doc')
                 break
     # remove author data to avoid NAN bugs in later data reading
-    clean_data = clean_data.loc[:, ['source_text', 'target_text', 'article_id', 'reader_token', 'reader_token_str']]
+    # clean_data = clean_data.loc[:, ['source_text', 'target_text', 'article_id', 'reader_token', 'reader_token_str']]
     return clean_data
 
 def convert_ids_to_clean_str(token_ids, tokenizer):

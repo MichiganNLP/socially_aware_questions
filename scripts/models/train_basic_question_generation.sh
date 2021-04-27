@@ -38,9 +38,11 @@
 #TRAIN_DATA=../../data/reddit_data/advice_subreddit_train_data.pt
 #VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
 ## reddit+author data
+TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
+VAL_DATA=../../data/reddit_data/combined_data_val_data.pt
 # author tokens
-TRAIN_DATA='../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_data=tokens_train_data.pt'
-VAL_DATA='../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_data=tokens_val_data.pt'
+#TRAIN_DATA='../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_data=tokens_train_data.pt'
+#VAL_DATA='../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_data=tokens_val_data.pt'
 # author embeds
 #TRAIN_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_train_data.pt'
 #VAL_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_val_data.pt'
@@ -61,22 +63,31 @@ VAL_DATA='../../data/reddit_data/author_text_data/author_type_advice_subreddit_a
 # author token
 #OUT_DIR=../../data/reddit_data/author_text_data/
 # author embed
+# subreddit
 #OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
+# text
+OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
+# author (decoder) embed
+#OUT_DIR=../../data/reddit_data/author_text_data/author_decoder_embed_data/
 # author attention
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
 # regular transformer
 MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML
 #MODEL_CACHE_DIR=../../data/longformer_cache/
 #DEVICE='cpu' # debug with small data ;_;
+## model type
 # regular model
 #MODEL_TYPE="bart"
 # long input model
 #MODEL_TYPE='longformer'
-# author embedding model
+# NOTE: if using author model, change settings in data/model_cache/BART_author_model_config.json
+# author model w/ tokens
 #MODEL_TYPE="bart_author"
+# author embedding
+MODEL_TYPE="bart_author_embeds"
 # author attention model
-MODEL_TYPE="bart_author_attention"
+#MODEL_TYPE="bart_author_attention"
 # optional: pretrained model
 #PRETRAINED_MODEL=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
 export CUDA_VISIBLE_DEVICES=1
