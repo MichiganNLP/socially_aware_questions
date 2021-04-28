@@ -43,11 +43,15 @@ def generate_embeddings(data, min_author_count=20, dim=100, embed_type='subreddi
         subreddit_npmi_embeds = svd.fit_transform(subreddit_author_npmi)
         ## add subreddit info
         subreddit_embeds = pd.DataFrame(subreddit_npmi_embeds, index=valid_subreddit_author_lists.index)
+        # drop nans
+        subreddit_embeds.dropna(axis=0, how='any', inplace=True)
         # compute mean embed for each author
         author_subreddit_lists = data.groupby('author').apply(lambda x: x.loc[:, 'subreddit'].values.tolist())
         # remove invalid subreddits
         author_subreddit_lists = author_subreddit_lists.apply(lambda x: list(filter(lambda y: y in subreddit_embeds.index, x)))
-        embeds = author_subreddit_lists.apply(lambda x: subreddit_embeds.loc[:, x].mean(axis=0)).reset_index()
+        embeds = author_subreddit_lists.apply(lambda x: subreddit_embeds.loc[x, :].mean(axis=0).values.tolist()).reset_index().rename(columns={0 : 'subreddit_embed'})
+        # drop nan vals
+        embeds = embeds[~embeds.loc[:, 'subreddit_embed'].apply(lambda x: any(list(map(lambda y: np.isnan(y), x))))]
     elif(embed_type == 'text'):
         # convert text to embedding using Doc2Vec
         tokenizer = WordPunctTokenizer()
@@ -74,10 +78,9 @@ def generate_embeddings(data, min_author_count=20, dim=100, embed_type='subreddi
         })
         # compute mean vector for each author
         embeds = valid_data.groupby('author').apply(lambda x: x.loc[:, 'text_embed'].mean(axis=0).tolist()).reset_index().rename(columns={0 : 'text_embed'})
->>>>>>> 0182cbc90418a50135aca4eeddee971c0c4dcd75
     return embeds
 
-def collect_author_data(data_dir):
+def collect_author_data(data_dir, embed_type='text'):
     author_file_matcher = re.compile('[0-9A-Za-z_]+_comments.gz')
     author_data_files = list(filter(lambda x: author_file_matcher.match(x) is not None, os.listdir(data_dir)))
     author_data_files = list(map(lambda x: os.path.join(data_dir, x), author_data_files))
@@ -86,9 +89,13 @@ def collect_author_data(data_dir):
 
     author_data = []
     print(f'loading {len(author_data_files)} files from {data_dir}')
+    data_cols = ['author', 'subreddit', 'created_utc']
+    if(embed_type == 'text'):
+        data_cols.append('body')
     for author_data_file_i in tqdm(author_data_files):
         try:
             data_i = pd.read_csv(author_data_file_i, sep='\t',
+                                 usecols=data_cols,
                                  compression='gzip', index_col=False)
             author_data.append(data_i)
         except Exception as e:
