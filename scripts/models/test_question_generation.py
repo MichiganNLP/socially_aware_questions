@@ -49,7 +49,7 @@ def get_generation_scores(pred_data, test_data, model, word_embed_file=None, sam
     ], axis=1).transpose()
     generation_score_data.index = ['mean', 'sd']
     # compute diversity = % unique data
-    diversity_score = len(pred_data) / len(set(pred_data))
+    diversity_score = len(set(pred_data)) / len(pred_data)
     diversity_score = pd.DataFrame([diversity_score, 0.], index=['mean', 'sd'], columns=['diversity'])
     generation_score_data = pd.concat([generation_score_data, diversity_score], axis=1)
     # compute redundancy = copying from train data
@@ -75,6 +75,8 @@ def get_generation_scores(pred_data, test_data, model, word_embed_file=None, sam
         for k,v in model_data_col_lookup.items():
             data_dict_i[v] = data_dict_i[k]
             data_dict_i.pop(k)
+        # remove padding tokens from output => don't care about PPL for pad tokens
+        data_dict_i['labels'] = data_dict_i['labels'][data_dict_i['labels']!=model.config.pad_token_id]
         # tmp debugging
         # print(f'data dict {data_dict_i}')
         # output_i = model(**data_dict_i)
@@ -89,8 +91,10 @@ def get_generation_scores(pred_data, test_data, model, word_embed_file=None, sam
             # clear cache??
             del(output_i)
             # torch.cuda.empty_cache()
-    perplexity = torch.exp(torch.stack(log_likelihoods).mean())
-    perplexity_data = pd.DataFrame([perplexity, 0.], columns=['PPL'], index=['mean', 'sd'])
+        log_likelihoods = torch.stack(log_likelihoods)
+    perplexity = torch.exp(log_likelihoods).mean()
+    perplexity_std = torch.exp(log_likelihoods).std()
+    perplexity_data = pd.DataFrame([perplexity, perplexity_std], columns=['PPL'], index=['mean', 'sd'])
     generation_score_data = pd.concat([generation_score_data, perplexity_data], axis=1)
     # fix score format
     generation_score_data = generation_score_data.reset_index().rename(columns={'index': 'stat'})
@@ -166,25 +170,30 @@ def load_model(model_cache_dir, model_file, model_type, data_dir):
         model_tokenizer = torch.load(tokenizer_file)
     else:
         model_tokenizer = BartTokenizer.from_pretrained(full_model_name, cache_dir=model_cache_dir)
+    # get config file from same directory as model
+    config_file = os.path.join(os.path.dirname(model_file), 'config.json')
+    config = BartConfig.from_json_file(config_file)
     if (model_type == 'bart_author'):
         ## custom loading
-        config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
-        config = BartConfig.from_json_file(config_file)
-        config.author_embeds = 100
+        # config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
+        # config = BartConfig.from_json_file(config_file)
+        # config.author_embeds = 100
         generation_model = AuthorTextGenerationModel(config)
     elif(model_type == 'bart_author_attention'):
         ## TODO: config file for author attention
-        config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
-        config = BartConfig.from_json_file(config_file)
+        # config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
+        # config = BartConfig.from_json_file(config_file)
         reader_group_types = config.__dict__['reader_group_types']
         generation_model = AuthorGroupAttentionModel(config, reader_group_types=reader_group_types)
-        pass
     else:
         generation_model = AutoModelForSeq2SeqLM.from_pretrained(full_model_name,
                                                                  cache_dir=model_cache_dir)
     generation_model.resize_token_embeddings(len(model_tokenizer))
     if (model_file is not None):
         model_weights = torch.load(model_file)
+        # optional: reset vocab size
+        if(model_weights['lm_head.weight'].shape[0] != generation_model.config.vocab_size):
+            generation_model.resize_token_embeddings(model_weights['lm_head.weight'].shape[0])
         generation_model.load_state_dict(model_weights)
     return generation_model, model_tokenizer
 
@@ -218,6 +227,10 @@ def main():
     test_data = torch.load(test_data)#['train']
     if('train' in test_data):
         test_data = test_data['train']
+    # fix source IDs for author-token model
+    if(model_type == 'bart_author_token'):
+        test_data.remove_column_('source_ids')
+        test_data.rename_column_('source_ids_reader_token', 'source_ids')
     data_cols = ['source_ids', 'target_ids', 'attention_mask']
     if(model_type == 'bart_author_embed'):
         data_cols.append('author_embed')
@@ -252,18 +265,21 @@ def main():
         generation_score_data.to_csv(generated_text_score_out_file, sep='\t', index=False)
     ## optional: same thing but for different subsets of post data
     ## reader groups
-    reader_groups = list(set(test_data['reader_group_token_str']))
-    reader_group_scores = []
-    for reader_group_i in reader_groups:
-        idx_i = np.where(test_data['reader_group_token_str']==reader_group_i)[0]
-        test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
-        pred_data_i = pred_data[idx_i]
-        generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, word_embed_file=word_embed_file, train_data=train_data)
-        generation_score_data_i.assign(**{'reader_group' : reader_group_i})
-        reader_group_scores.append(generation_score_data_i)
-    reader_group_scores = pd.concat(reader_group_scores, axis=0)
     reader_group_score_out_file = os.path.join(out_dir, 'test_data_scores_reader_groups.tsv')
-    reader_group_scores.to_csv(reader_group_score_out_file, sep='\t', index=False)
+    if(not os.path.exists(reader_group_score_out_file)):
+        reader_groups = list(set(test_data['reader_token_str']))
+        reader_group_scores = []
+        for reader_group_i in reader_groups:
+            idx_i = np.where(np.array(test_data['reader_token_str'])==reader_group_i)[0]
+            # tmp debugging
+            # print(f'reader group {reader_group_i} has idx={idx_i}')
+            test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
+            pred_data_i = pred_data[idx_i]
+            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, word_embed_file=word_embed_file, train_data=train_data)
+            generation_score_data_i.assign(**{'reader_group' : reader_group_i})
+            reader_group_scores.append(generation_score_data_i)
+        reader_group_scores = pd.concat(reader_group_scores, axis=0)
+        reader_group_scores.to_csv(reader_group_score_out_file, sep='\t', index=False)
     ## per-community
     if(post_metadata is not None):
         post_metadata = pd.read_csv(post_metadata, sep='\t',

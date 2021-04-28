@@ -44,8 +44,8 @@ VAL_DATA=../../data/reddit_data/combined_data_val_data.pt
 #TRAIN_DATA='../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_data=tokens_train_data.pt'
 #VAL_DATA='../../data/reddit_data/author_text_data/author_type_advice_subreddit_author_data=tokens_val_data.pt'
 # author embeds
-TRAIN_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_train_data.pt'
-VAL_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_val_data.pt'
+#TRAIN_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_train_data.pt'
+#VAL_DATA='../../data/reddit_data/author_text_data/author_embed_data/author_type_advice_subreddit_author_data=embeds_val_data.pt'
 # regular model
 #OUT_DIR=../../data/nyt_comments/
 #OUT_DIR=../../data/CNN_articles/cnn/

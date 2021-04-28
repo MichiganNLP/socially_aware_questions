@@ -31,11 +31,10 @@ OUT_DIR=../../data/reddit_data/
 #DATA_NAME=advice_subreddit
 #OUT_DIR=../../data/reddit_data/
 # reddit + author
-DATA_NAME=advice_subreddit_author
 AUTHOR_DATA=../../data/reddit_data/author_data/combined_author_prior_comment_data.gz # contains static and dynamic author data
 # token author representation
 AUTHOR_DATA_TYPE=tokens
-OUT_DIR=../../data/reddit_data/author_text_data/
+#OUT_DIR=../../data/reddit_data/authUr_text_data/
 # embed author representation
 #AUTHOR_DATA_TYPE=embeds
 #OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/

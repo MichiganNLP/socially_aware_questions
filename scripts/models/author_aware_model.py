@@ -676,8 +676,12 @@ class BartAuthorTextModel(BartModel):
         self.shared = nn.Embedding(vocab_size, config.d_model, padding_idx)
 
         self.author_embed_module = config.__dict__['author_embed_module']
-        self.encoder = AuthorTextEncoder(config, self.shared)
-        self.decoder = AuthorTextDecoder(config, self.shared)
+        self.encoder = BartEncoder(config, self.shared)
+        self.decoder = BartDecoder(config, self.shared)
+        if(self.author_embed_module in {'encoder', 'encoder_decoder'}):
+            self.encoder = AuthorTextEncoder(config, self.shared)
+        if(self.author_embed_module in {'decoder', 'encoder_decoder'}):
+            self.decoder = AuthorTextDecoder(config, self.shared)
         self.init_weights()
 
     def forward(
@@ -714,16 +718,27 @@ class BartAuthorTextModel(BartModel):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         if encoder_outputs is None:
-            encoder_outputs = self.encoder(
-                input_ids=input_ids,
-                author_embeds=(author_embeds if self.author_embed_module == 'encoder' else None),
-                attention_mask=attention_mask,
-                head_mask=head_mask,
-                inputs_embeds=inputs_embeds,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
-                return_dict=return_dict,
-            )
+            if(self.author_embed_module in {'encoder', 'encoder_decoder'}):
+                encoder_outputs = self.encoder(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    author_embeds=author_embeds,
+                    head_mask=head_mask,
+                    inputs_embeds=inputs_embeds,
+                    output_attentions=output_attentions,
+                    output_hidden_states=output_hidden_states,
+                    return_dict=return_dict,
+                )
+            else:
+                encoder_outputs = self.encoder(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    head_mask=head_mask,
+                    inputs_embeds=inputs_embeds,
+                    output_attentions=output_attentions,
+                    output_hidden_states=output_hidden_states,
+                    return_dict=return_dict,
+                )
         # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=True
         elif return_dict and not isinstance(encoder_outputs, BaseModelOutput):
             encoder_outputs = BaseModelOutput(
@@ -733,21 +748,52 @@ class BartAuthorTextModel(BartModel):
             )
 
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
-        decoder_outputs = self.decoder(
-            input_ids=decoder_input_ids,
-            author_embeds=(author_embeds if self.author_embed_module == 'decoder' else None),
-            attention_mask=decoder_attention_mask,
-            encoder_hidden_states=encoder_outputs[0],
-            encoder_attention_mask=attention_mask,
-            # head_mask=decoder_head_mask,
-            # encoder_head_mask=head_mask,
-            past_key_values=past_key_values,
-            inputs_embeds=decoder_inputs_embeds,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
+        if (self.author_embed_module in {'decoder', 'encoder_decoder'}):
+            decoder_outputs = self.decoder(
+                input_ids=decoder_input_ids,
+                author_embeds=author_embeds,
+                attention_mask=decoder_attention_mask,
+                encoder_hidden_states=encoder_outputs[0],
+                encoder_attention_mask=attention_mask,
+                # head_mask=decoder_head_mask,
+                # encoder_head_mask=head_mask,
+                past_key_values=past_key_values,
+                inputs_embeds=decoder_inputs_embeds,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+        else:
+            decoder_outputs = self.decoder(
+                input_ids=decoder_input_ids,
+                attention_mask=decoder_attention_mask,
+                encoder_hidden_states=encoder_outputs[0],
+                encoder_attention_mask=attention_mask,
+                # head_mask=decoder_head_mask,
+                # encoder_head_mask=head_mask,
+                past_key_values=past_key_values,
+                inputs_embeds=decoder_inputs_embeds,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+        # decoder_outputs = self.decoder(
+        #     input_ids=decoder_input_ids,
+        #     author_embeds=(author_embeds if self.author_embed_module == 'decoder' else None),
+        #     attention_mask=decoder_attention_mask,
+        #     encoder_hidden_states=encoder_outputs[0],
+        #     encoder_attention_mask=attention_mask,
+        #     # head_mask=decoder_head_mask,
+        #     # encoder_head_mask=head_mask,
+        #     past_key_values=past_key_values,
+        #     inputs_embeds=decoder_inputs_embeds,
+        #     use_cache=use_cache,
+        #     output_attentions=output_attentions,
+        #     output_hidden_states=output_hidden_states,
+        #     return_dict=return_dict,
+        # )
 
         if not return_dict:
             return decoder_outputs + encoder_outputs
