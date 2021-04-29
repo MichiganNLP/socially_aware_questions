@@ -68,6 +68,9 @@ def get_generation_scores(pred_data, test_data, model, word_embed_file=None, sam
     sample_test_data = test_data.select(np.random.choice(list(range(len(test_data))), sample_size, replace=False))
     device = torch.cuda.current_device()
     for data_i in tqdm(sample_test_data):
+        # remove padding tokens from output => don't care about PPL for pad tokens
+        non_pad_target_ids_i = data_dict_i['target_ids'][data_dict_i['target_ids'] != model.config.pad_token_id]
+        data_dict_i['target_ids'] = non_pad_target_ids_i
         # reshape tensors for model
         data_dict_i = {data_col : torch.LongTensor(data_i.get(data_col)).unsqueeze(0).to(device) for data_col in model_data_cols}
         # data_dict_i = {data_col: torch.LongTensor(data_i.get(data_col)).unsqueeze(0).cpu() for data_col in model_data_cols}
@@ -75,8 +78,6 @@ def get_generation_scores(pred_data, test_data, model, word_embed_file=None, sam
         for k,v in model_data_col_lookup.items():
             data_dict_i[v] = data_dict_i[k]
             data_dict_i.pop(k)
-        # remove padding tokens from output => don't care about PPL for pad tokens
-        data_dict_i['labels'] = data_dict_i['labels'][data_dict_i['labels']!=model.config.pad_token_id]
         # tmp debugging
         # print(f'data dict {data_dict_i}')
         # output_i = model(**data_dict_i)
