@@ -83,7 +83,7 @@ def main():
     parser.add_argument('--model_type', default='bart')
     parser.add_argument('--model_cache_dir', default=None)
     # parser.add_argument('--author_data', default=None) # ../../data/nyt_comments/author_comment_social_data.tsv
-    parser.add_argument('--sample_pct', type=float, default=1.0)
+    # parser.add_argument('--sample_pct', type=float, default=1.0)
     parser.add_argument('--pretrained_model', default=None)
     args = vars(parser.parse_args())
     train_data_file = args['train_data']
@@ -91,7 +91,6 @@ def main():
     out_dir = args['out_dir']
     model_type = args['model_type']
     # author_data = args['author_data']
-    sample_pct = args['sample_pct']
     model_cache_dir = args['model_cache_dir']
     pretrained_model = args['pretrained_model']
     if(not os.path.exists(out_dir)):
@@ -157,11 +156,16 @@ def main():
         'longformer' : 'allenai/led-base-16384',
         'bart_copy' : 'facebook/bart-base',
     }
+    # print(f'model type = {model_type}')
     if (model_type == 'bart_author_embeds'):
         ## custom loading
         config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json') # copy of config file with author args
         config = BartConfig.from_json_file(config_file)
         model = AuthorTextGenerationModel(config)
+        # choose appropriate embeds in data
+        # print(f'author embed type = {config.__dict__["author_embed_type"]}')
+        train_dataset.rename_column_(config.__dict__['author_embed_type'], 'author_embeds')
+        val_dataset.rename_column_(config.__dict__['author_embed_type'], 'author_embeds')
     elif(model_type == 'bart_author_attention'):
         config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
         config = BartConfig.from_json_file(config_file)
@@ -183,6 +187,13 @@ def main():
     # send to same device
     model.to(torch.cuda.current_device())
 
+    ## fix data tensor format
+    tensor_cols = ['source_ids', 'target_ids', 'attention_mask']
+    if (model_type == 'bart_author_embeds'):
+        tensor_cols.append('author_embeds')
+    train_dataset.set_format('torch', columns=tensor_cols, output_all_columns=True)
+    val_dataset.set_format('torch', columns=tensor_cols, output_all_columns=True)
+
     # tmp debugging
     # print(f'sample train data {train_dataset[0]}')
     # print(f'sample val data {val_dataset[0]}')
@@ -196,10 +207,12 @@ def main():
     # train_dataset = train_dataset['train']
     # val_dataset = val_dataset['train']
     ## TODO: how to stop sampling from breaking training loop?
-    if(sample_pct < 1.0):
-        train_dataset = sample_dataset(train_dataset, sample_pct)
-        val_dataset = sample_dataset(val_dataset, sample_pct)
+    # if(sample_pct < 1.0):
+    #     train_dataset = sample_dataset(train_dataset, sample_pct)
+    #     val_dataset = sample_dataset(val_dataset, sample_pct)
         # print(f'sample train data has {len(train_dataset)} data')
+
+    ## set up data collator
     # get max source/target len
     max_source_len = len(train_dataset['source_ids'][0])
     max_target_len = len(train_dataset['target_ids'][0])
@@ -207,9 +220,9 @@ def main():
     # data collator
     extra_data_collate_args = []
     if(model_type in {'bart_author', 'bart_author_attention'}):
-        extra_data_collate_args.append(('reader_token', 'reader_token', 'int'))
+        extra_data_collate_args.append(('reader_token', 'int'))
     elif(model_type == 'bart_author_embeds'):
-        extra_data_collate_args.append((config.__dict__['author_embed_type'], 'author_embeds', 'tensor'))
+        extra_data_collate_args.append(('author_embeds', 'tensor'))
     data_collator = T2TDataCollator(
         tokenizer=tokenizer,
         model_type=base_model_type,
@@ -220,7 +233,7 @@ def main():
     model_out_dir = os.path.join(out_dir, 'question_generation_model/')
     if (not os.path.exists(model_out_dir)):
         os.mkdir(model_out_dir)
-
+    ## set up trainer
     training_args = load_training_args(model_out_dir, train_data_file, model_out_dir, val_data_file, max_source_len, max_target_len, model_type=base_model_type)
     model_args = {
         'label_smoothing': 0,

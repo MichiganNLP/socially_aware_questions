@@ -17,23 +17,23 @@ TEST_DATA=../../data/reddit_data/combined_data_val_data.pt
 # reddit+author token
 #MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-215000/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/
-#MODEL_TYPE='bart_author_token'
+#MODEL_TYPE='bart_author_embeds_token'
 # reddit + author embed (+ encoder)
-#MODEL_FILE=../../data/reddit_data/author_text_data/author_embed_data/question_generation_model/checkpoint-170500/pytorch_model.bin
-#OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
-#MODEL_TYPE='bart_author'
+MODEL_FILE=../../data/reddit_data/author_text_data/author_embed_data/question_generation_model/checkpoint-170500/pytorch_model.bin
+OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
+MODEL_TYPE='bart_author_embeds'
 # reddit + author embed (+ decoder)
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_decoder_embed_data/question_generation_model/checkpoint-170500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_decoder_embed_data
-#MODEL_TYPE='bart_author'
+#MODEL_TYPE='bart_author_embeds'
 # reddit + text embed (+ encoder)
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_data/question_generation_model/checkpoint-188500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
-#MODEL_TYPE='bart_author'
+#MODEL_TYPE='bart_author_embeds'
 # reddit + author group attention
-MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/question_generation_model/checkpoint-215000/pytorch_model.bin
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
-MODEL_TYPE='bart_author_attention'
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/question_generation_model/checkpoint-215000/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
+#MODEL_TYPE='bart_author_embeds_attention'
 # metadata to test sub-sets of data
 POST_METADATA=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
 # model params

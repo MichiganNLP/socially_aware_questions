@@ -95,7 +95,10 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
         with torch.no_grad():
             model.eval()
             data_dict_i = {k : v.to(device) for k,v in data_dict_i.items()}
-            output_i = model(input_ids=data_dict_i['input_ids'], attention_mask=data_dict_i['attention_mask'], labels=data_dict_i['labels'])
+            # tmp debugging
+            print(f'data dict before passing to model =\n{data_dict_i}')
+            # output_i = model(input_ids=data_dict_i['input_ids'], attention_mask=data_dict_i['attention_mask'], labels=data_dict_i['labels'])
+            output_i = model(**data_dict_i)
             data_dict_i = {k: v.to('cpu') for k, v in data_dict_i.items()}
             ll = output_i[0].cpu()
             # print(f'log likelihood = {ll}')
@@ -185,16 +188,16 @@ def load_model(model_cache_dir, model_file, model_type, data_dir):
     # get config file from same directory as model
     config_file = os.path.join(os.path.dirname(model_file), 'config.json')
     config = BartConfig.from_json_file(config_file)
-    if (model_type == 'bart_author'):
+    if (model_type == 'bart_author_embeds'):
         ## custom loading
         # config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
         # config = BartConfig.from_json_file(config_file)
         # config.author_embeds = 100
         generation_model = AuthorTextGenerationModel(config)
     elif(model_type == 'bart_author_attention'):
-        ## TODO: config file for author attention
-        config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
-        config = BartConfig.from_json_file(config_file)
+        ## tmp debugging
+        # config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
+        # config = BartConfig.from_json_file(config_file)
         reader_group_types = config.__dict__['reader_group_types']
         generation_model = AuthorGroupAttentionModelConditionalGeneration(config, reader_group_types=reader_group_types)
     else:
@@ -244,15 +247,19 @@ def main():
         test_data.remove_column_('source_ids')
         test_data.rename_column_('source_ids_reader_token', 'source_ids')
     data_cols = ['source_ids', 'target_ids', 'attention_mask']
-    if(model_type == 'bart_author_embed'):
-        data_cols.append('author_embed')
+    if(model_type == 'bart_author_embeds'):
+        # choose appropriate column
+        test_data.rename_column_(generation_model.config.__dict__['author_embed_type'], 'author_embeds')
+        data_cols.append('author_embeds')
     test_data.set_format('torch', columns=data_cols, output_all_columns=True)
     if(train_data is not None):
         train_data = torch.load(train_data)
     ## get extra args
     model_kwargs = []
-    if(model_type == 'bart_author_embed'):
-        model_kwargs.append('bart_author_embed')
+    if(model_type == 'bart_author_embeds'):
+        model_kwargs.append('author_embeds')
+        # tmp debugging
+        # print(f'data has cols {test_data.column_names}')
     elif(model_type == 'bart_author_attention'):
         test_data.remove_column_('reader_token')
         test_data.rename_column_('reader_token_str', 'reader_token')

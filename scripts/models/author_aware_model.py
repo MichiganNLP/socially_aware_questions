@@ -135,7 +135,7 @@ class AuthorTextEncoder(BartPretrainedModel):
             # remove final token from input, replace with author embedding
             # TODO: add author embedding before padding? not sure that it matters
             hidden_states = hidden_states[:, :-1, :]
-            author_embeds = author_embeds.reshape(author_embeds.shape[0], 1, author_embeds.shape[1]).double()
+            author_embeds = author_embeds.reshape(author_embeds.shape[0], 1, author_embeds.shape[1])#.double()
             # tmp debugging
             # print(f'author embeds {author_embeds}')
             author_embeds_hidden = self.author_embed_network(author_embeds)
@@ -943,7 +943,7 @@ class AuthorTextGenerationModel(BartForConditionalGeneration):
             "attention_mask": attention_mask,
             "head_mask": head_mask,
             "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
-            'author_embed' : kwargs['author_embed'],
+            'author_embeds' : kwargs['author_embeds'],
         }
 
     # def generate(

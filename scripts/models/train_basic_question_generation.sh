@@ -57,16 +57,21 @@ VAL_DATA=../../data/reddit_data/combined_data_val_data.pt
 #OUT_DIR=../../data/nyt_comments/no_author_data/NE_overlap/longformer_model/
 # debug model
 #OUT_DIR=../../data/nyt_comments/debug_model/
+## NOTE: for author models modify data/model_cache/BART_author_model_config.json before starting
 # reddit model
-#OUT_DIR=../../data/reddit_data/
+OUT_DIR=../../data/reddit_data/text_only_model/
+MODEL_TYPE='bart'
 # reddit author model
 # author token
 #OUT_DIR=../../data/reddit_data/author_text_data/
+#MODEL_TYPE="bart_author"
 # author embed
 # subreddit
-#OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
+#MODEL_TYPE="bart_author_embeds"
 # text
-OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
+#MODEL_TYPE="bart_author_embeds"
 # author (decoder) embed
 #OUT_DIR=../../data/reddit_data/author_text_data/author_decoder_embed_data/
 # author attention
@@ -85,14 +90,17 @@ MODEL_CACHE_DIR=../../data/model_cache/
 # author model w/ tokens
 #MODEL_TYPE="bart_author"
 # author embedding
-MODEL_TYPE="bart_author_embeds"
+
 # author attention model
 #MODEL_TYPE="bart_author_attention"
 # optional: pretrained model
 #PRETRAINED_MODEL=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=0
 #SAMPLE_PCT=1.0
 # regular model
-python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR
+(python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR)&
+PID=$!
+MAX_MEMORY=50000000000 # 50G
+prlimit --pid $PID --as=$MAX_MEMORY
 # pretrained model
 #python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --device $DEVICE --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --pretrained_model $PRETRAINED_MODEL
