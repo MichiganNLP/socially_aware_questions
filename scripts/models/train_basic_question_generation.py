@@ -167,6 +167,9 @@ def main():
         config = BartConfig.from_json_file(config_file)
         reader_group_types = config.__dict__['reader_group_types']
         model = AuthorGroupAttentionModelConditionalGeneration(config, reader_group_types=reader_group_types)
+        # fix reader token type
+        train_dataset.remove_column_('reader_token')
+        train_dataset.rename_column_('reader_token_str', 'reader_token')
     else:
         model_path = model_type_path_lookup[model_type]
         model = AutoModelForSeq2SeqLM.from_pretrained(

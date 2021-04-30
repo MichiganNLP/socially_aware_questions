@@ -75,10 +75,9 @@ def generate_predictions(model, data, tokenizer, device_name='cuda:0',
     for batch_i in tqdm(data):
         source_i = batch_i['source_ids']
         attention_i = batch_i['attention_mask']
-        model_kwargs_i = {
-            model_kwarg : batch_i[model_kwarg]
-            for model_kwarg in model_kwargs
-        }
+        # handle model kwargs: reader tokens, embeddings, etc.
+        model_kwargs_i = prepare_model_kwargs_for_generation(batch_i, model_kwargs)
+        # print(f'model kwargs after type fix {model_kwargs_i}')
         # fix type in case of difference
         if(type(source_i) is list):
             source_i = torch.LongTensor(source_i)
@@ -109,6 +108,31 @@ def generate_predictions(model, data, tokenizer, device_name='cuda:0',
         prediction = [tokenizer.decode(ids, skip_special_tokens=True) for ids in output_i]
         pred_text.extend(prediction)
     return pred_text
+
+def prepare_model_kwargs_for_generation(data, model_kwargs):
+    model_kwargs_i = {
+        model_kwarg: data[model_kwarg]
+        for model_kwarg in model_kwargs
+    }
+    # fix type, shape of model kwargs
+    # tmp debugging
+    # print(f'model kwargs before type fix {model_kwargs_i}')
+    # e.g. int => Tensor(int)
+    model_kwargs_i.update({
+        kwarg: [kwarg_val]
+        for kwarg, kwarg_val in model_kwargs_i.items()
+        if (type(kwarg_val) is not list and type(kwarg_val) is not torch.Tensor)
+    })
+    model_kwargs_i.update({
+        int_kwarg: torch.LongTensor([kwarg_val]).reshape(1, -1)
+        for int_kwarg, kwarg_val in list(filter(lambda x: type(x[1]) is list and type(x[1][0]) is int, model_kwargs_i.items()))
+    })
+    model_kwargs_i.update({
+        float_kwarg: torch.Tensor(kwarg_val).reshape(1, -1)
+        for float_kwarg, kwarg_val in list(filter(lambda x: type(x[1]) is list and type(x[1][0]) is float, model_kwargs_i.items()))
+    })
+    return model_kwargs_i
+
 
 def compute_text_bleu(txt_1, txt_2, weights):
     score = sentence_bleu([txt_1], txt_2, weights=weights)

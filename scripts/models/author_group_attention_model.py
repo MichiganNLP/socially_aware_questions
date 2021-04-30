@@ -69,8 +69,12 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
         combined_attn_weights = []
         # tmp debugging
         # print(f'encoder: reader tokens {reader_token}')
+        # tmp debugging
+        # print(f'attention per group = {self.self_attn_per_group}')
         for i, reader_group_i in enumerate(reader_token):
-            reader_group_attn_i = self.self_attn_per_group[int(reader_group_i)]
+            # print(f'reader group = {reader_group_i}')
+            # reader_group_attn_i = self.self_attn_per_group[int(reader_group_i)]
+            reader_group_attn_i = self.self_attn_per_group[reader_group_i]
             # tmp debug
             # print(f'encoder layer: hidden states {hidden_states[[i], :, :].shape}')
             # print(f'encoder layer: attention {attention_mask[[i], :, :, :].shape}')

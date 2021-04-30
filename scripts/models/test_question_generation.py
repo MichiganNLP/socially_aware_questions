@@ -14,7 +14,7 @@ from tqdm import tqdm
 from model_helpers import generate_predictions, compute_text_bleu, load_vectors
 import torch
 
-from author_group_attention_model import AuthorGroupAttentionModel
+from author_group_attention_model import AuthorGroupAttentionModel, AuthorGroupAttentionModelConditionalGeneration
 
 CPU_COUNT=10
 torch.set_num_threads(CPU_COUNT)
@@ -30,7 +30,7 @@ question_words = {'where', 'when', 'what', 'how', 'why', 'which', 'did', 'could'
 referent_words = {'he', 'she', 'they', 'his', 'her', 'their'}
 STOP_WORDS = STOP_WORDS - question_words
 STOP_WORDS = STOP_WORDS - referent_words
-def get_generation_scores(pred_data, test_data, model, word_embed_file=None, sample_size=1000, train_data=None):
+def get_generation_scores(pred_data, test_data, model, model_type='bart', word_embed_file=None, sample_size=1000, train_data=None):
     """
     Get generation scores for all predicted data, compute
     mean and SDS
@@ -62,7 +62,12 @@ def get_generation_scores(pred_data, test_data, model, word_embed_file=None, sam
     # compute perplexity!
     log_likelihoods = []
     model_data_cols = ['source_ids', 'attention_mask', 'target_ids']
+    model_float_data_cols = []
     model_data_col_lookup = {'source_ids' : 'input_ids', 'target_ids' : 'labels'}
+    if(model_type == 'bart_author_attention'):
+        model_data_cols.append('reader_token')
+    elif(model_type == 'bart_author_embed'):
+        model_float_data_cols.append('author_embed')
     # sample data to save time on perplexity
     sample_size = min(sample_size, len(test_data))
     sample_test_data = test_data.select(np.random.choice(list(range(len(test_data))), sample_size, replace=False))
@@ -77,6 +82,8 @@ def get_generation_scores(pred_data, test_data, model, word_embed_file=None, sam
         # print(f'data after filtering target IDs: ({data_i["target_ids"]})')
         # reshape tensors for model
         data_dict_i = {data_col : torch.LongTensor(data_i.get(data_col)).unsqueeze(0).to(device) for data_col in model_data_cols}
+        for data_col in model_float_data_cols:
+            data_dict_i[data_col] = torch.Tensor(data_i.get(data_col).unsqueeze(0).to(device))
         # data_dict_i = {data_col: torch.LongTensor(data_i.get(data_col)).unsqueeze(0).cpu() for data_col in model_data_cols}
         # rename column to match model input FML
         for k,v in model_data_col_lookup.items():
@@ -186,10 +193,10 @@ def load_model(model_cache_dir, model_file, model_type, data_dir):
         generation_model = AuthorTextGenerationModel(config)
     elif(model_type == 'bart_author_attention'):
         ## TODO: config file for author attention
-        # config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
-        # config = BartConfig.from_json_file(config_file)
+        config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
+        config = BartConfig.from_json_file(config_file)
         reader_group_types = config.__dict__['reader_group_types']
-        generation_model = AuthorGroupAttentionModel(config, reader_group_types=reader_group_types)
+        generation_model = AuthorGroupAttentionModelConditionalGeneration(config, reader_group_types=reader_group_types)
     else:
         generation_model = AutoModelForSeq2SeqLM.from_pretrained(full_model_name,
                                                                  cache_dir=model_cache_dir)
@@ -247,6 +254,8 @@ def main():
     if(model_type == 'bart_author_embed'):
         model_kwargs.append('bart_author_embed')
     elif(model_type == 'bart_author_attention'):
+        test_data.remove_column_('reader_token')
+        test_data.rename_column_('reader_token_str', 'reader_token')
         model_kwargs.append('reader_token')
 
     ## generate lol
