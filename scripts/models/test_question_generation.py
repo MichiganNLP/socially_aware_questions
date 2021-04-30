@@ -69,8 +69,12 @@ def get_generation_scores(pred_data, test_data, model, word_embed_file=None, sam
     device = torch.cuda.current_device()
     for data_i in tqdm(sample_test_data):
         # remove padding tokens from output => don't care about PPL for pad tokens
-        non_pad_target_ids_i = data_dict_i['target_ids'][data_dict_i['target_ids'] != model.config.pad_token_id]
-        data_dict_i['target_ids'] = non_pad_target_ids_i
+        # print(f'data before filtering target IDs ({non_pad_target_ids_i})')
+        # print(f'pad ID = {model.config.pad_token_id}')
+        data_i['target_ids'] = list(filter(lambda x: x!=model.config.pad_token_id, data_i['target_ids']))
+
+        # tmp debugging
+        # print(f'data after filtering target IDs: ({data_i["target_ids"]})')
         # reshape tensors for model
         data_dict_i = {data_col : torch.LongTensor(data_i.get(data_col)).unsqueeze(0).to(device) for data_col in model_data_cols}
         # data_dict_i = {data_col: torch.LongTensor(data_i.get(data_col)).unsqueeze(0).cpu() for data_col in model_data_cols}
@@ -92,7 +96,7 @@ def get_generation_scores(pred_data, test_data, model, word_embed_file=None, sam
             # clear cache??
             del(output_i)
             # torch.cuda.empty_cache()
-        log_likelihoods = torch.stack(log_likelihoods)
+    log_likelihoods = torch.stack(log_likelihoods)
     perplexity = torch.exp(log_likelihoods).mean()
     perplexity_std = torch.exp(log_likelihoods).std()
     perplexity_data = pd.DataFrame([perplexity, perplexity_std], columns=['PPL'], index=['mean', 'sd'])
@@ -238,6 +242,12 @@ def main():
     test_data.set_format('torch', columns=data_cols, output_all_columns=True)
     if(train_data is not None):
         train_data = torch.load(train_data)
+    ## get extra args
+    model_kwargs = []
+    if(model_type == 'bart_author_embed'):
+        model_kwargs.append('bart_author_embed')
+    elif(model_type == 'bart_author_attention'):
+        model_kwargs.append('reader_token')
 
     ## generate lol
     generated_text_out_file = os.path.join(out_dir, 'test_data_output_text.gz')
@@ -246,7 +256,7 @@ def main():
         num_beams = 8
         pred_data = generate_predictions(generation_model, test_data, model_tokenizer,
                                          generation_method=generation_method,
-                                         num_beams=num_beams,)
+                                         num_beams=num_beams, model_kwargs=model_kwargs)
         pred_data = np.array(pred_data)
         with gzip.open(generated_text_out_file, 'wt') as generated_text_out:
             generated_text_out.write('\n'.join(pred_data))

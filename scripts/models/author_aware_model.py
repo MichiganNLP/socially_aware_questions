@@ -4,13 +4,14 @@ to generate text.
 """
 ## transformer boilerplate
 from math import sqrt
-from typing import Optional
+from typing import Optional, Union, Callable, List, Iterable
 import torch
 from torch import nn
 import random
 import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss
 from transformers import BartPretrainedModel, BartConfig
+from transformers.generation_utils import GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqModelOutput, Seq2SeqLMOutput, BaseModelOutputWithPastAndCrossAttentions
 from transformers.models.bart.modeling_bart import BartDecoder, \
     shift_tokens_right, _expand_mask, BartEncoderLayer, \
@@ -919,6 +920,63 @@ class AuthorTextGenerationModel(BartForConditionalGeneration):
             encoder_hidden_states=outputs.encoder_hidden_states,
             encoder_attentions=outputs.encoder_attentions,
         )
+
+    def prepare_inputs_for_generation(
+            self,
+            decoder_input_ids,
+            past=None,
+            attention_mask=None,
+            head_mask=None,
+            use_cache=None,
+            encoder_outputs=None,
+            **kwargs
+    ):
+        # cut decoder_input_ids if past is used
+        if past is not None:
+            decoder_input_ids = decoder_input_ids[:, -1:]
+
+        return {
+            "input_ids": None,  # encoder_outputs is defined. input_ids not needed
+            "encoder_outputs": encoder_outputs,
+            "past_key_values": past,
+            "decoder_input_ids": decoder_input_ids,
+            "attention_mask": attention_mask,
+            "head_mask": head_mask,
+            "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
+            'author_embed' : kwargs['author_embed'],
+        }
+
+    # def generate(
+    #     self,
+    #     input_ids: Optional[torch.LongTensor] = None,
+    #     max_length: Optional[int] = None,
+    #     min_length: Optional[int] = None,
+    #     do_sample: Optional[bool] = None,
+    #     early_stopping: Optional[bool] = None,
+    #     num_beams: Optional[int] = None,
+    #     temperature: Optional[float] = None,
+    #     top_k: Optional[int] = None,
+    #     top_p: Optional[float] = None,
+    #     repetition_penalty: Optional[float] = None,
+    #     bad_words_ids: Optional[Iterable[int]] = None,
+    #     bos_token_id: Optional[int] = None,
+    #     pad_token_id: Optional[int] = None,
+    #     eos_token_id: Optional[int] = None,
+    #     length_penalty: Optional[float] = None,
+    #     no_repeat_ngram_size: Optional[int] = None,
+    #     num_return_sequences: Optional[int] = None,
+    #     decoder_start_token_id: Optional[int] = None,
+    #     use_cache: Optional[bool] = None,
+    #     num_beam_groups: Optional[int] = None,
+    #     diversity_penalty: Optional[float] = None,
+    #     prefix_allowed_tokens_fn: Optional[Callable[[int, torch.Tensor], List[int]]] = None,
+    #     output_attentions: Optional[bool] = None,
+    #     output_hidden_states: Optional[bool] = None,
+    #     output_scores: Optional[bool] = None,
+    #     return_dict_in_generate: Optional[bool] = None,
+    #     **model_kwargs,
+    # ) -> Union[GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput, torch.LongTensor]:
+    #     pass
     #
     #
     # def prepare_inputs_for_generation(

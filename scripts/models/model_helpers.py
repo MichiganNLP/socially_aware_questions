@@ -58,7 +58,7 @@ def load_vectors(embed_file):
 
 def generate_predictions(model, data, tokenizer, device_name='cuda:0',
                          generation_method='beam_search', num_beams=4,
-                         temperature=1.0, top_p=1.0):
+                         temperature=1.0, top_p=1.0, model_kwargs=[]):
     """
     Generate predicted text from transformer model.
 
@@ -75,6 +75,10 @@ def generate_predictions(model, data, tokenizer, device_name='cuda:0',
     for batch_i in tqdm(data):
         source_i = batch_i['source_ids']
         attention_i = batch_i['attention_mask']
+        model_kwargs_i = {
+            model_kwarg : batch_i[model_kwarg]
+            for model_kwarg in model_kwargs
+        }
         # fix type in case of difference
         if(type(source_i) is list):
             source_i = torch.LongTensor(source_i)
@@ -89,6 +93,7 @@ def generate_predictions(model, data, tokenizer, device_name='cuda:0',
                 max_length=max_decoding_length,
                 length_penalty=length_penalty,
                 num_return_sequences=1,
+                **model_kwargs_i
             )
         elif(generation_method == 'sample'):
             output_i = model.generate(
