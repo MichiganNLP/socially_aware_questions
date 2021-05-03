@@ -51,32 +51,39 @@ def main():
     question_data = question_data.assign(**{'date_day': question_data.loc[:, 'date'].apply(lambda x: datetime(year=x.year, month=x.month, day=x.day))})
     # tmp debugging
     # print(f'{question_data.shape[0]} data after merge')
+    question_authors = set(question_data.loc[:, 'author'].unique())
 
     ## get data
     ## iterate over all author data
     ## collect dynamic data
     ## extract (1) expertise (2) relative time
-    # author_data = []
-    author_data_cols = ['author', 'date_day', 'subreddit', 'expert_pct', 'relative_time']
+    dynamic_author_data_cols = ['author', 'date_day', 'subreddit', 'expert_pct', 'relative_time']
     author_file_matcher = re.compile('.+_comments.gz')
     author_data_files = list(filter(lambda x: author_file_matcher.match(x) is not None, os.listdir(author_data_dir)))
     # tmp debugging
     # author_data_files = author_data_files[:1000]
-    author_data_out_file = os.path.join(author_data_dir, 'author_prior_comment_data.gz')
+    author_dynamic_data_file = os.path.join(author_data_dir, 'author_prior_comment_data.gz')
     # get existing authors; do not mine them!
-    existing_authors = set()
-    if(os.path.exists(author_data_out_file)):
-        existing_author_data = pd.read_csv(author_data_out_file, sep='\t', compression='gzip', index_col=False)
-        existing_authors = set(existing_author_data.loc[:, 'author'].unique())
+    existing_dynamic_authors = set()
+    if(os.path.exists(author_dynamic_data_file)):
+        existing_author_data = pd.read_csv(author_dynamic_data_file, sep='\t', compression='gzip', index_col=False)
+        existing_dynamic_authors = set(existing_author_data.loc[:, 'author'].unique())
     # if(not os.path.exists(author_data_out_file)):
     dynamic_author_data = []
     # with gzip.open(author_data_out_file, 'wt') as author_data_out:
     #     author_data_col_str = "\t".join(author_data_cols)
     #     author_data_out.write(author_data_col_str + '\n')
-    for i, author_file_i in enumerate(tqdm(author_data_files)):
+    # filter for existing authors
+    new_author_data_files = list(filter(lambda x: x.replace('_comments.gz', '') not in existing_dynamic_authors, author_data_files))
+    # filter for question-asking authors
+    new_author_data_files = list(filter(lambda x: x.replace('_comments.gz', '') in question_authors, new_author_data_files))
+    # author_ctr = 0
+    # tmp debugging
+    # print(f'for dynamic data, we have {len(new_author_data_files)} authors')
+    for i, author_file_i in enumerate(tqdm(new_author_data_files)):
         author_i = author_file_i.replace('_comments.gz', '')
         author_comment_file_i = os.path.join(author_data_dir, author_file_i)
-        if(author_i not in existing_authors):
+        if(author_i not in existing_dynamic_authors):
             try:
                 author_comment_data_i = pd.read_csv(author_comment_file_i, sep='\t', compression='gzip', usecols=['author', 'subreddit', 'created_utc'])
                 author_comment_data_i = author_comment_data_i.assign(**{'date' : author_comment_data_i.loc[:, 'created_utc'].apply(lambda x: datetime.fromtimestamp((x)))})
@@ -100,46 +107,70 @@ def main():
                     dynamic_author_data.append(combined_author_data_j)
                     # combined_author_data_str_j = '\t'.join(list(map(str, combined_author_data_j)))
                     # author_data_out.write(combined_author_data_str_j + '\n')
+                    # author_ctr += 1
+                    # write data to file periodically
+                    if (len(dynamic_author_data) % 1000 == 0):
+                        dynamic_author_data = write_flush_data(dynamic_author_data_cols, author_dynamic_data_file, dynamic_author_data)
             except Exception as e:
                 print(f'failed to read file {author_comment_file_i} because error {e}')
-                # author_data.append(combined_author_data_j)
-        # write data to file periodically
-        if(i % 1000 == 0):
-            if(os.path.exists(author_data_out_file))):
-                dynamic_author_data_df = pd.read_csv(author_data_out_file, sep='\t', compression='gzip', index_col=False)
-            new_data_df = pd.DataFrame(dynamic_author_data, columns=author_data_cols)
-            dynamic_author_data_df = pd.concat([dynamic_author_data_df, new_data_df], axis=0)
-            dynamic_author_data_df.to_csv(author_data_out_file, sep='\t', compression='gzip', index=False)
+    # write remaining data to file
+    if(len(dynamic_author_data) > 0):
+        # tmp debugging
+        print(f'final dynamic author data sample = {dynamic_author_data[0]}')
+        write_flush_data(dynamic_author_data_cols, author_dynamic_data_file, dynamic_author_data)
     # author_data = pd.DataFrame(author_data, columns=author_data_cols)
+
     ## collect static data: location, age
     author_static_data_file = os.path.join(author_data_dir, 'author_static_prior_comment_data.gz')
-    author_static_data_cols = ['age', 'location']
-    if(not os.path.exists(author_static_data_file)):
-        nlp_pipeline = stanza.Pipeline(lang='en', processors='tokenize,ner',
-                                       use_gpu=False)
-        location_matcher = re.compile(
-            '(?<=i\'m from )[a-z0-9\, ]+|(?<=i am from )[a-z0-9\, ]+|(?<=i live in )[a-z0-9\, ]+')
-        sent_tokenizer = PunktSentenceTokenizer()
-        with gzip.open(author_static_data_file, 'wt') as author_static_data_out:
-            author_data_col_str = "\t".join(['author'] + author_static_data_cols)
-            author_static_data_out.write(author_data_col_str + '\n')
-            for author_file_i in tqdm(author_data_files):
-                author_i = author_file_i.replace('_comments.gz', '')
-                author_comment_file_i = os.path.join(author_data_dir, author_file_i)
-                try:
-                    author_comment_data_i = pd.read_csv(author_comment_file_i, sep='\t', compression='gzip', usecols=['author', 'body',])
-                    text_i = author_comment_data_i.loc[:, 'body'].values
-                    # age
-                    age_i = extract_age(text_i)
-                    # location
-                    loc_i = full_location_pipeline(text_i, location_matcher, sent_tokenizer, nlp_pipeline)
-                    author_static_data_out.write('\t'.join([author_i, str(age_i), loc_i]) + '\n')
-                except Exception as e:
-                    print(
-                        f'failed to read file {author_comment_file_i} because error {e}')
+    author_static_data_cols = ['author', 'age', 'location']
+    existing_static_authors = set()
+    if(os.path.exists(author_static_data_file)):
+        existing_static_author_data = pd.read_csv(author_static_data_file, sep='\t', compression='gzip', index_col=False)
+        existing_static_authors = set(existing_static_author_data.loc[:, 'author'].unique())
+    # if(not os.path.exists(author_static_data_file)):
+    nlp_pipeline = stanza.Pipeline(lang='en', processors='tokenize,ner',
+                                   use_gpu=False)
+    location_matcher = re.compile('(?<=i\'m from )[a-z0-9\, ]+|(?<=i am from )[a-z0-9\, ]+|(?<=i live in )[a-z0-9\, ]+')
+    sent_tokenizer = PunktSentenceTokenizer()
+    # with gzip.open(author_static_data_file, 'wt') as author_static_data_out:
+    #     author_data_col_str = "\t".join(['author'] + author_static_data_cols)
+    #     author_static_data_out.write(author_data_col_str + '\n')
+    static_author_data = []
+    # filter for existing authors
+    new_author_data_files = list(filter(lambda x: x.replace('_comments.gz', '') not in existing_static_authors, author_data_files))
+    # filter for question-asking authors
+    new_author_data_files = list(filter(lambda x: x.replace('_comments.gz', '') in question_authors, new_author_data_files))
+    # tmp debugging
+    # new_author_data_files = new_author_data_files[:200]
+    for i, author_file_i in enumerate(tqdm(new_author_data_files)):
+        author_i = author_file_i.replace('_comments.gz', '')
+        author_comment_file_i = os.path.join(author_data_dir, author_file_i)
+        if(author_i not in existing_static_authors):
+            try:
+                author_comment_data_i = pd.read_csv(author_comment_file_i, sep='\t', compression='gzip', usecols=['author', 'body',])
+                text_i = author_comment_data_i.loc[:, 'body'].values
+                # age
+                age_i = extract_age(text_i)
+                # location
+                loc_i = full_location_pipeline(text_i, location_matcher, sent_tokenizer, nlp_pipeline)
+                static_author_data.append([author_i, age_i, loc_i])
+                # author_static_data_out.write('\t'.join([author_i, str(age_i), loc_i]) + '\n')
+                if (len(static_author_data) % 100 == 0):
+                    print(f'writing static author data to file ')
+                    static_author_data = write_flush_data(author_static_data_cols, author_static_data_file, static_author_data)
+            except Exception as e:
+                print(
+                    f'failed to read file {author_comment_file_i} because error {e}')
+    # handle remaining data
+    if(len(static_author_data) > 0):
+        write_flush_data(author_static_data_cols, author_static_data_file, static_author_data)
+    # import sys
+    # sys.exit(0)
 
-    ## reload, convert to categorical with percentiles, etc.
-    combined_author_data = pd.read_csv(author_data_out_file, sep='\t', index_col=False, compression='gzip')
+    ## reload dynamic data, convert to categorical with percentiles, etc.
+    combined_author_data = pd.read_csv(author_dynamic_data_file, sep='\t', index_col=False, compression='gzip')
+    # remove duplicates
+    combined_author_data.drop_duplicates(['author', 'date_day', 'subreddit'], inplace=True)
     category_cutoff_pct_vals = [95, 50]
     category_vars = ['expert_pct', 'relative_time']
     for category_var_i, category_cutoff_pct_i in zip(category_vars, category_cutoff_pct_vals):
@@ -148,9 +179,9 @@ def main():
         combined_author_data = combined_author_data.assign(**{
             bin_var_i : np.digitize(combined_author_data.loc[:, category_var_i], bins=bin_vals)
         })
+    ## reload static data, combine w/ dynamic data, add regions to locations
     author_static_data = pd.read_csv(author_static_data_file, sep='\t', compression='gzip', index_col=False)
     combined_author_data = pd.merge(combined_author_data, author_static_data, on='author')
-    # add location regions
     location_region_lookup = {'us' : 'US'}
     location_region_lookup.update({x : 'NONUS' for x in combined_author_data.loc[:, 'location'].unique() if x not in {'UNK', 'us'}})
     location_region_lookup.update({'UNK' : 'UNK'})
@@ -178,6 +209,29 @@ def main():
     # save to single file
     combined_author_data_file = os.path.join(author_data_dir, 'combined_author_prior_comment_data.gz')
     combined_author_data.to_csv(combined_author_data_file, sep='\t', compression='gzip', index=False)
+
+def write_flush_data(data_cols, out_file, new_data):
+    """
+    Combine old data with new data, and clean new data list.
+    :param data_cols: 
+    :param out_file: 
+    :param new_data: 
+    :return: 
+    """
+    try:
+        new_data_df = pd.DataFrame(new_data, columns=data_cols)
+        if (os.path.exists(out_file)):
+            old_data_df = pd.read_csv(out_file, sep='\t', compression='gzip', index_col=False)
+            old_data_df = pd.concat([old_data_df, new_data_df], axis=0)
+        else:
+            old_data_df = new_data_df.copy()
+        old_data_df.to_csv(out_file, sep='\t', compression='gzip', index=False)
+    except Exception as e:
+        print(f'bad new data example {new_data[0]}; needs data cols {data_cols}')
+        print(f'could not combine old/new data because error {e}')
+    new_data = []
+    return new_data
+
 
 if __name__ == '__main__':
     main()
