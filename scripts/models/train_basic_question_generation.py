@@ -2,21 +2,29 @@
 Train basic question generation on top of
 pre-trained language models (e.g. BART).
 """
-import numpy as np
-# import pandas as pd
-import torch
-import sys
-if ('question_generation' not in sys.path):
-    sys.path.append('question_generation')
+# import sys
+# if ('question_generation' not in sys.path):
+#     sys.path.append('question_generation')
 from data_collator import T2TDataCollator
-from transformers import AutoModelForSeq2SeqLM
+from transformers import AutoModelForSeq2SeqLM, BartConfig
+from author_aware_model import AuthorTextGenerationModel
 import os
 # tmp debugging
+from author_group_attention_model import AuthorGroupAttentionModelConditionalGeneration
 from trainer import Trainer
-from data_helpers import DataArguments
+from model_helpers import DataArguments
 from argparse import ArgumentParser
+import numpy as np
+import torch
 np.random.seed(123)
 torch.manual_seed(123)
+
+def sample_dataset(data, sample_pct):
+    N = len(data)
+    N_sample = int(N * sample_pct)
+    data = data.select(
+        np.random.choice(list(range(N)), N_sample, replace=False))
+    return data
 
 def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, max_source_len, max_target_len, model_type='bart'):
     training_args = DataArguments(model_out_dir)
@@ -34,14 +42,17 @@ def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, m
     training_args.output_dir = model_out_dir
     model_type_train_epoch_lookup = {
         'longformer' : 5,
-        'bart' : 20,
+        'bart' : 10,
     }
     training_args.num_train_epochs = model_type_train_epoch_lookup[model_type]
     # training_args.max_steps = 1
     training_args.fp16 = False
     training_args.label_names = None
     ## TODO: bigger batches with LongFormer!! training takes too long
-    training_args.per_device_train_batch_size = 1
+    # longformer batch sizes
+    # training_args.per_device_train_batch_size = 1
+    # training_args.per_device_eval_batch_size = 2
+    training_args.per_device_train_batch_size = 2
     training_args.per_device_eval_batch_size = 2
     # training_args.train_batch_size = 32
     # training_args.eval_batch_size = 32
@@ -72,7 +83,7 @@ def main():
     parser.add_argument('--model_type', default='bart')
     parser.add_argument('--model_cache_dir', default=None)
     # parser.add_argument('--author_data', default=None) # ../../data/nyt_comments/author_comment_social_data.tsv
-    parser.add_argument('--sample_pct', type=float, default=1.0)
+    # parser.add_argument('--sample_pct', type=float, default=1.0)
     parser.add_argument('--pretrained_model', default=None)
     args = vars(parser.parse_args())
     train_data_file = args['train_data']
@@ -80,7 +91,6 @@ def main():
     out_dir = args['out_dir']
     model_type = args['model_type']
     # author_data = args['author_data']
-    # sample_pct = args['sample_pct']
     model_cache_dir = args['model_cache_dir']
     pretrained_model = args['pretrained_model']
     if(not os.path.exists(out_dir)):
@@ -116,18 +126,28 @@ def main():
     # tmp debugging
     # import sys
     # sys.exit()
+    # get base model type for modified models e.g. "bart_author"
+    if('_' in model_type):
+        base_model_type = model_type.split('_')[0]
+    else:
+        base_model_type = model_type
     # reload tokenizer with all processed tokens
     model_type_tokenizer_lookup = {
         'bart' : 'BART',
         'longformer': 'LongFormer',
-        'bart_copy' : 'BART',
     }
     data_dir = os.path.dirname(train_data_file)
-    tokenizer_name = model_type_tokenizer_lookup[model_type]
+    tokenizer_name = model_type_tokenizer_lookup[base_model_type]
     tokenizer_file = os.path.join(data_dir, f'{tokenizer_name}_tokenizer.pt')
     tokenizer = torch.load(tokenizer_file)
 
-    ## train model
+    ## load data
+    # train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
+    # val_data_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
+    train_dataset = torch.load(train_data_file)
+    val_dataset = torch.load(val_data_file)
+
+    ## initialize model
     if(model_cache_dir is None):
         model_cache_dir = os.path.join(out_dir, 'model_cache/')
     # tokenizer = torch.load('../../data/CNN_articles/cnn/BART_tokenizer.pt')
@@ -136,9 +156,24 @@ def main():
         'longformer' : 'allenai/led-base-16384',
         'bart_copy' : 'facebook/bart-base',
     }
-    if (model_type == 'bart_copy'):
+    # print(f'model type = {model_type}')
+    if (model_type == 'bart_author_embeds'):
         ## custom loading
-        pass
+        config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json') # copy of config file with author args
+        config = BartConfig.from_json_file(config_file)
+        model = AuthorTextGenerationModel(config)
+        # choose appropriate embeds in data
+        # print(f'author embed type = {config.__dict__["author_embed_type"]}')
+        train_dataset.rename_column_(config.__dict__['author_embed_type'], 'author_embeds')
+        val_dataset.rename_column_(config.__dict__['author_embed_type'], 'author_embeds')
+    elif(model_type == 'bart_author_attention'):
+        config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
+        config = BartConfig.from_json_file(config_file)
+        reader_group_types = config.__dict__['reader_group_types']
+        model = AuthorGroupAttentionModelConditionalGeneration(config, reader_group_types=reader_group_types)
+        # fix reader token type
+        train_dataset.remove_column_('reader_token')
+        train_dataset.rename_column_('reader_token_str', 'reader_token')
     else:
         model_path = model_type_path_lookup[model_type]
         model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -149,39 +184,64 @@ def main():
         pretrained_model_weights = torch.load(pretrained_model)
         model.load_state_dict(pretrained_model_weights)
     model.resize_token_embeddings(len(tokenizer))
-    # TODO: save model to cache again to update embedding size
-    # device = torch.device(device_name)
-    # model.to(device)
+    # send to same device
+    model.to(torch.cuda.current_device())
 
-    ## load data
-    # train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
-    # val_data_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
-    train_dataset = torch.load(train_data_file)
-    val_dataset = torch.load(val_data_file)
-    train_dataset = train_dataset['train']
-    val_dataset = val_dataset['train']
+    ## fix data tensor format
+    tensor_cols = ['source_ids', 'target_ids', 'attention_mask']
+    if (model_type == 'bart_author_embeds'):
+        tensor_cols.append('author_embeds')
+    train_dataset.set_format('torch', columns=tensor_cols, output_all_columns=True)
+    val_dataset.set_format('torch', columns=tensor_cols, output_all_columns=True)
+
+    # tmp debugging
+    # print(f'sample train data {train_dataset[0]}')
+    # print(f'sample val data {val_dataset[0]}')
+    # for data_i in train_dataset:
+    #     try:
+    #         data_i['source_ids']
+    #     except Exception as e:
+    #         print(f'bad data {data_i}')
+    #         break
+    # old dumb data loading
+    # train_dataset = train_dataset['train']
+    # val_dataset = val_dataset['train']
+    ## TODO: how to stop sampling from breaking training loop?
+    # if(sample_pct < 1.0):
+    #     train_dataset = sample_dataset(train_dataset, sample_pct)
+    #     val_dataset = sample_dataset(val_dataset, sample_pct)
+        # print(f'sample train data has {len(train_dataset)} data')
+
+    ## set up data collator
     # get max source/target len
     max_source_len = len(train_dataset['source_ids'][0])
     max_target_len = len(train_dataset['target_ids'][0])
     tokenizer.model_max_length = max_source_len
     # data collator
+    extra_data_collate_args = []
+    if(model_type in {'bart_author', 'bart_author_attention'}):
+        extra_data_collate_args.append(('reader_token', 'int'))
+    elif(model_type == 'bart_author_embeds'):
+        extra_data_collate_args.append(('author_embeds', 'tensor'))
     data_collator = T2TDataCollator(
         tokenizer=tokenizer,
-        model_type=model_type,
+        model_type=base_model_type,
         mode="training",
-        using_tpu=False
+        using_tpu=False,
+        extra_args=extra_data_collate_args,
     )
     model_out_dir = os.path.join(out_dir, 'question_generation_model/')
     if (not os.path.exists(model_out_dir)):
         os.mkdir(model_out_dir)
-    # tmp debugging
-    print(f'model output directory {model_out_dir}')
-
-    training_args = load_training_args(model_out_dir, train_data_file, model_out_dir, val_data_file, max_source_len, max_target_len, model_type=model_type)
+    ## set up trainer
+    training_args = load_training_args(model_out_dir, train_data_file, model_out_dir, val_data_file, max_source_len, max_target_len, model_type=base_model_type)
     model_args = {
         'label_smoothing': 0,
     }
-    # tmp debugging
+    ## tmp debugging
+    # for data_i in train_dataset:
+    #     print(f'sample data before trainer: {data_i}')
+    #     break
     # print(f'training device {training_args.device}')
     ## TODO: prevent model from saving optimizer after every 500 training steps!!
     trainer = Trainer(
@@ -196,7 +256,10 @@ def main():
     )
 
     ## tmp debugging
-    print(f'evaluation strategy = {trainer.args.evaluation_strategy}')
+    # for data_i in train_dataset:
+    #     print(f'sample data after trainer: {data_i}')
+    #     break
+    # print(f'train data {train_dataset}')
 
     ## train
     torch.cuda.empty_cache()

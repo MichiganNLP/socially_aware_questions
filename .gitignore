@@ -2,9 +2,14 @@ data/*
 scripts/data_processing/generation_model_output/
 scripts/data_processing/old_generation_model_output/*
 scripts/data_processing/question_generation/
-scripts/data_processing/.ipynb_checkpoints/
+scripts/*/.ipynb_checkpoints/
 scripts/data_processing/*.log
+scripts/data_processing/*.txt
 scripts/data_processing/runs/
 scripts/data_processing/debug_training.py
 scripts/data_processing/pointer-generator/
+scripts/models/question_generation/
+scripts/models/runs/
 scripts/*/__pycache__/
+scripts/models/question_generation/
+logs/

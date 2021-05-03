@@ -5,10 +5,11 @@
       <paths name="lit1000">
         <serverdata>
           <mappings>
-            <mapping deploy="home/ianbstew/audience_aware_NLP/" local="$PROJECT_DIR$" web="/home/ianbstew/audience_aware_NLP/" />
+            <mapping deploy="/home/ianbstew/audience_aware_NLP/" local="$PROJECT_DIR$" web="/home/ianbstew/audience_aware_NLP/" />
           </mappings>
           <excludedPaths>
             <excludedPath local="true" path="$PROJECT_DIR$/data" />
+            <excludedPath local="true" path="$PROJECT_DIR$/scripts/data_processing/geckodriver.log" />
           </excludedPaths>
         </serverdata>
       </paths>

@@ -37,15 +37,18 @@ OUT_DIR=../../data/nyt_comments/full_data/NE_overlap/longformer_model/
 ## CNN+NYT model evaluation
 #MODEL_FILE=../../data/nyt_comments/cnn_fine_tune/question_generation_model/checkpoint-141000/pytorch_model.bin
 #OUT_DIR=../../data/nyt_comments/cnn_fine_tune/
+## reddit comments
+MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-116500/pytorch_model.bin
+OUT_DIR=../../data/reddit_data/text_only_model/
 ## model cache folder
 # w/out author
-#MODEL_CACHE_DIR=../../data/CNN_articles/cnn/model_cache/
+MODEL_CACHE_DIR=../../data/model_cache/
 # w/ author
 #MODEL_CACHE_DIR=../../data/nyt_comments/author_data_model/model_cache/
 # w/out author, long input
-MODEL_CACHE_DIR=../../data/longformer_cache/
-#MODEL_TYPE='bart'
-MODEL_TYPE='longformer'
+#MODEL_CACHE_DIR=../../data/longformer_cache/
+MODEL_TYPE='bart'
+#MODEL_TYPE='longformer'
 
 ## data
 ### CNN data
@@ -77,6 +80,15 @@ MODEL_TYPE='longformer'
 TRAIN_DATA=../../data/nyt_comments/full_data/author_type_NE_overlap_NYT_full_long_input_train_data.pt
 TEST_DATA=../../data/nyt_comments/full_data/author_type_NE_overlap_NYT_full_long_input_val_data.pt
 
+# reddit data
+TRAIN_DATA=../../data/reddit_data/advice_subreddit_train_data.pt
+TEST_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
+DATA_NAME=text_only_model
+## optional: post metadata
+POST_METADATA=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
 #DEVICE_NAME='cuda:2'
-export CUDA_VISIBLE_DEVICES="0"
-python evaluate_question_generation.py $MODEL_FILE $OUT_DIR $TRAIN_DATA $TEST_DATA --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR
+export CUDA_VISIBLE_DEVICES="1"
+# normal evaluation
+#python evaluate_question_generation.py $MODEL_FILE $OUT_DIR $TRAIN_DATA $TEST_DATA --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --data_name $DATA_NAME
+# evaluation with metadata
+python evaluate_question_generation.py $MODEL_FILE $OUT_DIR $TRAIN_DATA $TEST_DATA --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --data_name $DATA_NAME --post_metadata $POST_METADATA
