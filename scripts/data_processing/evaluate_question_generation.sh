@@ -2,10 +2,8 @@
 #SBATCH --job-name=evaluate_question_generation
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --output=/home/%u/logs/%x-%j.log
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
 #SBATCH --mem-per-gpu=10g
-#SBATCH --time=1:00:00
+#SBATCH --time=3:00:00
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 
@@ -17,10 +15,8 @@
 #OUT_DIR=../../data/CNN_articles/cnn/NYT_eval/
 # long data
 #MODEL_FILE=../../data/CNN_articles/cnn/longformer_model/question_generation_model/checkpoint-60000/pytorch_model.bin
-#OUT_DIR=../../data/CNN_articles/cnn/NYT_eval/longformer_model/
-#MODEL_FILE=../../data/CNN_articles/cnn/longformer_model/question_generation_model/checkpoint-60000/pytorch_model.bin
 #OUT_DIR=../../data/CNN_articles/cnn/longformer_model/
-# NYT training
+## NYT training
 # w/out author
 #MODEL_FILE=../../data/nyt_comments/question_generation_model/checkpoint-96000/pytorch_model.bin
 #OUT_DIR=../../data/nyt_comments/no_author_data/
@@ -35,6 +31,9 @@
 # NE overlap w/out author
 #MODEL_FILE=../../data/nyt_comments/no_author_data/NE_overlap/longformer_model/question_generation_model/checkpoint-9500/pytorch_model.bin
 #OUT_DIR=../../data/nyt_comments/no_author_data/NE_overlap/
+# NE overlap w/ author, full data
+MODEL_FILE=../../data/nyt_comments/full_data/NE_overlap/longformer_model/question_generation_model/checkpoint-88500/pytorch_model.bin
+OUT_DIR=../../data/nyt_comments/full_data/NE_overlap/longformer_model/
 ## CNN+NYT model evaluation
 #MODEL_FILE=../../data/nyt_comments/cnn_fine_tune/question_generation_model/checkpoint-141000/pytorch_model.bin
 #OUT_DIR=../../data/nyt_comments/cnn_fine_tune/
@@ -77,6 +76,10 @@ MODEL_TYPE='bart'
 # NE overlap w/out author
 #TRAIN_DATA=../../data/nyt_comments/no_author_data/NE_overlap_NYT_long_input_train_data.pt
 #TEST_DATA=../../data/nyt_comments/no_author_data/NE_overlap_NYT_long_input_val_data.pt
+# NE overlap, full data
+TRAIN_DATA=../../data/nyt_comments/full_data/author_type_NE_overlap_NYT_full_long_input_train_data.pt
+TEST_DATA=../../data/nyt_comments/full_data/author_type_NE_overlap_NYT_full_long_input_val_data.pt
+
 # reddit data
 TRAIN_DATA=../../data/reddit_data/advice_subreddit_train_data.pt
 TEST_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
