@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem-per-gpu=20g
-#SBATCH --time=18:00:00
+#SBATCH --time=30:00:00
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 
@@ -38,7 +38,8 @@ VAL_DATA=../../data/nyt_comments/full_data/author_type_NE_overlap_NYT_full_long_
 #OUT_DIR=../../data/nyt_comments/cnn_fine_tune/
 # longformer model
 #OUT_DIR=../../data/CNN_articles/cnn/longformer_model/
-OUT_DIR=../../data/nyt_comments/no_author_data/NE_overlap/longformer_model/
+#OUT_DIR=../../data/nyt_comments/no_author_data/NE_overlap/longformer_model/
+OUT_DIR=../../data/nyt_comments/full_data/NE_overlap/longformer_model/
 # debug model
 #OUT_DIR=../../data/nyt_comments/debug_model/
 # regular transformer
