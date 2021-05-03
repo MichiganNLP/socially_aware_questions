@@ -69,8 +69,12 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
         combined_attn_weights = []
         # tmp debugging
         # print(f'encoder: reader tokens {reader_token}')
+        # tmp debugging
+        # print(f'attention per group = {self.self_attn_per_group}')
         for i, reader_group_i in enumerate(reader_token):
-            reader_group_attn_i = self.self_attn_per_group[int(reader_group_i)]
+            # print(f'reader group = {reader_group_i}')
+            # reader_group_attn_i = self.self_attn_per_group[int(reader_group_i)]
+            reader_group_attn_i = self.self_attn_per_group[reader_group_i]
             # tmp debug
             # print(f'encoder layer: hidden states {hidden_states[[i], :, :].shape}')
             # print(f'encoder layer: attention {attention_mask[[i], :, :, :].shape}')
@@ -486,3 +490,28 @@ class AuthorGroupAttentionModelConditionalGeneration(BartForConditionalGeneratio
             encoder_hidden_states=outputs.encoder_hidden_states,
             encoder_attentions=outputs.encoder_attentions,
         )
+
+    def prepare_inputs_for_generation(
+            self,
+            decoder_input_ids,
+            past=None,
+            attention_mask=None,
+            head_mask=None,
+            use_cache=None,
+            encoder_outputs=None,
+            **kwargs
+    ):
+        # cut decoder_input_ids if past is used
+        if past is not None:
+            decoder_input_ids = decoder_input_ids[:, -1:]
+
+        return {
+            "input_ids": None,  # encoder_outputs is defined. input_ids not needed
+            "encoder_outputs": encoder_outputs,
+            "past_key_values": past,
+            "decoder_input_ids": decoder_input_ids,
+            "attention_mask": attention_mask,
+            "head_mask": head_mask,
+            "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
+            'reader_token' : kwargs['reader_token'],
+        }

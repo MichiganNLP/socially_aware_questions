@@ -58,7 +58,7 @@ def load_vectors(embed_file):
 
 def generate_predictions(model, data, tokenizer, device_name='cuda:0',
                          generation_method='beam_search', num_beams=4,
-                         temperature=1.0, top_p=1.0):
+                         temperature=1.0, top_p=1.0, model_kwargs=[]):
     """
     Generate predicted text from transformer model.
 
@@ -69,41 +69,91 @@ def generate_predictions(model, data, tokenizer, device_name='cuda:0',
     """
     max_decoding_length = 64
     length_penalty = 1
-    device = torch.device(device_name)
+    # device = torch.device(device_name)
+    device = torch.cuda.current_device()
     model.to(device)
     pred_text = []
     for batch_i in tqdm(data):
         source_i = batch_i['source_ids']
         attention_i = batch_i['attention_mask']
         # fix type in case of difference
-        if(type(source_i) is list):
+        if (type(source_i) is list):
             source_i = torch.LongTensor(source_i)
-        if(type(attention_i) is list):
+        if (type(attention_i) is list):
             attention_i = torch.Tensor(attention_i)
+        source_i = source_i.unsqueeze(0).to(device)
+        attention_i = attention_i.unsqueeze(0).to(device)
+        # handle model kwargs: reader tokens, embeddings, etc.
+        model_kwargs_i = prepare_model_kwargs_for_generation(batch_i, model_kwargs)
+        # tmp debugging
+        # print(f'model kwargs after type fix has type: {model_kwargs_i["author_embeds"].dtype}')
         if(generation_method == 'beam_search'):
             output_i = model.generate(
-                input_ids=source_i.to(device).reshape(1,-1),
-                attention_mask=attention_i.to(device).reshape(1,-1),
+                input_ids=source_i,
+                attention_mask=attention_i,
                 num_beams=num_beams,
                 temperature=temperature,
                 max_length=max_decoding_length,
                 length_penalty=length_penalty,
                 num_return_sequences=1,
+                **model_kwargs_i
             )
         elif(generation_method == 'sample'):
             output_i = model.generate(
-                input_ids=source_i.to(device).reshape(1, -1),
-                attention_mask=attention_i.to(device).reshape(1, -1),
+                input_ids=source_i,
+                attention_mask=attention_i,
                 temperature=temperature,
                 top_p=top_p,
                 max_length=max_decoding_length,
                 length_penalty=length_penalty,
                 num_return_sequences=1,
                 do_sample=True,
+                **model_kwargs_i
             )
         prediction = [tokenizer.decode(ids, skip_special_tokens=True) for ids in output_i]
         pred_text.extend(prediction)
     return pred_text
+
+def prepare_model_kwargs_for_generation(data, model_kwargs):
+    model_kwargs = {
+        model_kwarg: data[model_kwarg]
+        for model_kwarg in model_kwargs
+    }
+    # fix type, shape of model kwargs
+    # tmp debugging
+    # print(f'model kwargs before type fix {model_kwargs_i}')
+    # e.g. int => Tensor(int)
+    model_kwargs.update({
+        kwarg: [kwarg_val]
+        for kwarg, kwarg_val in model_kwargs.items()
+        if (type(kwarg_val) is not list and type(kwarg_val) is not torch.Tensor)
+    })
+    # fix lists
+    model_kwargs.update({
+        int_kwarg: torch.LongTensor([kwarg_val]).unsqueeze(0)
+        for int_kwarg, kwarg_val in list(filter(lambda x: type(x[1]) is list and type(x[1][0]) is int, model_kwargs.items()))
+    })
+    model_kwargs.update({
+        float_kwarg: torch.Tensor(kwarg_val).unsqueeze(0)
+        for float_kwarg, kwarg_val in list(filter(lambda x: type(x[1]) is list and type(x[1][0]) is float, model_kwargs.items()))
+    })
+    # fix tensors
+    model_kwargs.update({
+        kwarg : kwarg_val.unsqueeze(0).to(torch.cuda.current_device())
+        for kwarg, kwarg_val in model_kwargs.items()
+        if type(kwarg_val) is torch.Tensor and kwarg_val.dim()==1
+    })
+    # fix data type (convert double to float to match model weights)
+    # tmp debugging
+    # print(f'data type before {model_kwargs["author_embeds"].dtype}')
+    model_kwargs.update({
+        kwarg: kwarg_val.float()
+        for kwarg, kwarg_val in model_kwargs.items()
+        if type(kwarg_val) is torch.Tensor and kwarg_val.dtype is torch.float64
+    })
+    # print(f'data type after {model_kwargs["author_embeds"].dtype}')
+    return model_kwargs
+
 
 def compute_text_bleu(txt_1, txt_2, weights):
     score = sentence_bleu([txt_1], txt_2, weights=weights)

@@ -61,12 +61,14 @@ class T2TDataCollator():
             "labels": lm_labels,
             "decoder_input_ids": decoder_input_ids
         }
-        for extra_arg, extra_arg_name, extra_arg_type in self.extra_args:
+        for extra_arg, extra_arg_type in self.extra_args:
             if(extra_arg_type == 'tensor'):
-                params[extra_arg_name] = torch.stack([example[extra_arg] for example in batch])
+                params[extra_arg] = torch.stack([example[extra_arg] for example in batch])
+                if(params[extra_arg].dtype is torch.float64):
+                    params[extra_arg] = params[extra_arg].float()
             # convert numeric vals to tensors
             elif(extra_arg_type=='int'):
-                params[extra_arg_name] = torch.LongTensor([example[extra_arg] for example in batch])
+                params[extra_arg] = torch.LongTensor([example[extra_arg] for example in batch])
         
         return params
     

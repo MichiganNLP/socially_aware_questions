@@ -4,13 +4,14 @@ to generate text.
 """
 ## transformer boilerplate
 from math import sqrt
-from typing import Optional
+from typing import Optional, Union, Callable, List, Iterable
 import torch
 from torch import nn
 import random
 import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss
 from transformers import BartPretrainedModel, BartConfig
+from transformers.generation_utils import GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqModelOutput, Seq2SeqLMOutput, BaseModelOutputWithPastAndCrossAttentions
 from transformers.models.bart.modeling_bart import BartDecoder, \
     shift_tokens_right, _expand_mask, BartEncoderLayer, \
@@ -134,7 +135,7 @@ class AuthorTextEncoder(BartPretrainedModel):
             # remove final token from input, replace with author embedding
             # TODO: add author embedding before padding? not sure that it matters
             hidden_states = hidden_states[:, :-1, :]
-            author_embeds = author_embeds.reshape(author_embeds.shape[0], 1, author_embeds.shape[1]).double()
+            author_embeds = author_embeds.reshape(author_embeds.shape[0], 1, author_embeds.shape[1])#.double()
             # tmp debugging
             # print(f'author embeds {author_embeds}')
             author_embeds_hidden = self.author_embed_network(author_embeds)
@@ -676,8 +677,12 @@ class BartAuthorTextModel(BartModel):
         self.shared = nn.Embedding(vocab_size, config.d_model, padding_idx)
 
         self.author_embed_module = config.__dict__['author_embed_module']
-        self.encoder = AuthorTextEncoder(config, self.shared)
-        self.decoder = AuthorTextDecoder(config, self.shared)
+        self.encoder = BartEncoder(config, self.shared)
+        self.decoder = BartDecoder(config, self.shared)
+        if(self.author_embed_module in {'encoder', 'encoder_decoder'}):
+            self.encoder = AuthorTextEncoder(config, self.shared)
+        if(self.author_embed_module in {'decoder', 'encoder_decoder'}):
+            self.decoder = AuthorTextDecoder(config, self.shared)
         self.init_weights()
 
     def forward(
@@ -714,16 +719,27 @@ class BartAuthorTextModel(BartModel):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         if encoder_outputs is None:
-            encoder_outputs = self.encoder(
-                input_ids=input_ids,
-                author_embeds=(author_embeds if self.author_embed_module == 'encoder' else None),
-                attention_mask=attention_mask,
-                head_mask=head_mask,
-                inputs_embeds=inputs_embeds,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
-                return_dict=return_dict,
-            )
+            if(self.author_embed_module in {'encoder', 'encoder_decoder'}):
+                encoder_outputs = self.encoder(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    author_embeds=author_embeds,
+                    head_mask=head_mask,
+                    inputs_embeds=inputs_embeds,
+                    output_attentions=output_attentions,
+                    output_hidden_states=output_hidden_states,
+                    return_dict=return_dict,
+                )
+            else:
+                encoder_outputs = self.encoder(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    head_mask=head_mask,
+                    inputs_embeds=inputs_embeds,
+                    output_attentions=output_attentions,
+                    output_hidden_states=output_hidden_states,
+                    return_dict=return_dict,
+                )
         # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=True
         elif return_dict and not isinstance(encoder_outputs, BaseModelOutput):
             encoder_outputs = BaseModelOutput(
@@ -733,21 +749,52 @@ class BartAuthorTextModel(BartModel):
             )
 
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
-        decoder_outputs = self.decoder(
-            input_ids=decoder_input_ids,
-            author_embeds=(author_embeds if self.author_embed_module == 'decoder' else None),
-            attention_mask=decoder_attention_mask,
-            encoder_hidden_states=encoder_outputs[0],
-            encoder_attention_mask=attention_mask,
-            # head_mask=decoder_head_mask,
-            # encoder_head_mask=head_mask,
-            past_key_values=past_key_values,
-            inputs_embeds=decoder_inputs_embeds,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
+        if (self.author_embed_module in {'decoder', 'encoder_decoder'}):
+            decoder_outputs = self.decoder(
+                input_ids=decoder_input_ids,
+                author_embeds=author_embeds,
+                attention_mask=decoder_attention_mask,
+                encoder_hidden_states=encoder_outputs[0],
+                encoder_attention_mask=attention_mask,
+                # head_mask=decoder_head_mask,
+                # encoder_head_mask=head_mask,
+                past_key_values=past_key_values,
+                inputs_embeds=decoder_inputs_embeds,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+        else:
+            decoder_outputs = self.decoder(
+                input_ids=decoder_input_ids,
+                attention_mask=decoder_attention_mask,
+                encoder_hidden_states=encoder_outputs[0],
+                encoder_attention_mask=attention_mask,
+                # head_mask=decoder_head_mask,
+                # encoder_head_mask=head_mask,
+                past_key_values=past_key_values,
+                inputs_embeds=decoder_inputs_embeds,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+        # decoder_outputs = self.decoder(
+        #     input_ids=decoder_input_ids,
+        #     author_embeds=(author_embeds if self.author_embed_module == 'decoder' else None),
+        #     attention_mask=decoder_attention_mask,
+        #     encoder_hidden_states=encoder_outputs[0],
+        #     encoder_attention_mask=attention_mask,
+        #     # head_mask=decoder_head_mask,
+        #     # encoder_head_mask=head_mask,
+        #     past_key_values=past_key_values,
+        #     inputs_embeds=decoder_inputs_embeds,
+        #     use_cache=use_cache,
+        #     output_attentions=output_attentions,
+        #     output_hidden_states=output_hidden_states,
+        #     return_dict=return_dict,
+        # )
 
         if not return_dict:
             return decoder_outputs + encoder_outputs
@@ -873,6 +920,63 @@ class AuthorTextGenerationModel(BartForConditionalGeneration):
             encoder_hidden_states=outputs.encoder_hidden_states,
             encoder_attentions=outputs.encoder_attentions,
         )
+
+    def prepare_inputs_for_generation(
+            self,
+            decoder_input_ids,
+            past=None,
+            attention_mask=None,
+            head_mask=None,
+            use_cache=None,
+            encoder_outputs=None,
+            **kwargs
+    ):
+        # cut decoder_input_ids if past is used
+        if past is not None:
+            decoder_input_ids = decoder_input_ids[:, -1:]
+
+        return {
+            "input_ids": None,  # encoder_outputs is defined. input_ids not needed
+            "encoder_outputs": encoder_outputs,
+            "past_key_values": past,
+            "decoder_input_ids": decoder_input_ids,
+            "attention_mask": attention_mask,
+            "head_mask": head_mask,
+            "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
+            'author_embeds' : kwargs['author_embeds'],
+        }
+
+    # def generate(
+    #     self,
+    #     input_ids: Optional[torch.LongTensor] = None,
+    #     max_length: Optional[int] = None,
+    #     min_length: Optional[int] = None,
+    #     do_sample: Optional[bool] = None,
+    #     early_stopping: Optional[bool] = None,
+    #     num_beams: Optional[int] = None,
+    #     temperature: Optional[float] = None,
+    #     top_k: Optional[int] = None,
+    #     top_p: Optional[float] = None,
+    #     repetition_penalty: Optional[float] = None,
+    #     bad_words_ids: Optional[Iterable[int]] = None,
+    #     bos_token_id: Optional[int] = None,
+    #     pad_token_id: Optional[int] = None,
+    #     eos_token_id: Optional[int] = None,
+    #     length_penalty: Optional[float] = None,
+    #     no_repeat_ngram_size: Optional[int] = None,
+    #     num_return_sequences: Optional[int] = None,
+    #     decoder_start_token_id: Optional[int] = None,
+    #     use_cache: Optional[bool] = None,
+    #     num_beam_groups: Optional[int] = None,
+    #     diversity_penalty: Optional[float] = None,
+    #     prefix_allowed_tokens_fn: Optional[Callable[[int, torch.Tensor], List[int]]] = None,
+    #     output_attentions: Optional[bool] = None,
+    #     output_hidden_states: Optional[bool] = None,
+    #     output_scores: Optional[bool] = None,
+    #     return_dict_in_generate: Optional[bool] = None,
+    #     **model_kwargs,
+    # ) -> Union[GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput, torch.LongTensor]:
+    #     pass
     #
     #
     # def prepare_inputs_for_generation(
