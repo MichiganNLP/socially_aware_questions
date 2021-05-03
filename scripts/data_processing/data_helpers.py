@@ -374,7 +374,7 @@ def extract_questions_all_data(data, min_question_len=5):
     return questions
 
 def prepare_question_data(data, out_dir, data_name, tokenizer,
-                          data_vars=['article_text', 'question', 'article_id'],
+                          data_vars=['article_text', 'question', 'article_id', 'subreddit'],
                           author_data=None,
                           # author_data_type='tokens', # {'tokens', 'embeddings'}
                           train_pct=0.8,

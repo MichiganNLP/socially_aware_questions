@@ -11,17 +11,17 @@ TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
 TEST_DATA=../../data/reddit_data/combined_data_val_data.pt
 ## models
 # text only
-#MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-171000/pytorch_model.bin
-#MODEL_TYPE='bart'
-#OUT_DIR=../../data/reddit_data/text_only_model/
+MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-198500/pytorch_model.bin
+MODEL_TYPE='bart'
+OUT_DIR=../../data/reddit_data/text_only_model/
 # reddit+author token
 #MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-215000/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/
 #MODEL_TYPE='bart_author_embeds_token'
 # reddit + author embed (+ encoder)
-MODEL_FILE=../../data/reddit_data/author_text_data/author_embed_data/question_generation_model/checkpoint-170500/pytorch_model.bin
-OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
-MODEL_TYPE='bart_author_embeds'
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_embed_data/question_generation_model/checkpoint-170500/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
+#MODEL_TYPE='bart_author_embeds'
 # reddit + author embed (+ decoder)
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_decoder_embed_data/question_generation_model/checkpoint-170500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_decoder_embed_data
