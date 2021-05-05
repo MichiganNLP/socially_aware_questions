@@ -205,7 +205,10 @@ def load_model(model_cache_dir, model_file, model_type, data_dir):
                                                                  cache_dir=model_cache_dir)
     generation_model.resize_token_embeddings(len(model_tokenizer))
     if (model_file is not None):
-        model_weights = torch.load(model_file)
+        if(torch.cuda.is_available()):
+            model_weights = torch.load(model_file)
+        else:
+            model_weights = torch.load(model_file, map_location=torch.device('cpu'))
         # optional: reset vocab size
         if(model_weights['lm_head.weight'].shape[0] != generation_model.config.vocab_size):
             generation_model.resize_token_embeddings(model_weights['lm_head.weight'].shape[0])
