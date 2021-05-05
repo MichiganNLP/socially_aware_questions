@@ -178,7 +178,7 @@ def main():
         train_dataset.remove_column_('reader_token')
         train_dataset.rename_column_('reader_token_str', 'reader_token')
     else:
-        model_path = model_type_path_lookup[base_model_type]
+        model_path = model_type_path_lookup[model_type]
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_path,
             cache_dir=model_cache_dir,
@@ -223,7 +223,7 @@ def main():
     # data collator
     extra_data_collate_args = []
     if(model_type == 'bart_author_attention'):
-        extra_data_collate_args.append(('reader_token_str', 'str'))
+        extra_data_collate_args.append(('reader_token', 'str'))
     elif(model_type == 'bart_author_embeds'):
         extra_data_collate_args.append(('author_embeds', 'tensor'))
     data_collator = T2TDataCollator(
