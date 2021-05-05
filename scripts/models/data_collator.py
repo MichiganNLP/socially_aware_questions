@@ -69,7 +69,10 @@ class T2TDataCollator():
             # convert numeric vals to tensors
             elif(extra_arg_type=='int'):
                 params[extra_arg] = torch.LongTensor([example[extra_arg] for example in batch])
-        
+            # default: convert to list
+            else:
+                params[extra_arg] = [example[extra_arg] for example in batch]
+
         return params
     
     def _shift_right_t5(self, input_ids):
