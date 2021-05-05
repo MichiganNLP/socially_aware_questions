@@ -1,0 +1,36 @@
+Instructions:
+
+The goal of this task is to label questions according to their relevance to a given post. Please follow the following steps:
+1. Read the post title ("post_title"), and the first five sentences of the post text ("post_text")
+2 Read the question that was asked in response to the post ("question").
+3. Label the question according to its relevance to the post (fill in "question_is_relevant") and according to whether the question asks for more information (fill in "question_asks_for_more_info").
+A question is relevant to the post if it concerns information that is included in the post or is highly relevant to the topic of the post.
+A question asks for more information if it seeks new information that was not obvious from the post or seeks to clarify information included in the post that was not clear.
+You may need to read more text from the post to decide on the label, if the first five sentences are not enough.
+
+
+You will fill in the "question_is_relevant" and "question_asks_for_more_info" columns in the spreadsheet.
+Please use the following scale:
+1 for yes
+0 for no
+-1 for unsure
+
+
+We provide several example posts and questions with associated labels:
+1. Is the question relevant to the post?
+- Example post 1: "I am trying to bake a cake, and I'm not sure what kind is best. What kind of cake should I bake?
+    - Q1: "What flavor of cake do you want?" => question addresses a specific aspect of "cake" which is mentioned in the post; question_is_relevant=1
+    - Q2: "Why aren't you making a pie?" => question addresses "pie" which is off-topic to the post; question_is_relevant=0
+- Example post 2: "I got offered a job on the border of South Dakota and Minnesota. From various real estate sites, it seems that similar houses are considerably cheaper in Minnesota. Are there any reasons I should not look at Minnesota as an option?"
+    - Q1: "What is the resale value on homes in Minnesota?" => question addresses an aspect of house ownership (resale value) which is relevant to the post; question_is_relevant=1
+    - Q2: "Have you considered moving to North Dakota?" => question addresses a state that is irrelevant to the post; question_is_relevant=0
+
+2. Is the question asker trying to get more information from the post author?
+- Example post 1: "I am trying to bake a cake, and I'm not sure what kind is best. What kind of cake should I bake?
+    - Q1: "What flavor of cake do you want?" => question asker seeks more information from author about cake; question_asks_for_more_info=1
+    - Q2: "You don't know what kind of cake you should bake?" => likely rhetorical question, not looking for additional information; question_asks_for_more_info=0
+- Example post 2: "I currently have about 3k in the bank and just got my first real job out of college. It pays about 70k/year. Im looking at purchasing my first car to commute there (a 2018 mazda 6). Should I buy it?"
+    - Q1: "Roughly how much does the car cost?" => question seeks more information from author about car; question_asks_for_more_info=1
+    - Q2: "Who would think that 3k is enough to buy a car?" => question is challenging post author and not expecting new information; question_asks_for_more_info=0
+
+Please keep track of the total amount of time (in minutes) that you spend on annotation from start to finish.
