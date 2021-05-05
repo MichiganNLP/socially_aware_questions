@@ -16,7 +16,7 @@ import numpy as np
 from tqdm import tqdm
 tqdm.pandas()
 
-def filter_comments_by_post_overlap(comment_data, post_data):
+def filter_comments_by_post_overlap(comment_data, post_data, overlap_score_range=[0.125, 0.5]):
     # restrict to valid posts
     # tmp debugging
     # print(f'comment IDs {comment_data.loc[:, "parent_id"].unique()[:10]}')
@@ -65,7 +65,7 @@ def filter_comments_by_post_overlap(comment_data, post_data):
             lambda x: x[1][0]),
     })
     # restrict to overlap [0.05, 0.5] based on earlier tests
-    overlap_score_range = [0.05, 0.5]
+    # overlap_score_range = [0.05, 0.5]
     valid_overlap_comment_data = post_data[(post_data.loc[:,'post_question_overlap_score'] >= overlap_score_range[0]) &
                                            (post_data.loc[:, 'post_question_overlap_score'] < overlap_score_range[1])]
     # valid_comment_ids = valid_overlap_comment_data.loc[:, 'id']
@@ -80,7 +80,8 @@ def filter_comments_by_post_overlap(comment_data, post_data):
 
 def filter_comments_by_valid_question_prob(comment_data, model_file):
     valid_question_model = pickle.load(open(model_file, 'rb'))
-    vocab_file = model_file.replace('.pkl', '_vocab.txt')
+    # vocab_file = model_file.replace('.pkl', '_vocab.txt')
+    vocab_file = os.path.join(os.path.dirname(model_file), 'model_vocab.txt')
     model_vocab = list(map(lambda x: x.strip(), open(vocab_file, 'r')))
     cv = CountVectorizer(vocabulary=model_vocab)
     flat_question_dtm = cv.fit_transform(comment_data.loc[:, 'question'].values)
@@ -98,7 +99,7 @@ def main():
     parser.add_argument('--data_name', default='advice_subreddit')
     parser.add_argument('--post_data', default=None) # ../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
     parser.add_argument('--valid_question_model', default=None) # ../../data/reddit_data/valid_question_detection_model.pkl
-    parser.add_argument('--filter_overlap', dest='feature', action='store_true') # filter by post overlap
+    parser.add_argument('--filter_overlap', dest='feature', action='store_true') # filter by post overlap, information questions
     args = vars(parser.parse_args())
     data_dir = args['data_dir']
 
@@ -162,24 +163,27 @@ def main():
     # remove edited posts
     bool_matcher = re.compile('True|False')
     post_data = post_data[post_data.loc[:, 'parent_edited'].apply(lambda x: bool_matcher.match(str(x)) is not None and not literal_eval(bool_matcher.match(x).group(0)))]
-
-    ## filter for post overlap
-    # tmp debugging
-    # print(f'filter overlap {filter_overlap}')
-    if('filter_overlap' in args):
-        # post_data = load_zipped_json_data(args['post_data'])
-        # if(args.get('post_data') is not None):
-        print(f'computing post overlap')
-        comment_data = filter_comments_by_post_overlap(comment_data, post_data)
-    ## filter for valid clarification questions
-    if(args.get('valid_question_model') is not None):
-        model_file = args['valid_question_model']
-        comment_data = filter_comments_by_valid_question_prob(comment_data, model_file)
     # remove comments written by post author
     comment_post_data = pd.merge(comment_data, post_data.loc[:, ['parent_id', 'parent_author']], on='parent_id', how='inner')
     comment_post_data = comment_post_data[comment_post_data.loc[:, 'author'] != comment_post_data.loc[:, 'parent_author']]
     valid_comment_ids = comment_post_data.loc[:, 'id'].unique()
     comment_data = comment_data[comment_data.loc[:, 'id'].isin(valid_comment_ids)]
+
+    ## filter for post overlap
+    # tmp debugging
+    # print(f'filter overlap {filter_overlap}')
+    print(f'{comment_data.shape[0]} questions before filtering')
+    if('filter_overlap' in args):
+        # post_data = load_zipped_json_data(args['post_data'])
+        # if(args.get('post_data') is not None):
+        print(f'computing post overlap')
+        overlap_score_range = [0.125, 0.30]
+        comment_data = filter_comments_by_post_overlap(comment_data, post_data, overlap_score_range=overlap_score_range)
+    ## filter for valid clarification questions
+    if(args.get('valid_question_model') is not None):
+        model_file = args['valid_question_model']
+        comment_data = filter_comments_by_valid_question_prob(comment_data, model_file)
+    print(f'{comment_data.shape[0]} questions after filtering')
 
     ## write to file
     data_name = args['data_name']
