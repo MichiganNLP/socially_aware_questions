@@ -5,9 +5,11 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem-per-gpu=20g
-#SBATCH --time=26:00:00
+#SBATCH --time=32:00:00
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:1
+#SBATCH --gpus=1
+
+###SBATCH --gres=gpu:1
 
 ## data
 ## CNN data
@@ -55,21 +57,27 @@ VAL_DATA=../../data/reddit_data/combined_data_val_data.pt
 # reddit model
 #OUT_DIR=../../data/reddit_data/text_only_model/
 #MODEL_TYPE='bart'
+#MODEL_CONFIG_FILE=../../data/model_cache/BART_config.json
 # reddit author model
 # author token
 #OUT_DIR=../../data/reddit_data/author_text_data/
 #MODEL_TYPE="bart_author"
+#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
 # author embed
 # subreddit
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
 #MODEL_TYPE="bart_author_embeds"
+#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_subreddit_embed_model_config.json
 # text
-OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
-MODEL_TYPE="bart_author_embeds"
+#OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
+#MODEL_TYPE="bart_author_embeds"
+#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_text_embed_model_config.json
 # author (decoder) embed
 #OUT_DIR=../../data/reddit_data/author_text_data/author_decoder_embed_data/
 # author attention
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
+MODEL_TYPE="bart_author_attention"
+MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
 # regular transformer
 MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML
@@ -85,14 +93,11 @@ MODEL_CACHE_DIR=../../data/model_cache/
 #MODEL_TYPE="bart_author"
 # author embedding
 
-# author attention model
-#MODEL_TYPE="bart_author_attention"
 # optional: pretrained model
 #PRETRAINED_MODEL=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
-#export CUDA_VISIBLE_DEVICES=0
-#SAMPLE_PCT=1.0
+export CUDA_VISIBLE_DEVICES=0
 # regular model
-python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR
+python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE
 #PID=$!
 #MAX_MEMORY=50000000000 # 50G
 #prlimit --pid $PID --as=$MAX_MEMORY
