@@ -222,8 +222,8 @@ def main():
     tokenizer.model_max_length = max_source_len
     # data collator
     extra_data_collate_args = []
-    if(model_type in {'bart_author', 'bart_author_attention'}):
-        extra_data_collate_args.append(('reader_token', 'int'))
+    if(model_type == 'bart_author_attention'):
+        extra_data_collate_args.append(('reader_token_str', 'str'))
     elif(model_type == 'bart_author_embeds'):
         extra_data_collate_args.append(('author_embeds', 'tensor'))
     data_collator = T2TDataCollator(
