@@ -142,7 +142,7 @@ def main():
     parser.add_argument('--comment_month_year_pairs', nargs='+', default=None) # 'April_2018'
     parser.add_argument('--sample_pct', type=float, default=1.0)
     parser.add_argument('--author_data', default=None)
-    parser.add_argument('--author_data_type', default=None) # {tokens, embeds}
+    # parser.add_argument('--author_data_type', default=None) # {tokens, embeds}
     parser.add_argument('--model_type', default='bart')
     # parser.add_argument('--NE_overlap', type=bool, default=False)
     args = vars(parser.parse_args())
@@ -204,7 +204,7 @@ def main():
         #     sys.exit(0)
     train_pct = 0.8
     author_data_file = args.get('author_data')
-    author_data_type = args.get('author_data_type')
+    # author_data_type = args.get('author_data_type')
     if (author_data_file is not None):
         author_data = read_clean_author_data(author_data_file)
         # date_day_fmt = '%Y-%m-%d %H:%M:%S'

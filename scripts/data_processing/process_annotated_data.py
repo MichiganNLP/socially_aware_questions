@@ -203,6 +203,12 @@ def organize_data(annotation_dir, no_label_data):
             f'{label_col_i}_num_1': annotation_data.loc[:, label_col_i].apply(lambda x: assign_next_annotation(x)),
         })
     logging.info(f'reorganized annotations:\n{annotation_data.head()}')
+    # get total label counts
+    annotators_per_question = 2
+    for label_col_i in label_cols:
+        label_col_counts_i = [annotation_data.loc[:, f'{label_col_i}_num_{x}'] for x in range(annotators_per_question)]
+        label_col_counts_i = pd.concat(label_col_counts_i, axis=0).value_counts()
+        logging.info(f'total counts for label {label_col_i}:\n{label_col_counts_i}')
     # in case some annotators didn't finish all questions, remove unfinished rows
     num_annotators_per_question = 2
     annotation_cols = [f'{label_col}_num_{i}' for label_col in label_cols for i in range(num_annotators_per_question)]

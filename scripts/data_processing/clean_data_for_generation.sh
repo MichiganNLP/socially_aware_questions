@@ -23,7 +23,7 @@
 #OUT_DIR=../../data/CNN_articles/cnn/
 ## reddit data
 DATA_FILE=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
-COMMENT_DATA=../../data/reddit_data/advice_subreddit_comment_question_data.gz
+COMMENT_DATA=../../data/reddit_data/advice_subreddit_filter_comment_question_data.gz
 # combined data
 DATA_NAME=combined_data
 OUT_DIR=../../data/reddit_data/
@@ -33,7 +33,7 @@ OUT_DIR=../../data/reddit_data/
 # reddit + author
 AUTHOR_DATA=../../data/reddit_data/author_data/combined_author_prior_comment_data.gz # contains static and dynamic author data
 # token author representation
-AUTHOR_DATA_TYPE=tokens
+#AUTHOR_DATA_TYPE=tokens
 #OUT_DIR=../../data/reddit_data/authUr_text_data/
 # embed author representation
 #AUTHOR_DATA_TYPE=embeds
@@ -51,7 +51,7 @@ SAMPLE_PCT=0.25
 # reddit
 #python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --sample_pct $SAMPLE_PCT
 # reddit + author
-(python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --author_data_type $AUTHOR_DATA_TYPE --sample_pct $SAMPLE_PCT)&
+(python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT)&
 PID=$!
-MAX_MEMORY=60000000000 # 50G
+MAX_MEMORY=80000000000 # 80G
 prlimit --pid $PID --as=$MAX_MEMORY

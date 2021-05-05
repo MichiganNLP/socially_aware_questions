@@ -12,6 +12,7 @@ import pandas as pd
 import re
 import os
 
+import pytz
 import requests
 from rouge_score.rouge_scorer import RougeScorer
 from transformers import BartTokenizer, LongformerTokenizer
@@ -605,6 +606,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     #     logging.debug(f'train data {train_data}')
     train_data_out_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
     val_data_out_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
+    # tmp debugging
+    # print(f'writing val data to file = {val_data_out_file}')
     torch.save(train_data, train_data_out_file)
     torch.save(val_data, val_data_out_file)
     # save tokenizer?? yes because we will need to post-process other data
@@ -1060,7 +1063,11 @@ def assign_date_bin(date, date_bins):
         min_diff = min(valid_diffs)
         min_diff_idx = np.where(diffs == min_diff)[0][0]
         date_bin = date_bins[min_diff_idx]
-        date_bin = datetime.fromtimestamp(date_bin)
+        # NOTE: need extra args to keep date in UTC format
+        date_bin = datetime.fromtimestamp(date_bin, tz=pytz.utc).replace(tzinfo=None)
+        # remove UTC data?
+        # date_fmt = '%Y-%m-%d'
+        # date_bin = datetime.strptime(date_bin.strftime(date_fmt), date_fmt)
     else:
         date_bin = -1
     return date_bin

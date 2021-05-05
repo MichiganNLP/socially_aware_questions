@@ -80,7 +80,8 @@ def filter_comments_by_post_overlap(comment_data, post_data, overlap_score_range
 
 def filter_comments_by_valid_question_prob(comment_data, model_file):
     valid_question_model = pickle.load(open(model_file, 'rb'))
-    vocab_file = model_file.replace('.pkl', '_vocab.txt')
+    # vocab_file = model_file.replace('.pkl', '_vocab.txt')
+    vocab_file = os.path.join(os.path.dirname(model_file), 'model_vocab.txt')
     model_vocab = list(map(lambda x: x.strip(), open(vocab_file, 'r')))
     cv = CountVectorizer(vocabulary=model_vocab)
     flat_question_dtm = cv.fit_transform(comment_data.loc[:, 'question'].values)
