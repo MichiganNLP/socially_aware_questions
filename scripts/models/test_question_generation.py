@@ -88,7 +88,7 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
         for data_col in model_float_data_cols:
             data_dict_i[data_col] = torch.Tensor(data_i.get(data_col).unsqueeze(0).to(device))
         for data_col in model_extra_data_cols:
-            data_dict_i[data_col] = data_i.get(data_col)
+            data_dict_i[data_col] = [data_i.get(data_col)]
         # data_dict_i = {data_col: torch.LongTensor(data_i.get(data_col)).unsqueeze(0).cpu() for data_col in model_data_cols}
         # rename column to match model input FML
         for k,v in model_data_col_lookup.items():
@@ -307,7 +307,10 @@ def main():
     ## reader groups
     reader_group_score_out_file = os.path.join(out_dir, 'test_data_scores_reader_groups.tsv')
     if(not os.path.exists(reader_group_score_out_file)):
-        reader_groups = list(set(test_data['reader_token_str']))
+        if(model_type == 'bart_author_attention'):
+            reader_groups = list(set(test_data['reader_token']))
+        else:
+            reader_groups = list(set(test_data['reader_token_str']))
         reader_group_scores = []
         for reader_group_i in reader_groups:
             idx_i = np.where(np.array(test_data['reader_token_str'])==reader_group_i)[0]
