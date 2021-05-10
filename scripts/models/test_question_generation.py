@@ -300,7 +300,7 @@ def main():
         # tmp debugging
         # test_data = test_data.select(list(range(100)))
         # pred_data = pred_data[:100]
-        generation_score_data = get_generation_scores(pred_data, test_data, generation_model, word_embed_file=word_embed_file, train_data=train_data)
+        generation_score_data = get_generation_scores(pred_data, test_data, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
         ## write things to file
         generation_score_data.to_csv(generated_text_score_out_file, sep='\t', index=False)
     ## optional: same thing but for different subsets of post data
@@ -315,7 +315,7 @@ def main():
             # print(f'reader group {reader_group_i} has idx={idx_i}')
             test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
             pred_data_i = pred_data[idx_i]
-            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, word_embed_file=word_embed_file, train_data=train_data)
+            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
             generation_score_data_i.assign(**{'reader_group' : reader_group_i})
             reader_group_scores.append(generation_score_data_i)
         reader_group_scores = pd.concat(reader_group_scores, axis=0)
