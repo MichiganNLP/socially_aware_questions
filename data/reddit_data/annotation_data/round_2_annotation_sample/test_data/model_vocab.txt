@@ -12,7 +12,6 @@ do
 does
 don
 for
-from
 get
 go
 have
@@ -25,8 +24,10 @@ in
 is
 it
 just
+know
 like
 maybe
+mean
 not
 of
 on
@@ -36,12 +37,11 @@ say
 she
 so
 that
-there
 they
 think
 this
+up
 want
-was
 what
 who
 why

@@ -5,10 +5,12 @@ aggregate scores (BLEU, ROUGE).
 """
 import gzip
 import os
+import sys
 from argparse import ArgumentParser
 from rouge_score.rouge_scorer import RougeScorer
 from sklearn.metrics.pairwise import cosine_distances
 from stop_words import get_stop_words
+from torch import Tensor
 from tqdm import tqdm
 
 from model_helpers import generate_predictions, compute_text_bleu, load_vectors
@@ -61,11 +63,12 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
         generation_score_data = pd.concat([generation_score_data, redundancy_score], axis=1)
     # compute perplexity!
     log_likelihoods = []
-    model_data_cols = ['source_ids', 'attention_mask', 'target_ids']
+    model_tensor_data_cols = ['source_ids', 'attention_mask', 'target_ids']
     model_float_data_cols = []
+    model_extra_data_cols = []
     model_data_col_lookup = {'source_ids' : 'input_ids', 'target_ids' : 'labels'}
     if(model_type == 'bart_author_attention'):
-        model_data_cols.append('reader_token')
+        model_extra_data_cols.append('reader_token')
     elif(model_type == 'bart_author_embed'):
         model_float_data_cols.append('author_embed')
     # sample data to save time on perplexity
@@ -81,9 +84,11 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
         # tmp debugging
         # print(f'data after filtering target IDs: ({data_i["target_ids"]})')
         # reshape tensors for model
-        data_dict_i = {data_col : torch.LongTensor(data_i.get(data_col)).unsqueeze(0).to(device) for data_col in model_data_cols}
+        data_dict_i = {data_col : torch.LongTensor(data_i.get(data_col)).unsqueeze(0).to(device) for data_col in model_tensor_data_cols}
         for data_col in model_float_data_cols:
             data_dict_i[data_col] = torch.Tensor(data_i.get(data_col).unsqueeze(0).to(device))
+        for data_col in model_extra_data_cols:
+            data_dict_i[data_col] = data_i.get(data_col)
         # data_dict_i = {data_col: torch.LongTensor(data_i.get(data_col)).unsqueeze(0).cpu() for data_col in model_data_cols}
         # rename column to match model input FML
         for k,v in model_data_col_lookup.items():
@@ -94,7 +99,7 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
         # output_i = model(**data_dict_i)
         with torch.no_grad():
             model.eval()
-            data_dict_i = {k : v.to(device) for k,v in data_dict_i.items()}
+            data_dict_i.update({k: v.to(device) for k, v in data_dict_i.items() if type(v) is Tensor})
             # tmp debugging
             # print(f'data dict before passing to model =\n{data_dict_i}')
             # output_i = model(input_ids=data_dict_i['input_ids'], attention_mask=data_dict_i['attention_mask'], labels=data_dict_i['labels'])
@@ -267,12 +272,12 @@ def main():
         test_data.remove_column_('reader_token')
         test_data.rename_column_('reader_token_str', 'reader_token')
         model_kwargs.append('reader_token')
-	# tmp debugging
-        for data_i in test_data:
-            if(data_i['reader_token'] is None):
-                print(f'bad test data with no reader token {data_i}')
-                sys.exit(0)
-
+        # tmp debugging
+        # for data_i in test_data:
+        #     if(data_i['reader_token'] is None):
+        #         print(f'bad test data with no reader token {data_i}')
+        #         sys.exit(0)
+    
     ## generate lol
     generated_text_out_file = os.path.join(out_dir, 'test_data_output_text.gz')
     if(not os.path.exists(generated_text_out_file)):

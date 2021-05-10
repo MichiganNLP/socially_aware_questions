@@ -62,7 +62,7 @@ class T2TDataCollator():
             "decoder_input_ids": decoder_input_ids
         }
         # tmp debugging
-        #print(f'sample batch = {batch}')
+        #print(f'example batch =\n{batch}')
         for extra_arg, extra_arg_type in self.extra_args:
             if(extra_arg_type == 'tensor'):
                 params[extra_arg] = torch.stack([example[extra_arg] for example in batch])
