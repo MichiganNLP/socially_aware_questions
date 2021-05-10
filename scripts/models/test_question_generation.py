@@ -269,9 +269,12 @@ def main():
         # tmp debugging
         # print(f'data has cols {test_data.column_names}')
     elif(model_type == 'bart_author_attention'):
-        test_data.remove_column_('reader_token')
-        test_data.rename_column_('reader_token_str', 'reader_token')
         model_kwargs.append('reader_token')
+    # fix reader token => string
+    if('reader_token_str' in test_data.column_names):
+        test_data.remove_column_('reader_token')
+        # copy data => need both columns later
+        test_data.rename_column_('reader_token_str', 'reader_token')
         # tmp debugging
         # for data_i in test_data:
         #     if(data_i['reader_token'] is None):
@@ -307,13 +310,13 @@ def main():
     ## reader groups
     reader_group_score_out_file = os.path.join(out_dir, 'test_data_scores_reader_groups.tsv')
     if(not os.path.exists(reader_group_score_out_file)):
-        if(model_type == 'bart_author_attention'):
-            reader_groups = list(set(test_data['reader_token']))
-        else:
-            reader_groups = list(set(test_data['reader_token_str']))
+        # if(model_type == 'bart_author_attention'):
+        #     reader_groups = list(set(test_data['reader_token']))
+        # else:
+        reader_groups = list(set(test_data['reader_token']))
         reader_group_scores = []
         for reader_group_i in reader_groups:
-            idx_i = np.where(np.array(test_data['reader_token_str'])==reader_group_i)[0]
+            idx_i = np.where(np.array(test_data['reader_token'])==reader_group_i)[0]
             # tmp debugging
             # print(f'reader group {reader_group_i} has idx={idx_i}')
             test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
