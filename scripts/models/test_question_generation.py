@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from model_helpers import generate_predictions, compute_text_bleu, load_vectors
 import torch
-
+import sys
 from author_group_attention_model import AuthorGroupAttentionModel, AuthorGroupAttentionModelConditionalGeneration
 
 CPU_COUNT=10
@@ -267,6 +267,11 @@ def main():
         test_data.remove_column_('reader_token')
         test_data.rename_column_('reader_token_str', 'reader_token')
         model_kwargs.append('reader_token')
+	# tmp debugging
+        for data_i in test_data:
+            if(data_i['reader_token'] is None):
+                print(f'bad test data with no reader token {data_i}')
+                sys.exit(0)
 
     ## generate lol
     generated_text_out_file = os.path.join(out_dir, 'test_data_output_text.gz')
