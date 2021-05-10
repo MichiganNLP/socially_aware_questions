@@ -56,7 +56,7 @@ def load_vectors(embed_file):
     data = pd.DataFrame(data).transpose()
     return data
 
-def generate_predictions(model, data, tokenizer, device_name='cuda:0',
+def generate_predictions(model, data, tokenizer,
                          generation_method='beam_search', num_beams=4,
                          temperature=1.0, top_p=1.0, model_kwargs=[]):
     """
@@ -64,7 +64,6 @@ def generate_predictions(model, data, tokenizer, device_name='cuda:0',
 
     :param model:
     :param data:
-    :param device_name:
     :return:
     """
     max_decoding_length = 64
