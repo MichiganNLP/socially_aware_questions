@@ -101,7 +101,7 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
             model.eval()
             data_dict_i.update({k: v.to(device) for k, v in data_dict_i.items() if type(v) is Tensor})
             # tmp debugging
-            # print(f'data dict before passing to model =\n{data_dict_i}')
+            print(f'data dict before passing to model =\n{data_dict_i}')
             # output_i = model(input_ids=data_dict_i['input_ids'], attention_mask=data_dict_i['attention_mask'], labels=data_dict_i['labels'])
             output_i = model(**data_dict_i)
             data_dict_i.update({k: v.to('cpu') for k, v in data_dict_i.items() if type(v) is Tensor})
