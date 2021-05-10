@@ -307,7 +307,10 @@ def main():
     ## reader groups
     reader_group_score_out_file = os.path.join(out_dir, 'test_data_scores_reader_groups.tsv')
     if(not os.path.exists(reader_group_score_out_file)):
-        reader_groups = list(set(test_data['reader_token_str']))
+        if(model_type == 'bart_author_attention'):
+            reader_groups = list(set(test_data['reader_token']))
+        else:
+            reader_groups = list(set(test_data['reader_token_str']))
         reader_group_scores = []
         for reader_group_i in reader_groups:
             idx_i = np.where(np.array(test_data['reader_token_str'])==reader_group_i)[0]
