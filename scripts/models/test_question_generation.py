@@ -71,6 +71,9 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
         model_extra_data_cols.append('reader_token')
     elif(model_type == 'bart_author_embed'):
         model_float_data_cols.append('author_embed')
+    # optional: restrict to valid data
+    # if(model_type == 'bart_author_attention'):
+    #     test_data = test_data.filter(lambda x: 'reader_token' in x.keys())
     # sample data to save time on perplexity
     sample_size = min(sample_size, len(test_data))
     sample_test_data = test_data.select(np.random.choice(list(range(len(test_data))), sample_size, replace=False))
@@ -97,20 +100,23 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
         # tmp debugging
         # print(f'data dict {data_dict_i}')
         # output_i = model(**data_dict_i)
-        with torch.no_grad():
-            model.eval()
-            data_dict_i.update({k: v.to(device) for k, v in data_dict_i.items() if type(v) is Tensor})
-            # tmp debugging
-            print(f'data dict before passing to model =\n{data_dict_i}')
-            # output_i = model(input_ids=data_dict_i['input_ids'], attention_mask=data_dict_i['attention_mask'], labels=data_dict_i['labels'])
-            output_i = model(**data_dict_i)
-            data_dict_i.update({k: v.to('cpu') for k, v in data_dict_i.items() if type(v) is Tensor})
-            ll = output_i[0].cpu()
-            # print(f'log likelihood = {ll}')
-            log_likelihoods.append(ll)
-            # clear cache??
-            del(output_i)
-            # torch.cuda.empty_cache()
+        try:
+            with torch.no_grad():
+                model.eval()
+                data_dict_i.update({k: v.to(device) for k, v in data_dict_i.items() if type(v) is Tensor})
+                # tmp debugging
+                print(f'data dict before passing to model =\n{data_dict_i}')
+                # output_i = model(input_ids=data_dict_i['input_ids'], attention_mask=data_dict_i['attention_mask'], labels=data_dict_i['labels'])
+                output_i = model(**data_dict_i)
+                data_dict_i.update({k: v.to('cpu') for k, v in data_dict_i.items() if type(v) is Tensor})
+                ll = output_i[0].cpu()
+                # print(f'log likelihood = {ll}')
+                log_likelihoods.append(ll)
+                # clear cache??
+                del(output_i)
+                # torch.cuda.empty_cache()
+        except Exception as e:
+            print(f'could not process batch {data_dict_i} because of error {e}')
     log_likelihoods = torch.stack(log_likelihoods)
     perplexity = torch.exp(log_likelihoods).mean()
     perplexity_std = torch.exp(log_likelihoods).std()
