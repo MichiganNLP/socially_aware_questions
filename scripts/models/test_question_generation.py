@@ -324,6 +324,8 @@ def main():
         # if(model_type == 'bart_author_attention'):
         #     reader_groups = list(set(test_data['reader_token']))
         # else:
+        # tmp debugging
+        print(f'generating reader group scores for model type {model_type}')
         reader_groups = list(set(test_data['reader_token']))
         reader_group_scores = []
         for reader_group_i in reader_groups:
