@@ -179,6 +179,7 @@ class DataProcessor:
             'attention_mask': source_encoding['attention_mask'],
             'article_id' : example_batch['article_id'],
         }
+        # convert source_ids_reader_token
         for extra_source_text_var in self.extra_source_text_vars:
             source_encoding_i = self.tokenizer.batch_encode_plus(
                 example_batch[extra_source_text_var],
@@ -726,6 +727,9 @@ def add_author_tokens(author_vars, clean_data, max_source_length, tokenizer):
             # else:
             #     logging.debug(f'correct: {len(source_text_tokens_j)} tokens generated in input')
             source_text_j = tokenizer.convert_tokens_to_string(source_text_tokens_j)
+            # tmp debugging
+            if(source_text_j != data_j.loc['source_text']):
+                print(f'after adding author info to text = {source_text_j}')
             data_j.loc[author_source_text_var] = source_text_j
             author_txt_data.append(data_j)
     author_txt_data = pd.concat(author_txt_data, axis=1).transpose()

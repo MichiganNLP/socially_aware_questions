@@ -9,7 +9,6 @@
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 
-
 # test question generation
 # data params
 # no training
@@ -23,29 +22,29 @@ TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
 TEST_DATA=../../data/reddit_data/combined_data_val_data.pt
 ## models
 # text only
-#MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-198500/pytorch_model.bin
+#MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-254500/pytorch_model.bin
 #MODEL_TYPE='bart'
 #OUT_DIR=../../data/reddit_data/text_only_model/
 # reddit+author token
-#MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-215000/pytorch_model.bin
+#MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-254500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/
-#MODEL_TYPE='bart_author_embeds_token'
+#MODEL_TYPE='bart_author'
 # reddit + author embed (+ encoder)
-#MODEL_FILE=../../data/reddit_data/author_text_data/author_embed_data/question_generation_model/checkpoint-170500/pytorch_model.bin
-#OUT_DIR=../../data/reddit_data/author_text_data/author_embed_data/
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_data/question_generation_model/checkpoint-254500/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
 #MODEL_TYPE='bart_author_embeds'
 # reddit + author embed (+ decoder)
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_decoder_embed_data/question_generation_model/checkpoint-170500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_decoder_embed_data
 #MODEL_TYPE='bart_author_embeds'
 # reddit + text embed (+ encoder)
-MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_data/question_generation_model/checkpoint-214500/pytorch_model.bin
-OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
-MODEL_TYPE='bart_author_embeds'
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_data/question_generation_model/checkpoint-254500/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
+#MODEL_TYPE='bart_author_embeds'
 # reddit + author group attention
-#MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/question_generation_model/checkpoint-215000/pytorch_model.bin
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
-#MODEL_TYPE='bart_author_embeds_attention'
+MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/question_generation_model/checkpoint-254500/pytorch_model.bin
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
+MODEL_TYPE='bart_author_attention'
 # metadata to test sub-sets of data
 POST_METADATA=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
 # model params
