@@ -21,14 +21,18 @@
 TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
 TEST_DATA=../../data/reddit_data/combined_data_val_data.pt
 ## models
+# CNN text only
+#MODEL_FILE=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
+#MODEL_TYPE='bart'
+#OUT_DIR=../../data/CNN_articles/cnn/
 # text only
 #MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-254500/pytorch_model.bin
 #MODEL_TYPE='bart'
 #OUT_DIR=../../data/reddit_data/text_only_model/
 # reddit+author token
-#MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-254500/pytorch_model.bin
-#OUT_DIR=../../data/reddit_data/author_text_data/
-#MODEL_TYPE='bart_author'
+MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-254500/pytorch_model.bin
+OUT_DIR=../../data/reddit_data/author_text_data/
+MODEL_TYPE='bart_author_token'
 # reddit + author embed (+ encoder)
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_data/question_generation_model/checkpoint-254500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
