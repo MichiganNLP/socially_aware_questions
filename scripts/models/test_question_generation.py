@@ -73,6 +73,7 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
         model_float_data_cols.append('author_embed')
     # tmp debugging
     print(f'model type = {model_type}')
+    print(f'model extra data cols {model_extra_data_cols}')
     # optional: restrict to valid data
     # if(model_type == 'bart_author_attention'):
     #     test_data = test_data.filter(lambda x: 'reader_token' in x.keys())
@@ -102,7 +103,7 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
             data_dict_i[v] = data_dict_i[k]
             data_dict_i.pop(k)
         # tmp debugging
-        # print(f'data dict {data_dict_i}')
+        print(f'data dict {data_dict_i}')
         # output_i = model(**data_dict_i)
         try:
             with torch.no_grad():
