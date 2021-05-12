@@ -71,6 +71,8 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
         model_extra_data_cols.append('reader_token')
     elif(model_type == 'bart_author_embed'):
         model_float_data_cols.append('author_embed')
+    # tmp debugging
+    print(f'model type = {model_type}')
     # optional: restrict to valid data
     # if(model_type == 'bart_author_attention'):
     #     test_data = test_data.filter(lambda x: 'reader_token' in x.keys())
@@ -86,6 +88,8 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
 
         # tmp debugging
         # print(f'data after filtering target IDs: ({data_i["target_ids"]})')
+        # tmp debugging
+        print(f'raw data before converting to dict {data_i}')
         # reshape tensors for model
         data_dict_i = {data_col : torch.LongTensor(data_i.get(data_col)).unsqueeze(0).to(device) for data_col in model_tensor_data_cols}
         for data_col in model_float_data_cols:
@@ -105,7 +109,7 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
                 model.eval()
                 data_dict_i.update({k: v.to(device) for k, v in data_dict_i.items() if type(v) is Tensor})
                 # tmp debugging
-                print(f'data dict before passing to model =\n{data_dict_i}')
+                # print(f'data dict before passing to model =\n{data_dict_i}')
                 # output_i = model(input_ids=data_dict_i['input_ids'], attention_mask=data_dict_i['attention_mask'], labels=data_dict_i['labels'])
                 output_i = model(**data_dict_i)
                 data_dict_i.update({k: v.to('cpu') for k, v in data_dict_i.items() if type(v) is Tensor})
@@ -328,7 +332,7 @@ def main():
             test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
             pred_data_i = pred_data[idx_i]
             generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
-            generation_score_data_i.assign(**{'reader_group' : reader_group_i})
+            generation_score_data_i = generation_score_data_i.assign(**{'reader_group' : reader_group_i})
             reader_group_scores.append(generation_score_data_i)
         reader_group_scores = pd.concat(reader_group_scores, axis=0)
         reader_group_scores.to_csv(reader_group_score_out_file, sep='\t', index=False)
