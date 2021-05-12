@@ -357,7 +357,7 @@ def main():
             #                         post_article_ids.reshape(1, -1)))[0]
             test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
             pred_data_i = pred_data[idx_i]
-            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, word_embed_file=word_embed_file, train_data=train_data)
+            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
             generation_score_data_i = generation_score_data_i.assign(**{'community' : community_i})
             community_scores.append(generation_score_data_i)
         community_scores = pd.concat(community_scores, axis=0)
