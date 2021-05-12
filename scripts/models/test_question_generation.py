@@ -71,6 +71,8 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
         model_extra_data_cols.append('reader_token')
     elif(model_type == 'bart_author_embed'):
         model_float_data_cols.append('author_embed')
+    # tmp debugging
+    print(f'model type = {model_type}')
     # optional: restrict to valid data
     # if(model_type == 'bart_author_attention'):
     #     test_data = test_data.filter(lambda x: 'reader_token' in x.keys())
@@ -86,6 +88,8 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
 
         # tmp debugging
         # print(f'data after filtering target IDs: ({data_i["target_ids"]})')
+        # tmp debugging
+        print(f'raw data before converting to dict {data_i}')
         # reshape tensors for model
         data_dict_i = {data_col : torch.LongTensor(data_i.get(data_col)).unsqueeze(0).to(device) for data_col in model_tensor_data_cols}
         for data_col in model_float_data_cols:
@@ -105,7 +109,7 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
                 model.eval()
                 data_dict_i.update({k: v.to(device) for k, v in data_dict_i.items() if type(v) is Tensor})
                 # tmp debugging
-                print(f'data dict before passing to model =\n{data_dict_i}')
+                # print(f'data dict before passing to model =\n{data_dict_i}')
                 # output_i = model(input_ids=data_dict_i['input_ids'], attention_mask=data_dict_i['attention_mask'], labels=data_dict_i['labels'])
                 output_i = model(**data_dict_i)
                 data_dict_i.update({k: v.to('cpu') for k, v in data_dict_i.items() if type(v) is Tensor})
