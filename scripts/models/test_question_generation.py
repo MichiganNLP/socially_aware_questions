@@ -328,7 +328,7 @@ def main():
             test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
             pred_data_i = pred_data[idx_i]
             generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
-            generation_score_data_i.assign(**{'reader_group' : reader_group_i})
+            generation_score_data_i = generation_score_data_i.assign(**{'reader_group' : reader_group_i})
             reader_group_scores.append(generation_score_data_i)
         reader_group_scores = pd.concat(reader_group_scores, axis=0)
         reader_group_scores.to_csv(reader_group_score_out_file, sep='\t', index=False)
