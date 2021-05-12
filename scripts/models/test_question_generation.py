@@ -5,7 +5,6 @@ aggregate scores (BLEU, ROUGE).
 """
 import gzip
 import os
-import sys
 from argparse import ArgumentParser
 from rouge_score.rouge_scorer import RougeScorer
 from sklearn.metrics.pairwise import cosine_distances
@@ -15,8 +14,8 @@ from tqdm import tqdm
 
 from model_helpers import generate_predictions, compute_text_bleu, load_vectors
 import torch
-import sys
-from author_group_attention_model import AuthorGroupAttentionModel, AuthorGroupAttentionModelConditionalGeneration
+from author_group_attention_model import AuthorGroupAttentionModelConditionalGeneration
+from sentence_transformers import SentenceTransformer
 
 CPU_COUNT=10
 torch.set_num_threads(CPU_COUNT)
@@ -35,7 +34,7 @@ STOP_WORDS = STOP_WORDS - referent_words
 def get_generation_scores(pred_data, test_data, model, model_type='bart', word_embed_file=None, sample_size=1000, train_data=None):
     """
     Get generation scores for all predicted data, compute
-    mean and SDS
+    mean and SD
 
     :param pred_data:
     :param test_data:
@@ -72,8 +71,8 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
     elif(model_type == 'bart_author_embed'):
         model_float_data_cols.append('author_embed')
     # tmp debugging
-    print(f'model type = {model_type}')
-    print(f'model extra data cols {model_extra_data_cols}')
+    # print(f'model type = {model_type}')
+    # print(f'model extra data cols {model_extra_data_cols}')
     # optional: restrict to valid data
     # if(model_type == 'bart_author_attention'):
     #     test_data = test_data.filter(lambda x: 'reader_token' in x.keys())
@@ -90,7 +89,7 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
         # tmp debugging
         # print(f'data after filtering target IDs: ({data_i["target_ids"]})')
         # tmp debugging
-        print(f'raw data before converting to dict {data_i}')
+        # print(f'raw data before converting to dict {data_i}')
         # reshape tensors for model
         data_dict_i = {data_col : torch.LongTensor(data_i.get(data_col)).unsqueeze(0).to(device) for data_col in model_tensor_data_cols}
         for data_col in model_float_data_cols:
@@ -103,25 +102,25 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
             data_dict_i[v] = data_dict_i[k]
             data_dict_i.pop(k)
         # tmp debugging
-        print(f'data dict {data_dict_i}')
+        # print(f'data dict {data_dict_i}')
         # output_i = model(**data_dict_i)
-        try:
-            with torch.no_grad():
-                model.eval()
-                data_dict_i.update({k: v.to(device) for k, v in data_dict_i.items() if type(v) is Tensor})
-                # tmp debugging
-                # print(f'data dict before passing to model =\n{data_dict_i}')
-                # output_i = model(input_ids=data_dict_i['input_ids'], attention_mask=data_dict_i['attention_mask'], labels=data_dict_i['labels'])
-                output_i = model(**data_dict_i)
-                data_dict_i.update({k: v.to('cpu') for k, v in data_dict_i.items() if type(v) is Tensor})
-                ll = output_i[0].cpu()
-                # print(f'log likelihood = {ll}')
-                log_likelihoods.append(ll)
-                # clear cache??
-                del(output_i)
+        # try:
+        with torch.no_grad():
+            model.eval()
+            data_dict_i.update({k: v.to(device) for k, v in data_dict_i.items() if type(v) is Tensor})
+            # tmp debugging
+            # print(f'data dict before passing to model =\n{data_dict_i}')
+            # output_i = model(input_ids=data_dict_i['input_ids'], attention_mask=data_dict_i['attention_mask'], labels=data_dict_i['labels'])
+            output_i = model(**data_dict_i)
+            data_dict_i.update({k: v.to('cpu') for k, v in data_dict_i.items() if type(v) is Tensor})
+            ll = output_i[0].cpu()
+            # print(f'log likelihood = {ll}')
+            log_likelihoods.append(ll)
+            # clear cache??
+            del(output_i)
                 # torch.cuda.empty_cache()
-        except Exception as e:
-            print(f'could not process batch {data_dict_i} because of error {e}')
+        # except Exception as e:
+        #     print(f'could not process batch {data_dict_i} because of error {e}')
     log_likelihoods = torch.stack(log_likelihoods)
     perplexity = torch.exp(log_likelihoods).mean()
     perplexity_std = torch.exp(log_likelihoods).std()
@@ -135,7 +134,8 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
     text_overlap_scores = []
     bleu_weights = [1.0, 0., 0., 0.]  # 100% 1-grams, 0% 2-grams, etc.
     rouge_scorer = RougeScorer(['rougeL'], use_stemmer=True)
-    score_cols = ['BLEU-1', 'ROUGE-L']
+    sentence_embed_model = SentenceTransformer('paraphrase-distilroberta-base-v1')
+    score_cols = ['BLEU-1', 'ROUGE-L', 'sentence_dist']
     # load embeddings for word mover distance
     if(word_embed_file is not None):
         word_embeds = load_vectors(word_embed_file)
@@ -148,7 +148,9 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
         # bleu_score_i = 0.
         rouge_score_data_i = rouge_scorer.score(test_data_i, pred_data_i)
         rouge_score_i = rouge_score_data_i['rougeL'].fmeasure
-        generation_scores_i = [bleu_score_i, rouge_score_i]
+        sentence_embeds_i = sentence_embed_model([test_data_i, pred_data_i])
+        sentence_embed_dist_i = cosine_distances(sentence_embeds_i)[1][0]
+        generation_scores_i = [bleu_score_i, rouge_score_i, sentence_embed_dist_i]
         if(word_embed_file is not None):
             # tokenize/normalize data
             pred_tokens_i = list(map(lambda x: x.lower(), tokenizer.tokenize(pred_data_i)))
@@ -319,13 +321,12 @@ def main():
         generation_score_data.to_csv(generated_text_score_out_file, sep='\t', index=False)
     ## optional: same thing but for different subsets of post data
     ## reader groups
-    reader_group_score_out_file = os.path.join(out_dir, 'test_data_scores_reader_groups.tsv')
+    reader_group_score_out_file = os.path.join(out_dir, 'test_data_output_scores_reader_groups.tsv')
     if(not os.path.exists(reader_group_score_out_file)):
         # if(model_type == 'bart_author_attention'):
         #     reader_groups = list(set(test_data['reader_token']))
         # else:
         # tmp debugging
-        print(f'generating reader group scores for model type {model_type}')
         reader_groups = list(set(test_data['reader_token']))
         reader_group_scores = []
         for reader_group_i in reader_groups:
@@ -357,7 +358,7 @@ def main():
             #                         post_article_ids.reshape(1, -1)))[0]
             test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
             pred_data_i = pred_data[idx_i]
-            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, word_embed_file=word_embed_file, train_data=train_data)
+            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
             generation_score_data_i = generation_score_data_i.assign(**{'community' : community_i})
             community_scores.append(generation_score_data_i)
         community_scores = pd.concat(community_scores, axis=0)
