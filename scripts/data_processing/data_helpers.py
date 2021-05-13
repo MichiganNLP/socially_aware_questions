@@ -1060,7 +1060,7 @@ def flatten_columns(df, flat_col):
     return flat_data
 
 
-def assign_date_bin(date, date_bins):
+def assign_date_bin(date, date_bins, convert_timezone=True):
     diffs = date - date_bins
     valid_diffs = diffs[diffs > 0]
     if (len(valid_diffs) > 0):
@@ -1068,10 +1068,31 @@ def assign_date_bin(date, date_bins):
         min_diff_idx = np.where(diffs == min_diff)[0][0]
         date_bin = date_bins[min_diff_idx]
         # NOTE: need extra args to keep date in UTC format
-        date_bin = datetime.fromtimestamp(date_bin, tz=pytz.utc).replace(tzinfo=None)
+        if(convert_timezone):
+            date_bin = datetime.fromtimestamp(date_bin, tz=pytz.utc).replace(tzinfo=None)
+        else:
+            date_bin = datetime.fromtimestamp(date_bin)
         # remove UTC data?
         # date_fmt = '%Y-%m-%d'
         # date_bin = datetime.strptime(date_bin.strftime(date_fmt), date_fmt)
     else:
         date_bin = -1
     return date_bin
+
+ENCODING_PAIRS = [
+    ('‚Äú', '“'),
+    ('‚Äù', '”'),
+    ('‚Äò', '‘'),
+    ('‚Äô', '’'),
+    ('‚Äî', '—'),
+]
+def replace_str(text, replacement_pairs):
+    for sub_i, replace_i in replacement_pairs:
+        text = re.sub(sub_i, replace_i, text)
+    return text
+def fix_encoding_errors(data, text_vars=[]):
+    data = data.assign(**{
+        text_var : data.loc[:, text_var].apply(lambda x: replace_str(x, ENCODING_PAIRS))
+        for text_var in text_vars
+    })
+    return data
