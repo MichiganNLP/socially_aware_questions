@@ -980,6 +980,21 @@ def load_zipped_json_data(data_file):
     data = pd.DataFrame(data)
     return data
 
+## load author data
+def load_all_author_data(data_dir, usecols=None):
+    author_file_matcher = re.compile('.+_comments.gz')
+    author_files = list(filter(lambda x: author_file_matcher.match(x) is not None, os.listdir(data_dir)))
+    author_files = list(map(lambda x: os.path.join(data_dir, x), author_files))
+    author_data = []
+    for author_file_i in tqdm(author_files):
+        try:
+            data_i = pd.read_csv(author_file_i, sep='\t', compression='gzip', index_col=False, usecols=usecols)
+            author_data.append(data_i)
+        except Exception as e:
+            print(f'skipping file {author_file_i} because error {e}')
+    author_data = pd.concat(author_data, axis=0)
+    return author_data
+
 ## text overlap
 def tokenize_stem_text(text, stemmer, word_tokenizer, sent_tokenizer):
     text_sents = sent_tokenizer.tokenize(text)
@@ -1068,7 +1083,6 @@ def assign_date_bin(date, date_bins, convert_timezone=True):
         min_diff_idx = np.where(diffs == min_diff)[0][0]
         date_bin = date_bins[min_diff_idx]
         # NOTE: need extra args to keep date in UTC format
-        date_bin = datetime.fromtimestamp(date_bin, tz=pytz.utc).replace(tzinfo=None)
         if(convert_timezone):
             date_bin = datetime.fromtimestamp(date_bin, tz=pytz.utc).replace(tzinfo=None)
         else:
@@ -1079,21 +1093,3 @@ def assign_date_bin(date, date_bins, convert_timezone=True):
     else:
         date_bin = -1
     return date_bin
-
-ENCODING_PAIRS = [
-    ('‚Äú', '“'),
-    ('‚Äù', '”'),
-    ('‚Äò', '‘'),
-    ('‚Äô', '’'),
-    ('‚Äî', '—'),
-]
-def replace_str(text, replacement_pairs):
-    for sub_i, replace_i in replacement_pairs:
-        text = re.sub(sub_i, replace_i, text)
-    return text
-def fix_encoding_errors(data, text_vars=[]):
-    data = data.assign(**{
-        text_var : data.loc[:, text_var].apply(lambda x: replace_str(x, ENCODING_PAIRS))
-        for text_var in text_vars
-    })
-    return data
