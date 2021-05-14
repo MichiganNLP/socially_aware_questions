@@ -82,6 +82,7 @@ def main():
     parser.add_argument('out_dir') # ../../data/CNN_articles/cnn/
     parser.add_argument('--model_type', default='bart')
     parser.add_argument('--model_cache_dir', default=None)
+    parser.add_argument('--model_config_file', default='../../data/model_cache/BART_config.json')
     # parser.add_argument('--author_data', default=None) # ../../data/nyt_comments/author_comment_social_data.tsv
     # parser.add_argument('--sample_pct', type=float, default=1.0)
     parser.add_argument('--pretrained_model', default=None)
@@ -93,6 +94,7 @@ def main():
     # author_data = args['author_data']
     model_cache_dir = args['model_cache_dir']
     pretrained_model = args['pretrained_model']
+    model_config_file = args['model_config_file']
     if(not os.path.exists(out_dir)):
         os.mkdir(out_dir)
 
@@ -157,18 +159,19 @@ def main():
         'bart_copy' : 'facebook/bart-base',
     }
     # print(f'model type = {model_type}')
+    ## NOTE: you have to copy/modify all the config files before running
     if (model_type == 'bart_author_embeds'):
         ## custom loading
-        config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json') # copy of config file with author args
-        config = BartConfig.from_json_file(config_file)
+        # config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json') # copy of config file with author args
+        config = BartConfig.from_json_file(model_config_file)
         model = AuthorTextGenerationModel(config)
         # choose appropriate embeds in data
         # print(f'author embed type = {config.__dict__["author_embed_type"]}')
         train_dataset.rename_column_(config.__dict__['author_embed_type'], 'author_embeds')
         val_dataset.rename_column_(config.__dict__['author_embed_type'], 'author_embeds')
     elif(model_type == 'bart_author_attention'):
-        config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
-        config = BartConfig.from_json_file(config_file)
+        # config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
+        config = BartConfig.from_json_file(model_config_file)
         reader_group_types = config.__dict__['reader_group_types']
         model = AuthorGroupAttentionModelConditionalGeneration(config, reader_group_types=reader_group_types)
         # fix reader token type
@@ -219,8 +222,8 @@ def main():
     tokenizer.model_max_length = max_source_len
     # data collator
     extra_data_collate_args = []
-    if(model_type in {'bart_author', 'bart_author_attention'}):
-        extra_data_collate_args.append(('reader_token', 'int'))
+    if(model_type == 'bart_author_attention'):
+        extra_data_collate_args.append(('reader_token', 'str'))
     elif(model_type == 'bart_author_embeds'):
         extra_data_collate_args.append(('author_embeds', 'tensor'))
     data_collator = T2TDataCollator(

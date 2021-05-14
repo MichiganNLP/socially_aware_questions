@@ -9,12 +9,13 @@ from argparse import ArgumentParser
 from rouge_score.rouge_scorer import RougeScorer
 from sklearn.metrics.pairwise import cosine_distances
 from stop_words import get_stop_words
+from torch import Tensor
 from tqdm import tqdm
 
 from model_helpers import generate_predictions, compute_text_bleu, load_vectors
 import torch
-
-from author_group_attention_model import AuthorGroupAttentionModel, AuthorGroupAttentionModelConditionalGeneration
+from author_group_attention_model import AuthorGroupAttentionModelConditionalGeneration
+from sentence_transformers import SentenceTransformer
 
 CPU_COUNT=10
 torch.set_num_threads(CPU_COUNT)
@@ -33,7 +34,7 @@ STOP_WORDS = STOP_WORDS - referent_words
 def get_generation_scores(pred_data, test_data, model, model_type='bart', word_embed_file=None, sample_size=1000, train_data=None):
     """
     Get generation scores for all predicted data, compute
-    mean and SDS
+    mean and SD
 
     :param pred_data:
     :param test_data:
@@ -61,13 +62,20 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
         generation_score_data = pd.concat([generation_score_data, redundancy_score], axis=1)
     # compute perplexity!
     log_likelihoods = []
-    model_data_cols = ['source_ids', 'attention_mask', 'target_ids']
+    model_tensor_data_cols = ['source_ids', 'attention_mask', 'target_ids']
     model_float_data_cols = []
+    model_extra_data_cols = []
     model_data_col_lookup = {'source_ids' : 'input_ids', 'target_ids' : 'labels'}
     if(model_type == 'bart_author_attention'):
-        model_data_cols.append('reader_token')
+        model_extra_data_cols.append('reader_token')
     elif(model_type == 'bart_author_embed'):
         model_float_data_cols.append('author_embed')
+    # tmp debugging
+    # print(f'model type = {model_type}')
+    # print(f'model extra data cols {model_extra_data_cols}')
+    # optional: restrict to valid data
+    # if(model_type == 'bart_author_attention'):
+    #     test_data = test_data.filter(lambda x: 'reader_token' in x.keys())
     # sample data to save time on perplexity
     sample_size = min(sample_size, len(test_data))
     sample_test_data = test_data.select(np.random.choice(list(range(len(test_data))), sample_size, replace=False))
@@ -80,10 +88,14 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
 
         # tmp debugging
         # print(f'data after filtering target IDs: ({data_i["target_ids"]})')
+        # tmp debugging
+        # print(f'raw data before converting to dict {data_i}')
         # reshape tensors for model
-        data_dict_i = {data_col : torch.LongTensor(data_i.get(data_col)).unsqueeze(0).to(device) for data_col in model_data_cols}
+        data_dict_i = {data_col : torch.LongTensor(data_i.get(data_col)).unsqueeze(0).to(device) for data_col in model_tensor_data_cols}
         for data_col in model_float_data_cols:
             data_dict_i[data_col] = torch.Tensor(data_i.get(data_col).unsqueeze(0).to(device))
+        for data_col in model_extra_data_cols:
+            data_dict_i[data_col] = [data_i.get(data_col)] 
         # data_dict_i = {data_col: torch.LongTensor(data_i.get(data_col)).unsqueeze(0).cpu() for data_col in model_data_cols}
         # rename column to match model input FML
         for k,v in model_data_col_lookup.items():
@@ -92,20 +104,23 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
         # tmp debugging
         # print(f'data dict {data_dict_i}')
         # output_i = model(**data_dict_i)
+        # try:
         with torch.no_grad():
             model.eval()
-            data_dict_i = {k : v.to(device) for k,v in data_dict_i.items()}
+            data_dict_i.update({k: v.to(device) for k, v in data_dict_i.items() if type(v) is Tensor})
             # tmp debugging
-            print(f'data dict before passing to model =\n{data_dict_i}')
+            # print(f'data dict before passing to model =\n{data_dict_i}')
             # output_i = model(input_ids=data_dict_i['input_ids'], attention_mask=data_dict_i['attention_mask'], labels=data_dict_i['labels'])
             output_i = model(**data_dict_i)
-            data_dict_i = {k: v.to('cpu') for k, v in data_dict_i.items()}
+            data_dict_i.update({k: v.to('cpu') for k, v in data_dict_i.items() if type(v) is Tensor})
             ll = output_i[0].cpu()
             # print(f'log likelihood = {ll}')
             log_likelihoods.append(ll)
             # clear cache??
             del(output_i)
-            # torch.cuda.empty_cache()
+                # torch.cuda.empty_cache()
+        # except Exception as e:
+        #     print(f'could not process batch {data_dict_i} because of error {e}')
     log_likelihoods = torch.stack(log_likelihoods)
     perplexity = torch.exp(log_likelihoods).mean()
     perplexity_std = torch.exp(log_likelihoods).std()
@@ -119,7 +134,8 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
     text_overlap_scores = []
     bleu_weights = [1.0, 0., 0., 0.]  # 100% 1-grams, 0% 2-grams, etc.
     rouge_scorer = RougeScorer(['rougeL'], use_stemmer=True)
-    score_cols = ['BLEU-1', 'ROUGE-L']
+    sentence_embed_model = SentenceTransformer('paraphrase-distilroberta-base-v1')
+    score_cols = ['BLEU-1', 'ROUGE-L', 'sentence_dist']
     # load embeddings for word mover distance
     if(word_embed_file is not None):
         word_embeds = load_vectors(word_embed_file)
@@ -132,7 +148,9 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
         # bleu_score_i = 0.
         rouge_score_data_i = rouge_scorer.score(test_data_i, pred_data_i)
         rouge_score_i = rouge_score_data_i['rougeL'].fmeasure
-        generation_scores_i = [bleu_score_i, rouge_score_i]
+        sentence_embeds_i = sentence_embed_model.encode([test_data_i, pred_data_i])
+        sentence_embed_dist_i = cosine_distances(sentence_embeds_i)[1][0]
+        generation_scores_i = [bleu_score_i, rouge_score_i, sentence_embed_dist_i]
         if(word_embed_file is not None):
             # tokenize/normalize data
             pred_tokens_i = list(map(lambda x: x.lower(), tokenizer.tokenize(pred_data_i)))
@@ -151,6 +169,7 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
     # print(f'generation score sample {generation_scores[:10]}')
     generation_score_data = pd.DataFrame(text_overlap_scores, columns=score_cols)
     return generation_score_data
+
 
 def compute_word_mover_dist(tokens_1, tokens_2, word_embeds):
     embed_1 = word_embeds.loc[tokens_1, :]
@@ -205,7 +224,10 @@ def load_model(model_cache_dir, model_file, model_type, data_dir):
                                                                  cache_dir=model_cache_dir)
     generation_model.resize_token_embeddings(len(model_tokenizer))
     if (model_file is not None):
-        model_weights = torch.load(model_file)
+        if(torch.cuda.is_available()):
+            model_weights = torch.load(model_file)
+        else:
+            model_weights = torch.load(model_file, map_location=torch.device('cpu'))
         # optional: reset vocab size
         if(model_weights['lm_head.weight'].shape[0] != generation_model.config.vocab_size):
             generation_model.resize_token_embeddings(model_weights['lm_head.weight'].shape[0])
@@ -261,10 +283,18 @@ def main():
         # tmp debugging
         # print(f'data has cols {test_data.column_names}')
     elif(model_type == 'bart_author_attention'):
-        test_data.remove_column_('reader_token')
-        test_data.rename_column_('reader_token_str', 'reader_token')
         model_kwargs.append('reader_token')
-
+    # fix reader token => string
+    if('reader_token_str' in test_data.column_names):
+        test_data.remove_column_('reader_token')
+        # copy data => need both columns later
+        test_data.rename_column_('reader_token_str', 'reader_token')
+        # tmp debugging
+        # for data_i in test_data:
+        #     if(data_i['reader_token'] is None):
+        #         print(f'bad test data with no reader token {data_i}')
+        #         sys.exit(0)
+    
     ## generate lol
     generated_text_out_file = os.path.join(out_dir, 'test_data_output_text.gz')
     if(not os.path.exists(generated_text_out_file)):
@@ -287,23 +317,27 @@ def main():
         # tmp debugging
         # test_data = test_data.select(list(range(100)))
         # pred_data = pred_data[:100]
-        generation_score_data = get_generation_scores(pred_data, test_data, generation_model, word_embed_file=word_embed_file, train_data=train_data)
+        generation_score_data = get_generation_scores(pred_data, test_data, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
         ## write things to file
         generation_score_data.to_csv(generated_text_score_out_file, sep='\t', index=False)
     ## optional: same thing but for different subsets of post data
     ## reader groups
-    reader_group_score_out_file = os.path.join(out_dir, 'test_data_scores_reader_groups.tsv')
+    reader_group_score_out_file = os.path.join(out_dir, 'test_data_output_scores_reader_groups.tsv')
     if(not os.path.exists(reader_group_score_out_file)):
-        reader_groups = list(set(test_data['reader_token_str']))
+        # if(model_type == 'bart_author_attention'):
+        #     reader_groups = list(set(test_data['reader_token']))
+        # else:
+        # tmp debugging
+        reader_groups = list(set(test_data['reader_token']))
         reader_group_scores = []
         for reader_group_i in reader_groups:
-            idx_i = np.where(np.array(test_data['reader_token_str'])==reader_group_i)[0]
+            idx_i = np.where(np.array(test_data['reader_token'])==reader_group_i)[0]
             # tmp debugging
             # print(f'reader group {reader_group_i} has idx={idx_i}')
             test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
             pred_data_i = pred_data[idx_i]
-            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, word_embed_file=word_embed_file, train_data=train_data)
-            generation_score_data_i.assign(**{'reader_group' : reader_group_i})
+            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
+            generation_score_data_i = generation_score_data_i.assign(**{'reader_group' : reader_group_i})
             reader_group_scores.append(generation_score_data_i)
         reader_group_scores = pd.concat(reader_group_scores, axis=0)
         reader_group_scores.to_csv(reader_group_score_out_file, sep='\t', index=False)
@@ -325,7 +359,7 @@ def main():
             #                         post_article_ids.reshape(1, -1)))[0]
             test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
             pred_data_i = pred_data[idx_i]
-            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, word_embed_file=word_embed_file, train_data=train_data)
+            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
             generation_score_data_i = generation_score_data_i.assign(**{'community' : community_i})
             community_scores.append(generation_score_data_i)
         community_scores = pd.concat(community_scores, axis=0)

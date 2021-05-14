@@ -179,6 +179,7 @@ class DataProcessor:
             'attention_mask': source_encoding['attention_mask'],
             'article_id' : example_batch['article_id'],
         }
+        # convert source_ids_reader_token
         for extra_source_text_var in self.extra_source_text_vars:
             source_encoding_i = self.tokenizer.batch_encode_plus(
                 example_batch[extra_source_text_var],
@@ -726,6 +727,9 @@ def add_author_tokens(author_vars, clean_data, max_source_length, tokenizer):
             # else:
             #     logging.debug(f'correct: {len(source_text_tokens_j)} tokens generated in input')
             source_text_j = tokenizer.convert_tokens_to_string(source_text_tokens_j)
+            # tmp debugging
+            if(source_text_j != data_j.loc['source_text']):
+                print(f'after adding author info to text = {source_text_j}')
             data_j.loc[author_source_text_var] = source_text_j
             author_txt_data.append(data_j)
     author_txt_data = pd.concat(author_txt_data, axis=1).transpose()
@@ -1056,7 +1060,7 @@ def flatten_columns(df, flat_col):
     return flat_data
 
 
-def assign_date_bin(date, date_bins):
+def assign_date_bin(date, date_bins, convert_timezone=True):
     diffs = date - date_bins
     valid_diffs = diffs[diffs > 0]
     if (len(valid_diffs) > 0):
@@ -1065,9 +1069,31 @@ def assign_date_bin(date, date_bins):
         date_bin = date_bins[min_diff_idx]
         # NOTE: need extra args to keep date in UTC format
         date_bin = datetime.fromtimestamp(date_bin, tz=pytz.utc).replace(tzinfo=None)
+        if(convert_timezone):
+            date_bin = datetime.fromtimestamp(date_bin, tz=pytz.utc).replace(tzinfo=None)
+        else:
+            date_bin = datetime.fromtimestamp(date_bin)
         # remove UTC data?
         # date_fmt = '%Y-%m-%d'
         # date_bin = datetime.strptime(date_bin.strftime(date_fmt), date_fmt)
     else:
         date_bin = -1
     return date_bin
+
+ENCODING_PAIRS = [
+    ('‚Äú', '“'),
+    ('‚Äù', '”'),
+    ('‚Äò', '‘'),
+    ('‚Äô', '’'),
+    ('‚Äî', '—'),
+]
+def replace_str(text, replacement_pairs):
+    for sub_i, replace_i in replacement_pairs:
+        text = re.sub(sub_i, replace_i, text)
+    return text
+def fix_encoding_errors(data, text_vars=[]):
+    data = data.assign(**{
+        text_var : data.loc[:, text_var].apply(lambda x: replace_str(x, ENCODING_PAIRS))
+        for text_var in text_vars
+    })
+    return data

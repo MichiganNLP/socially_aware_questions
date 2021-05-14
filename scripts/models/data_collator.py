@@ -61,6 +61,8 @@ class T2TDataCollator():
             "labels": lm_labels,
             "decoder_input_ids": decoder_input_ids
         }
+        # tmp debugging
+        #print(f'example batch =\n{batch}')
         for extra_arg, extra_arg_type in self.extra_args:
             if(extra_arg_type == 'tensor'):
                 params[extra_arg] = torch.stack([example[extra_arg] for example in batch])
@@ -69,7 +71,10 @@ class T2TDataCollator():
             # convert numeric vals to tensors
             elif(extra_arg_type=='int'):
                 params[extra_arg] = torch.LongTensor([example[extra_arg] for example in batch])
-        
+            # default: convert to list
+            else:
+                params[extra_arg] = [example[extra_arg] for example in batch]
+
         return params
     
     def _shift_right_t5(self, input_ids):
