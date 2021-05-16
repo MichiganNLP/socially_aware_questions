@@ -9,7 +9,9 @@ VALID_QUESTION_MODEL=../../data/reddit_data/annotation_data/round_2_annotation_s
 #FILTER_OVERLAP=1
 #DATA_NAME=advice_subreddit
 MAX_MEMORY=55000000000 # 55G
-#(python combine_clean_question_comment_data.py $DATA_DIR --data_name $DATA_NAME --post_data $POST_DATA) &
-(python combine_clean_question_comment_data.py $DATA_DIR --data_name $DATA_NAME --post_data $POST_DATA --filter_overlap --valid_question_model $VALID_QUESTION_MODEL)&
+# no overlap filter
+(python combine_clean_question_comment_data.py $DATA_DIR --data_name $DATA_NAME --post_data $POST_DATA --valid_question_model $VALID_QUESTION_MODEL)&
+# overlap filter (not really necessary, very few "irrelevant" questions)
+#(python combine_clean_question_comment_data.py $DATA_DIR --data_name $DATA_NAME --post_data $POST_DATA --filter_overlap --valid_question_model $VALID_QUESTION_MODEL)&
 PID=$!
 prlimit --pid $PID --as=$MAX_MEMORY

@@ -980,6 +980,21 @@ def load_zipped_json_data(data_file):
     data = pd.DataFrame(data)
     return data
 
+## load author data
+def load_all_author_data(data_dir, usecols=None):
+    author_file_matcher = re.compile('.+_comments.gz')
+    author_files = list(filter(lambda x: author_file_matcher.match(x) is not None, os.listdir(data_dir)))
+    author_files = list(map(lambda x: os.path.join(data_dir, x), author_files))
+    author_data = []
+    for author_file_i in tqdm(author_files):
+        try:
+            data_i = pd.read_csv(author_file_i, sep='\t', compression='gzip', index_col=False, usecols=usecols)
+            author_data.append(data_i)
+        except Exception as e:
+            print(f'skipping file {author_file_i} because error {e}')
+    author_data = pd.concat(author_data, axis=0)
+    return author_data
+
 ## text overlap
 def tokenize_stem_text(text, stemmer, word_tokenizer, sent_tokenizer):
     text_sents = sent_tokenizer.tokenize(text)
@@ -1060,7 +1075,7 @@ def flatten_columns(df, flat_col):
     return flat_data
 
 
-def assign_date_bin(date, date_bins):
+def assign_date_bin(date, date_bins, convert_timezone=True):
     diffs = date - date_bins
     valid_diffs = diffs[diffs > 0]
     if (len(valid_diffs) > 0):
@@ -1068,7 +1083,10 @@ def assign_date_bin(date, date_bins):
         min_diff_idx = np.where(diffs == min_diff)[0][0]
         date_bin = date_bins[min_diff_idx]
         # NOTE: need extra args to keep date in UTC format
-        date_bin = datetime.fromtimestamp(date_bin, tz=pytz.utc).replace(tzinfo=None)
+        if(convert_timezone):
+            date_bin = datetime.fromtimestamp(date_bin, tz=pytz.utc).replace(tzinfo=None)
+        else:
+            date_bin = datetime.fromtimestamp(date_bin)
         # remove UTC data?
         # date_fmt = '%Y-%m-%d'
         # date_bin = datetime.strptime(date_bin.strftime(date_fmt), date_fmt)

@@ -170,6 +170,7 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
     generation_score_data = pd.DataFrame(text_overlap_scores, columns=score_cols)
     return generation_score_data
 
+
 def compute_word_mover_dist(tokens_1, tokens_2, word_embeds):
     embed_1 = word_embeds.loc[tokens_1, :]
     embed_2 = word_embeds.loc[tokens_2, :]
