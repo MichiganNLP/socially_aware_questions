@@ -87,6 +87,17 @@ def load_name_gender_data(name_data_dir):
         **{'name': name_gender_label_data.loc[:, 'name'].apply(lambda x: x.lower())})
     return name_gender_label_data
 
+CAMEL_CASE_MATCHER = re.compile('([a-z])(?=[A-Z])')
+def split_name_string(name):
+    split_name = name
+    # add spaces from the end of word
+    for match in reversed(list(CAMEL_CASE_MATCHER.finditer(name))):
+        span_start, span_end = match.span()
+        split_name = split_name[:span_start+1] + ' ' + split_name[span_end:]
+    # also fix underscores
+    split_name = split_name.replace('_', ' ')
+    return split_name
+
 def extract_name(text, camel_matcher):
     """
     Extract name from raw text. Assume either "first_name last_name" or "FirstnameLastname".
