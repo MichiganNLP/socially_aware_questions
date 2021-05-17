@@ -148,7 +148,7 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
         # bleu_score_i = 0.
         rouge_score_data_i = rouge_scorer.score(test_data_i, pred_data_i)
         rouge_score_i = rouge_score_data_i['rougeL'].fmeasure
-        sentence_embeds_i = sentence_embed_model([test_data_i, pred_data_i])
+        sentence_embeds_i = sentence_embed_model.encode([test_data_i, pred_data_i])
         sentence_embed_dist_i = cosine_distances(sentence_embeds_i)[1][0]
         generation_scores_i = [bleu_score_i, rouge_score_i, sentence_embed_dist_i]
         if(word_embed_file is not None):
@@ -169,6 +169,7 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
     # print(f'generation score sample {generation_scores[:10]}')
     generation_score_data = pd.DataFrame(text_overlap_scores, columns=score_cols)
     return generation_score_data
+
 
 def compute_word_mover_dist(tokens_1, tokens_2, word_embeds):
     embed_1 = word_embeds.loc[tokens_1, :]
