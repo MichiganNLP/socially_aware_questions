@@ -183,6 +183,7 @@ def main():
         train_dataset.rename_column_('reader_token_str', 'reader_token')
     else:
         model_path = model_type_path_lookup[model_type]
+        # automatically downloads if model not available
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_path,
             cache_dir=model_cache_dir,

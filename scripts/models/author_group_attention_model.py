@@ -161,7 +161,6 @@ class AuthorGroupAttentionEncoder(BartEncoder):
         self.embed_positions = BartLearnedPositionalEmbedding(
             config.max_position_embeddings,
             embed_dim,
-            self.padding_idx,
         )
         encoder_list = [AuthorGroupAttentionEncoderLayer(config, reader_group_types=reader_group_types)]
         # tmp debug
