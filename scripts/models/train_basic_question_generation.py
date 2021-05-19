@@ -5,6 +5,8 @@ pre-trained language models (e.g. BART).
 # import sys
 # if ('question_generation' not in sys.path):
 #     sys.path.append('question_generation')
+from torch.nn.parallel import distributed, DistributedDataParallel
+
 from data_collator import T2TDataCollator
 from transformers import AutoModelForSeq2SeqLM, BartConfig
 from author_aware_model import AuthorTextGenerationModel
@@ -83,9 +85,8 @@ def main():
     parser.add_argument('--model_type', default='bart')
     parser.add_argument('--model_cache_dir', default=None)
     parser.add_argument('--model_config_file', default='../../data/model_cache/BART_config.json')
-    # parser.add_argument('--author_data', default=None) # ../../data/nyt_comments/author_comment_social_data.tsv
-    # parser.add_argument('--sample_pct', type=float, default=1.0)
     parser.add_argument('--pretrained_model', default=None)
+    parser.add_argument('--n_gpu', type=int, default=1)
     args = vars(parser.parse_args())
     train_data_file = args['train_data']
     val_data_file = args['val_data']
@@ -95,6 +96,7 @@ def main():
     model_cache_dir = args['model_cache_dir']
     pretrained_model = args['pretrained_model']
     model_config_file = args['model_config_file']
+    n_gpu = args['n_gpu']
     if(not os.path.exists(out_dir)):
         os.mkdir(out_dir)
 
@@ -189,6 +191,10 @@ def main():
     model.resize_token_embeddings(len(tokenizer))
     # send to same device
     model.to(torch.cuda.current_device())
+    if(n_gpu > 1):
+        device_ids = list(range(n_gpu))
+        distributed.init_process_group('train_model', device_ids=device_ids, world_size=n_gpu)
+        model = DistributedDataParallel(model)
 
     ## fix data tensor format
     tensor_cols = ['source_ids', 'target_ids', 'attention_mask']

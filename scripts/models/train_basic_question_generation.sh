@@ -82,22 +82,14 @@ MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
 MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML
 #MODEL_CACHE_DIR=../../data/longformer_cache/
-#DEVICE='cpu' # debug with small data ;_;
-## model type
-# regular model
-#MODEL_TYPE="bart"
-# long input model
-#MODEL_TYPE='longformer'
-# NOTE: if using author model, change settings in data/model_cache/BART_author_model_config.json
-# author model w/ tokens
-#MODEL_TYPE="bart_author"
-# author embedding
-
 # optional: pretrained model
 #PRETRAINED_MODEL=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
+# optional: multiple GPUs
+N_GPU=1
+# use device for single-GPU processes
 export CUDA_VISIBLE_DEVICES=0
 # regular model
-python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE
+python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU
 #PID=$!
 #MAX_MEMORY=50000000000 # 50G
 #prlimit --pid $PID --as=$MAX_MEMORY
