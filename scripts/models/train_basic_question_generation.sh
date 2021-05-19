@@ -55,9 +55,9 @@ VAL_DATA=../../data/reddit_data/combined_data_val_data.pt
 #OUT_DIR=../../data/nyt_comments/debug_model/
 ## NOTE: for author models modify data/model_cache/BART_author_model_config.json before starting
 # reddit model
-OUT_DIR=../../data/reddit_data/text_only_model/
-MODEL_TYPE='bart'
-MODEL_CONFIG_FILE=../../data/model_cache/BART_config.json
+#OUT_DIR=../../data/reddit_data/text_only_model/
+#MODEL_TYPE='bart'
+#MODEL_CONFIG_FILE=../../data/model_cache/BART_config.json
 # reddit author model
 # author token
 #OUT_DIR=../../data/reddit_data/author_text_data/
@@ -75,9 +75,9 @@ MODEL_CONFIG_FILE=../../data/model_cache/BART_config.json
 # author (decoder) embed
 #OUT_DIR=../../data/reddit_data/author_text_data/author_decoder_embed_data/
 # author attention
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
-#MODEL_TYPE="bart_author_attention"
-#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
+MODEL_TYPE="bart_author_attention"
+MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
 # regular transformer
 MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML
@@ -85,7 +85,8 @@ MODEL_CACHE_DIR=../../data/model_cache/
 # optional: pretrained model
 #PRETRAINED_MODEL=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
 # optional: multiple GPUs
-N_GPU=2
+N_GPU=1
+#N_GPU=2
 # use device for single-GPU processes
 export CUDA_VISIBLE_DEVICES=0
 # regular model
