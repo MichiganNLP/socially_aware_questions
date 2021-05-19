@@ -14,7 +14,7 @@
 	    - Q1: "Where are you moving from?" => question will encourage author to provide more context that could help decide whether to recommend one location over another
 	    - Q2: "Are you seriously considering South Dakota?" => question is rhetorical and less likely to yield new information from author; text_that_is_more_likely_helpful=1
 
-2. Read each post ("post") and the questions that were written in response to the posts ("question_1" and "question_2") in reader_group_ground_truth_data.tsv. Then, select the question that you believe was written by someone from a specific reader group (e.g. which question was more likely written by an expert reader?). 
+2. Read each post ("post") and the questions that were written in response to the posts ("question_1" and "question_2") in reader_group_ground_truth_data.tsv. Each of the questions was written by an author from a different reader group: e.g. "question_1" was written by a "non-expert" reader while "question_2" was written by an "expert" reader. You should select the reader group that you believe matches the author of "question_1", e.g. if you believe that "question_1" was written by an expert, write "expert" in the blank.
 - Expert vs. non-expert
 	- Example post: "I currently have about 3k in the bank and just got my first real job out of college, in NY state. It pays about 70k/year. Im looking at purchasing my first car to commute there (a 2018 mazda 6). Should I buy it?"
 	    - Q1: "What is the car's average mileage?" => question asks about specific detail of car, which requires background knowledge about how cars work

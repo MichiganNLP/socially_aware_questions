@@ -5,7 +5,8 @@ pre-trained language models (e.g. BART).
 # import sys
 # if ('question_generation' not in sys.path):
 #     sys.path.append('question_generation')
-from torch.nn.parallel import distributed, DistributedDataParallel
+from torch import distributed
+from torch.nn.parallel import DistributedDataParallel
 
 from data_collator import T2TDataCollator
 from transformers import AutoModelForSeq2SeqLM, BartConfig
