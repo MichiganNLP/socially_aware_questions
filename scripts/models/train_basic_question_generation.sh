@@ -7,7 +7,7 @@
 #SBATCH --mem-per-gpu=20g
 #SBATCH --time=32:00:00
 #SBATCH --partition=gpu
-#SBATCH --gpus=1
+#SBATCH --gpus=2
 
 ###SBATCH --gres=gpu:1
 
@@ -85,7 +85,7 @@ MODEL_CACHE_DIR=../../data/model_cache/
 # optional: pretrained model
 #PRETRAINED_MODEL=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
 # optional: multiple GPUs
-N_GPU=1
+N_GPU=2
 # use device for single-GPU processes
 export CUDA_VISIBLE_DEVICES=0
 # regular model
