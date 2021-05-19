@@ -160,7 +160,6 @@ def main():
     model_type_path_lookup = {
         'bart' : 'facebook/bart-base',
         'longformer' : 'allenai/led-base-16384',
-        'bart_copy' : 'facebook/bart-base',
     }
     # print(f'model type = {model_type}')
     ## NOTE: you have to copy/modify all the config files before running
@@ -182,7 +181,7 @@ def main():
         train_dataset.remove_column_('reader_token')
         train_dataset.rename_column_('reader_token_str', 'reader_token')
     else:
-        model_path = model_type_path_lookup[model_type]
+        model_path = model_type_path_lookup[base_model_type]
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_path,
             cache_dir=model_cache_dir,
