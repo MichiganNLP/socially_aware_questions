@@ -8,12 +8,20 @@ comments to provide to generation model:
 import gzip
 import os
 import re
+import time
 from argparse import ArgumentParser
 from ast import literal_eval
+from collections import defaultdict
 from datetime import datetime
+from functools import reduce
+
+import geocoder as geocoder
+import requests
 from nltk import PunktSentenceTokenizer
+from requests import Session
+from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
-from data_helpers import extract_age, full_location_pipeline
+from data_helpers import extract_age, full_location_pipeline, load_all_author_data, split_name_string
 import numpy as np
 import pandas as pd
 import stanza
@@ -36,10 +44,16 @@ def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynam
     # filter for existing authors
     new_author_data_files = list(filter(lambda x: x.replace('_comments.gz', '') not in existing_dynamic_authors, author_data_files))
     # filter for question-asking authors
+    question_authors = set(question_data.loc[:, 'author'].unique())
     new_author_data_files = list(filter(lambda x: x.replace('_comments.gz', '') in question_authors, new_author_data_files))
     # author_ctr = 0
     # tmp debugging
     # print(f'for dynamic data, we have {len(new_author_data_files)} authors')
+    ## optional: include neighbor subreddits when computing "expert" status
+    subreddits_to_query = question_data.loc[:, 'subreddit'].unique()
+    subreddit_combined_neighbors = collect_subreddit_embed_neighbors(author_data_dir, subreddits_to_query)
+    subreddit_neighbor_lookup = dict(zip(subreddit_combined_neighbors.loc[:, 'subreddit'].values, subreddit_combined_neighbors.loc[:, 'neighbors'].values))
+
     for i, author_file_i in enumerate(tqdm(new_author_data_files)):
         author_i = author_file_i.replace('_comments.gz', '')
         author_comment_file_i = os.path.join(author_data_dir, author_file_i)
@@ -54,9 +68,10 @@ def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynam
                     date_day_j = data_j.loc['date_day']
                     date_j = data_j.loc['date']
                     subreddit_j = data_j.loc['subreddit']
+                    subreddit_neighbors_j = subreddit_neighbor_lookup[subreddit_j]
                     author_prior_comment_data_j = author_comment_data_i[author_comment_data_i.loc[:, 'date'].apply(lambda x: x <= date_day_j)]
                     if (author_prior_comment_data_j.shape[0] > 0):
-                        relevant_prior_comment_data_j = author_prior_comment_data_j[author_prior_comment_data_j.loc[:, 'subreddit'] == subreddit_j]
+                        relevant_prior_comment_data_j = author_prior_comment_data_j[(author_prior_comment_data_j.loc[:, 'subreddit'] == subreddit_j) or (author_prior_comment_data_j.loc[:, 'subreddit'].isin(subreddit_neighbors_j))]
                         expertise_pct_j = relevant_prior_comment_data_j.shape[0] / author_prior_comment_data_j.shape[0]
                     else:
                         expertise_pct_j = 0.
@@ -80,7 +95,37 @@ def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynam
         write_flush_data(dynamic_author_data_cols, author_dynamic_data_file, dynamic_author_data)
 
 
-def collect_static_author_data(author_static_data_file, author_data_dir, author_data_files):
+def collect_subreddit_embed_neighbors(author_data_dir, subreddits_to_query):
+    subreddit_neighbor_file = os.path.join(author_data_dir, 'advice_subreddit_neighbors.tsv')
+    if (not os.path.exists(subreddit_neighbor_file)):
+        subreddit_embed_file_matcher = re.compile('subreddit_embeddings_.*gz')
+        subreddit_embed_files = list(filter(lambda x: subreddit_embed_file_matcher.match(x) is not None, os.listdir(author_data_dir)))
+        subreddit_embed_files = list(map(lambda x: os.path.join(author_data_dir, x), subreddit_embed_files))
+        subreddit_nearest_neighbors = []
+        top_k = 10
+        date_fmt = '%Y-%m-%d'
+        for subreddit_embed_file_i in subreddit_embed_files:
+            subreddit_embed_date_i = os.path.basename(subreddit_embed_file_i).split('.')[0].split('_')[-1]
+            subreddit_embed_date_i = datetime.strptime(subreddit_embed_date_i, date_fmt)
+            subreddit_embed_i = pd.read_csv(subreddit_embed_file_i, sep='\t', compression='gzip', index_col=0)
+            for subreddit_j in subreddits_to_query:
+                # find nearest neighbors
+                if (subreddit_j in subreddit_embed_i.index):
+                    embed_sim_j = cosine_similarity(subreddit_embed_i.loc[[subreddit_j], :].values,
+                                                    Y=subreddit_embed_i.values)[0, :]
+                    embed_sim_j = pd.Series(embed_sim_j, index=subreddit_embed_i.index).sort_values(ascending=False, inplace=False)
+                    top_k_neighbors_j = embed_sim_j.index.tolist()[1:(top_k + 1)]
+                    subreddit_nearest_neighbors.append([subreddit_j, subreddit_embed_date_i, top_k_neighbors_j])
+        subreddit_nearest_neighbors = pd.DataFrame(subreddit_nearest_neighbors, columns=['subreddit', 'date', 'neighbors'])
+        subreddit_combined_neighbors = subreddit_nearest_neighbors.groupby('subreddit').apply(lambda x: set(reduce(lambda a, b: a | b, x.loc[:, 'valid_neighbors'].values))).reset_index().rename(columns={0: 'neighbors'})
+        # save to file
+        subreddit_combined_neighbors.to_csv(subreddit_neighbor_file, sep='\t', index=False)
+    else:
+        subreddit_combined_neighbors = pd.read_csv(subreddit_neighbor_file, sep='\t', index_col=False, converters={'neighbors': literal_eval})
+    return subreddit_combined_neighbors
+
+
+def collect_static_author_data(author_static_data_file, author_data_dir, author_data_files, question_authors):
     author_static_data_cols = ['author', 'age', 'location']
     existing_static_authors = set()
     if (os.path.exists(author_static_data_file)):
@@ -123,6 +168,107 @@ def collect_static_author_data(author_static_data_file, author_data_dir, author_
     # handle remaining data
     if (len(static_author_data) > 0):
         write_flush_data(author_static_data_cols, author_static_data_file, static_author_data)
+
+    ## optional: add subreddit locations
+    add_subreddit_location_data(author_data_dir, author_static_data_file)
+
+SLEEP_TIME=5
+def safe_geocode(text, session=None):
+    loc = geocoder.osm(text, session=session)
+    if(loc.error):
+        time.sleep(SLEEP_TIME)
+    return loc
+
+def add_subreddit_location_data(author_data_dir, author_static_data_file):
+    """
+    Identify subreddits that are likely locations,
+    identify authors who consistently post in those subreddits,
+    assign locations based on posting patterns.
+
+    :param author_data_dir:
+    :param author_static_data_file:
+    :return:
+    """
+    # reload data
+    full_author_data = load_all_author_data(author_data_dir, usecols=['author', 'subreddit', 'created_utc', 'id'])
+    # get top-K subreddit counts
+    subreddit_counts = full_author_data.loc[:, 'subreddit'].value_counts()
+    min_subreddit_count_pct = 95
+    min_subreddit_count = np.percentile(subreddit_counts, min_subreddit_count_pct)
+    cutoff_subreddit_counts = subreddit_counts[subreddit_counts >= min_subreddit_count]
+    cutoff_subreddit_names = cutoff_subreddit_counts.index.tolist()
+    # remove locations that we have already mined
+    subreddit_location_file = os.path.join(author_data_dir, 'subreddit_location_data.gz')
+    if (os.path.exists(subreddit_location_file)):
+        existing_subreddit_location_data = pd.read_csv(subreddit_location_file, sep='\t', compression='gzip', index_col=False)
+        subreddits_with_location = set(existing_subreddit_location_data.loc[:, 'subreddit'].unique())
+        cutoff_subreddit_names = list(set(cutoff_subreddit_names) - subreddits_with_location)
+    else:
+        existing_subreddit_location_data = []
+    # clean names
+    clean_subreddit_names = list(map(split_name_string, cutoff_subreddit_names))
+
+    with Session() as session:
+        clean_subreddit_locations = list(map(lambda x: safe_geocode(x, session=session), tqdm(clean_subreddit_names)))
+    clean_subreddit_location_data = pd.DataFrame(
+        [cutoff_subreddit_names, clean_subreddit_names], index=['subreddit', 'clean_subreddit']
+    ).transpose()
+    # filter to locations with actual location data
+    clean_subreddit_location_data = clean_subreddit_location_data.assign(**{
+        'location_data': list(map(lambda x: x.geojson if x.ok else np.nan, clean_subreddit_locations))
+    })
+    clean_subreddit_location_data.dropna(how='any', axis=0, inplace=True)
+    # add country, region data
+    clean_subreddit_location_data = clean_subreddit_location_data.assign(**{
+        'country': clean_subreddit_location_data.loc[:, 'location_data'].apply(lambda x: x['features'][0]['properties'].get('country_code'))
+    })
+    country_matches = {'europe': 'eur'}
+    clean_subreddit_location_data = clean_subreddit_location_data.assign(**{
+        'country': clean_subreddit_location_data.apply(lambda x: country_matches[x.loc['subreddit']] if x.loc['subreddit'] in country_matches else x.loc['country'], axis=1)
+    })
+    country_regions = defaultdict(lambda x: 'non_US')
+    country_regions['us'] = 'US'
+    clean_subreddit_location_data = clean_subreddit_location_data.assign(**{
+        'country_region': clean_subreddit_location_data.loc[:, 'country'].apply(country_regions.get)
+    })
+    # update existing subreddit/location data, write to file
+    if (len(existing_subreddit_location_data) > 0):
+        existing_subreddit_location_data = pd.concat([
+            clean_subreddit_location_data, existing_subreddit_location_data
+        ], axis=0)
+    else:
+        existing_subreddit_location_data = clean_subreddit_location_data.copy()
+    existing_subreddit_location_data.to_csv(subreddit_location_file, sep='\t', compression='gzip', index=False)
+    # define cutoff based on min accuracy of test locations
+    clean_subreddit_location_data = clean_subreddit_location_data.assign(**{
+        'accuracy': clean_subreddit_location_data.loc[:, 'location_data'].apply(lambda x: x['features'][0]['properties']['accuracy'])
+    })
+    location_accuracy_cutoff = 0.80
+    high_accuracy_subreddit_location_data = clean_subreddit_location_data[clean_subreddit_location_data.loc[:, 'accuracy'] >= location_accuracy_cutoff]
+    # join with author data
+    static_author_data = pd.read_csv(author_static_data_file, sep='\t', compression='gzip', index_col=False)
+    high_accuracy_subreddit_location_data.rename(columns={'country': 'subreddit_country', 'country_region': 'subreddit_region'}, inplace=True)
+    location_author_data = pd.merge(
+        full_author_data,
+        high_accuracy_subreddit_location_data.loc[:, ['subreddit', 'subreddit_country', 'subreddit_region']],
+        on='subreddit', how='inner',
+    )
+    # limit to valid author-location data
+    location_author_data = location_author_data[location_author_data.loc[:, 'subreddit_region'].apply(lambda x: type(x) is str)].drop_duplicates('author')
+    # merge w/ original static data
+    location_author_data = pd.merge(
+        static_author_data,
+        location_author_data.loc[:, ['author', 'subreddit_region']],
+        on='author', how='outer'
+    )
+    location_author_data.fillna({'location' : 'UNK', 'subreddit_region' : 'UNK'}, inplace=True)
+    ## fix mising location data using extra subreddit data!
+    location_author_data = location_author_data.assign(**{
+        'location': location_author_data.apply(lambda x: x.loc['subreddit_region'] if (x.loc['location'] == 'UNK') else x.loc['location'], axis=1)
+    })
+    # rewrite data
+    location_author_data.to_csv(author_static_data_file, sep='\t', compression='gzip', index=False)
+
 
 def write_flush_data(data_cols, out_file, new_data):
     """
@@ -187,12 +333,12 @@ def main():
     author_file_matcher = re.compile('.+_comments.gz')
     author_data_files = list(filter(lambda x: author_file_matcher.match(x) is not None, os.listdir(author_data_dir)))
     author_dynamic_data_file = os.path.join(author_data_dir, 'author_prior_comment_data.gz')
-    # collect_dynamic_author_data(author_data_dir, author_data_files, author_dynamic_data_file, question_data)
+    collect_dynamic_author_data(author_data_dir, author_data_files, author_dynamic_data_file, question_data)
     # author_data = pd.DataFrame(author_data, columns=author_data_cols)
 
     ## collect static data: location, age
     author_static_data_file = os.path.join(author_data_dir, 'author_static_prior_comment_data.gz')
-    # collect_static_author_data(author_static_data_file, author_data_dir, author_data_files)
+    collect_static_author_data(author_static_data_file, author_data_dir, author_data_files, question_authors)
     # import sys
     # sys.exit(0)
 
@@ -200,7 +346,7 @@ def main():
     combined_author_data = pd.read_csv(author_dynamic_data_file, sep='\t', index_col=False, compression='gzip')
     # remove duplicates
     combined_author_data.drop_duplicates(['author', 'date_day', 'subreddit'], inplace=True)
-    category_cutoff_pct_vals = [95, 50]
+    category_cutoff_pct_vals = [75, 50] # [95, 50]
     category_vars = ['expert_pct', 'relative_time']
     for category_var_i, category_cutoff_pct_i in zip(category_vars, category_cutoff_pct_vals):
         bin_var_i = f'{category_var_i}_bin'

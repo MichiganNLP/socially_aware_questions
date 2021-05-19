@@ -28,6 +28,7 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
             reader_group : BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout).to(torch.cuda.current_device())
             for reader_group in reader_group_types
         }
+        self.self_attn_general = BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout).to(torch.cuda.current_device())
         # self.self_attn = BartAttention(
         #     embed_dim=self.embed_dim,
         #     num_heads=config.encoder_attention_heads,
@@ -88,6 +89,7 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
                 # layer_head_mask=layer_head_mask,
                 output_attentions=output_attentions,
             )
+
             # print(f'output = attention weights {attn_weights_i}')
             combined_hidden_states.append(hidden_states_i)
             combined_attn_weights.append(attn_weights_i)
@@ -96,6 +98,14 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
             attn_weights = torch.cat(combined_attn_weights, axis=0)
         else:
             attn_weights = None
+        ## combine reader states with "regular" attention (non-weighted? sure)
+        general_hidden_states, general_attn_weights, _ = self.self_attn_general(
+            hidden_states=hidden_states,
+            attention_mask=attention_mask,
+            output_attentions=output_attentions,
+        )
+        hidden_states_i = (hidden_states + general_hidden_states) / 2.
+        attn_weights_i = (attn_weights + general_attn_weights) / 2.
 
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
