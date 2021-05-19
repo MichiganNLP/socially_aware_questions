@@ -47,7 +47,7 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
             hidden_states: torch.Tensor,
             attention_mask: torch.Tensor,
             reader_token : torch.Tensor,
-            # layer_head_mask: torch.Tensor,
+            layer_head_mask: torch.Tensor,
             output_attentions: bool = False,
     ):
         """
@@ -86,7 +86,7 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
                 attention_mask=attention_mask[[i], :, :, :],
                 # key_value_states=None,
                 # past_key_value=None,
-                # layer_head_mask=layer_head_mask,
+                layer_head_mask=layer_head_mask,
                 output_attentions=output_attentions,
             )
 
@@ -104,8 +104,8 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
             attention_mask=attention_mask,
             output_attentions=output_attentions,
         )
-        hidden_states_i = (hidden_states + general_hidden_states) / 2.
-        attn_weights_i = (attn_weights + general_attn_weights) / 2.
+        hidden_states = (hidden_states + general_hidden_states) / 2.
+        attn_weights = (attn_weights + general_attn_weights) / 2.
 
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
@@ -161,7 +161,6 @@ class AuthorGroupAttentionEncoder(BartEncoder):
         self.embed_positions = BartLearnedPositionalEmbedding(
             config.max_position_embeddings,
             embed_dim,
-            self.padding_idx,
         )
         encoder_list = [AuthorGroupAttentionEncoderLayer(config, reader_group_types=reader_group_types)]
         # tmp debug
@@ -292,14 +291,14 @@ class AuthorGroupAttentionEncoder(BartEncoder):
                             hidden_states=hidden_states,
                             attention_mask=attention_mask,
                             reader_token=reader_token,
-                            # layer_head_mask=(head_mask[idx] if head_mask is not None else None),
+                            layer_head_mask=(head_mask[idx] if head_mask is not None else None),
                             output_attentions=output_attentions,
                         )
                     else:
                         layer_outputs = encoder_layer(
                             hidden_states,
                             attention_mask,
-                            # layer_head_mask=(head_mask[idx] if head_mask is not None else None),
+                            layer_head_mask=(head_mask[idx] if head_mask is not None else None),
                             output_attentions=output_attentions,
                         )
 
