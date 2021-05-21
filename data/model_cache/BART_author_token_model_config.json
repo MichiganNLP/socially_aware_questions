@@ -46,6 +46,7 @@
   "normalize_embedding": true,
   "num_beams": 4,
   "num_hidden_layers": 6,
+  "output_attentions": true,
   "pad_token_id": 1,
   "scale_embedding": false,
   "static_position_embeddings": false,
