@@ -486,7 +486,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
             data = data.assign(**{
                 has_embed_var : data.loc[:, embed_data_var].apply(lambda x: type(x) is not float)
             })
-            generate_null_embed = lambda : list(np.random.randn(embed_dim))
+            # generate_null_embed = lambda : list(np.random.randn(embed_dim))
+            generate_null_embed = lambda : [0.,]*embed_dim
             data = data.assign(**{
                 embed_data_var : data.loc[:, embed_data_var].apply(lambda x: generate_null_embed() if type(x) is float or x is None else x)
             })
