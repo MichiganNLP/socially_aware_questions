@@ -5,7 +5,6 @@ comments to provide to generation model:
 - "expert" vs. "novice" (degree of prior posting in group)
 - "early" vs. "late" (time of response relative to original post time)
 """
-import gzip
 import os
 import re
 import time
@@ -13,19 +12,18 @@ from argparse import ArgumentParser
 from ast import literal_eval
 from collections import defaultdict
 from datetime import datetime
-from functools import reduce
 
 import geocoder as geocoder
-import requests
 from nltk import PunktSentenceTokenizer
 from requests import Session
-from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
 from data_helpers import extract_age, full_location_pipeline, load_all_author_data, split_name_string
 import numpy as np
 import pandas as pd
 import stanza
 from data_helpers import assign_date_bin
+from data_helpers import collect_subreddit_embed_neighbors
+
 
 def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynamic_data_file, question_data):
     dynamic_author_data_cols = ['author', 'date_day', 'subreddit', 'expert_pct', 'relative_time']
@@ -71,7 +69,7 @@ def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynam
                     subreddit_neighbors_j = subreddit_neighbor_lookup[subreddit_j]
                     author_prior_comment_data_j = author_comment_data_i[author_comment_data_i.loc[:, 'date'].apply(lambda x: x <= date_day_j)]
                     if (author_prior_comment_data_j.shape[0] > 0):
-                        relevant_prior_comment_data_j = author_prior_comment_data_j[(author_prior_comment_data_j.loc[:, 'subreddit'] == subreddit_j) or (author_prior_comment_data_j.loc[:, 'subreddit'].isin(subreddit_neighbors_j))]
+                        relevant_prior_comment_data_j = author_prior_comment_data_j[(author_prior_comment_data_j.loc[:, 'subreddit'] == subreddit_j) | (author_prior_comment_data_j.loc[:, 'subreddit'].isin(subreddit_neighbors_j))]
                         expertise_pct_j = relevant_prior_comment_data_j.shape[0] / author_prior_comment_data_j.shape[0]
                     else:
                         expertise_pct_j = 0.
@@ -91,38 +89,8 @@ def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynam
     # write remaining data to file
     if (len(dynamic_author_data) > 0):
         # tmp debugging
-        print(f'final dynamic author data sample = {dynamic_author_data[0]}')
+        # print(f'final dynamic author data sample = {dynamic_author_data[0]}')
         write_flush_data(dynamic_author_data_cols, author_dynamic_data_file, dynamic_author_data)
-
-
-def collect_subreddit_embed_neighbors(author_data_dir, subreddits_to_query):
-    subreddit_neighbor_file = os.path.join(author_data_dir, 'advice_subreddit_neighbors.tsv')
-    if (not os.path.exists(subreddit_neighbor_file)):
-        subreddit_embed_file_matcher = re.compile('subreddit_embeddings_.*gz')
-        subreddit_embed_files = list(filter(lambda x: subreddit_embed_file_matcher.match(x) is not None, os.listdir(author_data_dir)))
-        subreddit_embed_files = list(map(lambda x: os.path.join(author_data_dir, x), subreddit_embed_files))
-        subreddit_nearest_neighbors = []
-        top_k = 10
-        date_fmt = '%Y-%m-%d'
-        for subreddit_embed_file_i in subreddit_embed_files:
-            subreddit_embed_date_i = os.path.basename(subreddit_embed_file_i).split('.')[0].split('_')[-1]
-            subreddit_embed_date_i = datetime.strptime(subreddit_embed_date_i, date_fmt)
-            subreddit_embed_i = pd.read_csv(subreddit_embed_file_i, sep='\t', compression='gzip', index_col=0)
-            for subreddit_j in subreddits_to_query:
-                # find nearest neighbors
-                if (subreddit_j in subreddit_embed_i.index):
-                    embed_sim_j = cosine_similarity(subreddit_embed_i.loc[[subreddit_j], :].values,
-                                                    Y=subreddit_embed_i.values)[0, :]
-                    embed_sim_j = pd.Series(embed_sim_j, index=subreddit_embed_i.index).sort_values(ascending=False, inplace=False)
-                    top_k_neighbors_j = embed_sim_j.index.tolist()[1:(top_k + 1)]
-                    subreddit_nearest_neighbors.append([subreddit_j, subreddit_embed_date_i, top_k_neighbors_j])
-        subreddit_nearest_neighbors = pd.DataFrame(subreddit_nearest_neighbors, columns=['subreddit', 'date', 'neighbors'])
-        subreddit_combined_neighbors = subreddit_nearest_neighbors.groupby('subreddit').apply(lambda x: set(reduce(lambda a, b: a | b, x.loc[:, 'valid_neighbors'].values))).reset_index().rename(columns={0: 'neighbors'})
-        # save to file
-        subreddit_combined_neighbors.to_csv(subreddit_neighbor_file, sep='\t', index=False)
-    else:
-        subreddit_combined_neighbors = pd.read_csv(subreddit_neighbor_file, sep='\t', index_col=False, converters={'neighbors': literal_eval})
-    return subreddit_combined_neighbors
 
 
 def collect_static_author_data(author_static_data_file, author_data_dir, author_data_files, question_authors):
@@ -329,7 +297,7 @@ def main():
     ## get data
     ## iterate over all author data
     ## collect dynamic data
-    ## extract (1) expertise (2) relative tim
+    ## extract (1) expertise (2) relative time
     author_file_matcher = re.compile('.+_comments.gz')
     author_data_files = list(filter(lambda x: author_file_matcher.match(x) is not None, os.listdir(author_data_dir)))
     author_dynamic_data_file = os.path.join(author_data_dir, 'author_prior_comment_data.gz')
@@ -346,20 +314,23 @@ def main():
     combined_author_data = pd.read_csv(author_dynamic_data_file, sep='\t', index_col=False, compression='gzip')
     # remove duplicates
     combined_author_data.drop_duplicates(['author', 'date_day', 'subreddit'], inplace=True)
-    category_cutoff_pct_vals = [90, 50] # [95, 50]
+    category_cutoff_pct_vals = [95, 50] # [95, 50]
     category_vars = ['expert_pct', 'relative_time']
     for category_var_i, category_cutoff_pct_i in zip(category_vars, category_cutoff_pct_vals):
         bin_var_i = f'{category_var_i}_bin'
-        bin_vals = [np.percentile(combined_author_data.loc[:, category_var_i].values, category_cutoff_pct_i)]
+        bin_vals = [np.percentile(combined_author_data.loc[:, category_var_i].dropna(), category_cutoff_pct_i)]
         combined_author_data = combined_author_data.assign(**{
             bin_var_i : np.digitize(combined_author_data.loc[:, category_var_i], bins=bin_vals)
         })
     ## reload static data, combine w/ dynamic data, add regions to locations
     author_static_data = pd.read_csv(author_static_data_file, sep='\t', compression='gzip', index_col=False)
     combined_author_data = pd.merge(combined_author_data, author_static_data, on='author')
-    location_region_lookup = {'us' : 'US'}
-    location_region_lookup.update({x : 'NONUS' for x in combined_author_data.loc[:, 'location'].unique() if x not in {'UNK', 'us'}})
-    location_region_lookup.update({'UNK' : 'UNK'})
+    location_region_lookup = defaultdict(lambda x: 'UNK')
+    location_region_lookup.update({'us' : 'US'})
+    non_US_locations = list(set(combined_author_data.loc[:, 'location'].unique()) - {'US', 'UNK'})
+    location_region_lookup.update({
+        x : 'NONUS' for x in non_US_locations
+    })
     combined_author_data = combined_author_data.assign(**{
         'location_region' : combined_author_data.loc[:, 'location'].apply(location_region_lookup.get)
     })
