@@ -15,7 +15,6 @@ from nltk.tokenize import sent_tokenize
 import numpy as np
 from data_helpers import prepare_question_data
 from transformers import BartTokenizer, LongformerTokenizer
-from datetime import datetime
 import logging
 np.random.seed(123)
 
