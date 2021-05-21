@@ -71,7 +71,7 @@ def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynam
                     subreddit_neighbors_j = subreddit_neighbor_lookup[subreddit_j]
                     author_prior_comment_data_j = author_comment_data_i[author_comment_data_i.loc[:, 'date'].apply(lambda x: x <= date_day_j)]
                     if (author_prior_comment_data_j.shape[0] > 0):
-                        relevant_prior_comment_data_j = author_prior_comment_data_j[(author_prior_comment_data_j.loc[:, 'subreddit'] == subreddit_j) or (author_prior_comment_data_j.loc[:, 'subreddit'].isin(subreddit_neighbors_j))]
+                        relevant_prior_comment_data_j = author_prior_comment_data_j[(author_prior_comment_data_j.loc[:, 'subreddit'] == subreddit_j) | (author_prior_comment_data_j.loc[:, 'subreddit'].isin(subreddit_neighbors_j))]
                         expertise_pct_j = relevant_prior_comment_data_j.shape[0] / author_prior_comment_data_j.shape[0]
                     else:
                         expertise_pct_j = 0.
@@ -91,7 +91,7 @@ def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynam
     # write remaining data to file
     if (len(dynamic_author_data) > 0):
         # tmp debugging
-        print(f'final dynamic author data sample = {dynamic_author_data[0]}')
+        # print(f'final dynamic author data sample = {dynamic_author_data[0]}')
         write_flush_data(dynamic_author_data_cols, author_dynamic_data_file, dynamic_author_data)
 
 
@@ -329,7 +329,7 @@ def main():
     ## get data
     ## iterate over all author data
     ## collect dynamic data
-    ## extract (1) expertise (2) relative tim
+    ## extract (1) expertise (2) relative time
     author_file_matcher = re.compile('.+_comments.gz')
     author_data_files = list(filter(lambda x: author_file_matcher.match(x) is not None, os.listdir(author_data_dir)))
     author_dynamic_data_file = os.path.join(author_data_dir, 'author_prior_comment_data.gz')
@@ -346,20 +346,23 @@ def main():
     combined_author_data = pd.read_csv(author_dynamic_data_file, sep='\t', index_col=False, compression='gzip')
     # remove duplicates
     combined_author_data.drop_duplicates(['author', 'date_day', 'subreddit'], inplace=True)
-    category_cutoff_pct_vals = [75, 50] # [95, 50]
+    category_cutoff_pct_vals = [95, 50] # [95, 50]
     category_vars = ['expert_pct', 'relative_time']
     for category_var_i, category_cutoff_pct_i in zip(category_vars, category_cutoff_pct_vals):
         bin_var_i = f'{category_var_i}_bin'
-        bin_vals = [np.percentile(combined_author_data.loc[:, category_var_i].values, category_cutoff_pct_i)]
+        bin_vals = [np.percentile(combined_author_data.loc[:, category_var_i].dropna(), category_cutoff_pct_i)]
         combined_author_data = combined_author_data.assign(**{
             bin_var_i : np.digitize(combined_author_data.loc[:, category_var_i], bins=bin_vals)
         })
     ## reload static data, combine w/ dynamic data, add regions to locations
     author_static_data = pd.read_csv(author_static_data_file, sep='\t', compression='gzip', index_col=False)
     combined_author_data = pd.merge(combined_author_data, author_static_data, on='author')
-    location_region_lookup = {'us' : 'US'}
-    location_region_lookup.update({x : 'NONUS' for x in combined_author_data.loc[:, 'location'].unique() if x not in {'UNK', 'us'}})
-    location_region_lookup.update({'UNK' : 'UNK'})
+    location_region_lookup = defaultdict(lambda x: 'UNK')
+    location_region_lookup.update({'us' : 'US'})
+    non_US_locations = list(set(combined_author_data.loc[:, 'location'].unique()) - {'US', 'UNK'})
+    location_region_lookup.update({
+        x : 'NONUS' for x in non_US_locations
+    })
     combined_author_data = combined_author_data.assign(**{
         'location_region' : combined_author_data.loc[:, 'location'].apply(location_region_lookup.get)
     })

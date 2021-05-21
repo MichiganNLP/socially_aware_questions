@@ -5,7 +5,9 @@ pre-trained language models (e.g. BART).
 # import sys
 # if ('question_generation' not in sys.path):
 #     sys.path.append('question_generation')
-from torch.nn.parallel import distributed, DistributedDataParallel
+from torch import distributed
+from torch.nn.parallel import DistributedDataParallel
+from torch.nn import DataParallel
 
 from data_collator import T2TDataCollator
 from transformers import AutoModelForSeq2SeqLM, BartConfig
@@ -181,6 +183,7 @@ def main():
         train_dataset.rename_column_('reader_token_str', 'reader_token')
     else:
         model_path = model_type_path_lookup[model_type]
+        # automatically downloads if model not available
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_path,
             cache_dir=model_cache_dir,
@@ -192,9 +195,11 @@ def main():
     # send to same device
     model.to(torch.cuda.current_device())
     if(n_gpu > 1):
-        device_ids = list(range(n_gpu))
-        distributed.init_process_group('train_model', device_ids=device_ids, world_size=n_gpu)
-        model = DistributedDataParallel(model)
+        #device_ids = list(range(n_gpu))
+        #for device_id in device_ids:
+        #    distributed.init_process_group('gloo', rank=device_id, world_size=n_gpu)
+        #model = DistributedDataParallel(model, device_ids=device_ids)
+        model_wrapped = DataParallel(model).cuda()
 
     ## fix data tensor format
     tensor_cols = ['source_ids', 'target_ids', 'attention_mask']
