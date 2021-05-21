@@ -346,7 +346,7 @@ def main():
     combined_author_data = pd.read_csv(author_dynamic_data_file, sep='\t', index_col=False, compression='gzip')
     # remove duplicates
     combined_author_data.drop_duplicates(['author', 'date_day', 'subreddit'], inplace=True)
-    category_cutoff_pct_vals = [75, 50] # [95, 50]
+    category_cutoff_pct_vals = [90, 50] # [95, 50]
     category_vars = ['expert_pct', 'relative_time']
     for category_var_i, category_cutoff_pct_i in zip(category_vars, category_cutoff_pct_vals):
         bin_var_i = f'{category_var_i}_bin'
