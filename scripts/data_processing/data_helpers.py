@@ -5,6 +5,8 @@ import gzip
 import json
 import logging
 import shutil
+from ast import literal_eval
+from functools import reduce
 from itertools import product
 
 import numpy as np
@@ -15,6 +17,7 @@ import os
 import pytz
 import requests
 from rouge_score.rouge_scorer import RougeScorer
+from sklearn.metrics.pairwise import cosine_similarity
 from transformers import BartTokenizer, LongformerTokenizer
 import torch
 from tqdm import tqdm
@@ -993,11 +996,15 @@ def load_zipped_json_data(data_file):
     return data
 
 ## load author data
-def load_all_author_data(data_dir, usecols=None):
+def load_all_author_data(data_dir, usecols=None, valid_authors={}):
     author_file_matcher = re.compile('.+_comments.gz')
     author_files = list(filter(lambda x: author_file_matcher.match(x) is not None, os.listdir(data_dir)))
     author_files = list(map(lambda x: os.path.join(data_dir, x), author_files))
     author_data = []
+    # filter author files
+    if(len(valid_authors) > 0):
+        valid_author_files = list(filter(lambda x: os.path.basename(x).replace('_comments.gz', '') in valid_authors, author_files))
+        author_files = list(valid_author_files)
     for author_file_i in tqdm(author_files):
         try:
             data_i = pd.read_csv(author_file_i, sep='\t', compression='gzip', index_col=False, usecols=usecols)
@@ -1105,3 +1112,41 @@ def assign_date_bin(date, date_bins, convert_timezone=True):
     else:
         date_bin = -1
     return date_bin
+
+
+def collect_subreddit_embed_neighbors(author_data_dir, subreddits_to_query):
+    subreddit_neighbor_file = os.path.join(author_data_dir, 'advice_subreddit_neighbors.tsv')
+    if (not os.path.exists(subreddit_neighbor_file)):
+        subreddit_embed_file_matcher = re.compile('subreddit_embeddings_.*gz')
+        subreddit_embed_files = list(filter(lambda x: subreddit_embed_file_matcher.match(x) is not None, os.listdir(author_data_dir)))
+        subreddit_embed_files = list(map(lambda x: os.path.join(author_data_dir, x), subreddit_embed_files))
+        subreddit_nearest_neighbors = []
+        top_k = 10
+        date_fmt = '%Y-%m-%d'
+        for subreddit_embed_file_i in subreddit_embed_files:
+            subreddit_embed_date_i = os.path.basename(subreddit_embed_file_i).split('.')[0].split('_')[-1]
+            subreddit_embed_date_i = datetime.strptime(subreddit_embed_date_i, date_fmt)
+            subreddit_embed_i = pd.read_csv(subreddit_embed_file_i, sep='\t', compression='gzip', index_col=0)
+            for subreddit_j in subreddits_to_query:
+                # find nearest neighbors
+                if (subreddit_j in subreddit_embed_i.index):
+                    embed_sim_j = cosine_similarity(subreddit_embed_i.loc[[subreddit_j], :].values,
+                                                    Y=subreddit_embed_i.values)[0, :]
+                    embed_sim_j = pd.Series(embed_sim_j, index=subreddit_embed_i.index).sort_values(ascending=False, inplace=False)
+                    top_k_neighbors_j = embed_sim_j.index.tolist()[1:(top_k + 1)]
+                    subreddit_nearest_neighbors.append([subreddit_j, subreddit_embed_date_i, top_k_neighbors_j])
+        subreddit_nearest_neighbors = pd.DataFrame(subreddit_nearest_neighbors, columns=['subreddit', 'date', 'neighbors'])
+        subreddit_combined_neighbors = subreddit_nearest_neighbors.groupby('subreddit').apply(lambda x: set(reduce(lambda a, b: a | b, x.loc[:, 'valid_neighbors'].values))).reset_index().rename(columns={0: 'neighbors'})
+        # save to file
+        subreddit_combined_neighbors.to_csv(subreddit_neighbor_file, sep='\t', index=False)
+    else:
+        subreddit_combined_neighbors = pd.read_csv(subreddit_neighbor_file, sep='\t', index_col=False, converters={'neighbors': literal_eval})
+    return subreddit_combined_neighbors
+
+def try_convert_date(date_str, date_formats=['%Y-%m-%d', '%Y-%m-%d %H:%M:%S']):
+    for date_format in date_formats:
+        try:
+            date_val = datetime.strptime(date_str, date_format)
+        except Exception as e:
+            pass
+    return date_val
