@@ -148,6 +148,7 @@ class AuthorTextEncoder(BartPretrainedModel):
             print(f'hidden states have dimensions={hidden_states.shape}')
             print(f'author embeds have dimensions={author_embeds_hidden.shape}')
             text_author_combined = torch.cat([hidden_states, author_embeds_hidden], dim=1).transpose(1,2)
+			print(f'text author combined state has dimensions={text_author_combined.shape}')
             hidden_states = self.author_text_combine_network(text_author_combined).transpose(1,2)
 
         # expand attention_mask
@@ -194,7 +195,7 @@ class AuthorTextEncoder(BartPretrainedModel):
                     layer_outputs = encoder_layer(
                         hidden_states,
                         attention_mask,
-                        # layer_head_mask=(head_mask[idx] if head_mask is not None else None), # only in new version??
+                        layer_head_mask=(head_mask[idx] if head_mask is not None else None), # only in new version??
                         output_attentions=output_attentions,
                    )
 
