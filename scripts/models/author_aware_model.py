@@ -142,7 +142,7 @@ class AuthorTextEncoder(BartPretrainedModel):
             # author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
             # combine author embeds with hidden states
             # pass through ANOTHER network to combine
-            author_embeds_hidden = self.author_embed_network(author_embeds.squeeze(1))
+            author_embeds_hidden = self.author_embed_network(author_embeds.unsqueeze(1))
             author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
             # tmp debugging
             print(f'hidden states have dimensions={hidden_states.shape}')
