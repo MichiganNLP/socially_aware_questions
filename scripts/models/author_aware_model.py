@@ -145,8 +145,8 @@ class AuthorTextEncoder(BartPretrainedModel):
             author_embeds_hidden = self.author_embed_network(author_embeds.squeeze(1))
             author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
             # tmp debugging
-            # print(f'hidden states have dimensions={hidden_states.shape}')
-            # print(f'author embeds have dimensions={author_embeds_hidden.shape}')
+            print(f'hidden states have dimensions={hidden_states.shape}')
+            print(f'author embeds have dimensions={author_embeds_hidden.shape}')
             text_author_combined = torch.cat([hidden_states, author_embeds_hidden], dim=1).transpose(1,2)
             hidden_states = self.author_text_combine_network(text_author_combined).transpose(1,2)
 
