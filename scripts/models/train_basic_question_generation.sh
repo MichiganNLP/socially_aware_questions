@@ -63,6 +63,10 @@ VAL_DATA=../../data/reddit_data/combined_data_val_data.pt
 #OUT_DIR=../../data/reddit_data/author_text_data/
 #MODEL_TYPE="bart_author"
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
+# author attention
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
+MODEL_TYPE="bart_author_attention"
+MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
 # author embed
 # subreddit
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
@@ -74,10 +78,6 @@ VAL_DATA=../../data/reddit_data/combined_data_val_data.pt
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_text_embed_model_config.json
 # author (decoder) embed
 #OUT_DIR=../../data/reddit_data/author_text_data/author_decoder_embed_data/
-# author attention
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
-MODEL_TYPE="bart_author_attention"
-MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
 # regular transformer
 MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML
@@ -85,10 +85,10 @@ MODEL_CACHE_DIR=../../data/model_cache/
 # optional: pretrained model
 #PRETRAINED_MODEL=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
 # optional: multiple GPUs
-N_GPU=1
-#N_GPU=2
+#N_GPU=1
+N_GPU=2
 # use device for single-GPU processes
-export CUDA_VISIBLE_DEVICES=0
+#export CUDA_VISIBLE_DEVICES=0
 # regular model
 python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU
 #PID=$!
