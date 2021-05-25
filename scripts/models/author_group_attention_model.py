@@ -21,6 +21,7 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
     def __init__(self, config: BartConfig, reader_group_types):
         super().__init__(config)
         self.embed_dim = config.d_model
+        self.reader_attn_weight = config.reader_attn_weight
         # NOTE we need to include "OTHER" in reader_groups
         # to provide catch-all category
         ## TODO: align attention module matrices between groups?
@@ -104,8 +105,8 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
             attention_mask=attention_mask,
             output_attentions=output_attentions,
         )
-        hidden_states = (hidden_states + general_hidden_states) / 2.
-        attn_weights = (attn_weights + general_attn_weights) / 2.
+        hidden_states = (self.reader_attn_weight * hidden_states + (1 - self.reader_attn_weight) * general_hidden_states) / 2.
+        attn_weights = (self.reader_attn_weight * attn_weights + (1 - self.reader_attn_weight) * general_attn_weights) / 2.
 
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states

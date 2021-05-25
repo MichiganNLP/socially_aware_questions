@@ -54,6 +54,7 @@ class AuthorTextEncoder(BartPretrainedModel):
 
         self.author_embed_network = nn.Linear(self.config.author_embeds, embed_dim)
         self.author_embed_layernorm = nn.LayerNorm(embed_dim)
+        self.author_text_combine_network = nn.Linear(self.config.max_position_embeddings+1, self.config.max_position_embeddings)
         self.init_weights()
 
     def forward(
@@ -133,14 +134,18 @@ class AuthorTextEncoder(BartPretrainedModel):
         if(author_embeds is not None):
         ## add author embeddings
             # remove final token from input, replace with author embedding
-            # TODO: add author embedding before padding? not sure that it matters
-            hidden_states = hidden_states[:, :-1, :]
-            author_embeds = author_embeds.reshape(author_embeds.shape[0], 1, author_embeds.shape[1])#.double()
-            # tmp debugging
-            # print(f'author embeds {author_embeds}')
+            # hidden_states = hidden_states[:, :-1, :]
+            # author_embeds = author_embeds.reshape(author_embeds.shape[0], 1, author_embeds.shape[1])#.double()
+            # # tmp debugging
+            # # print(f'author embeds {author_embeds}')
+            # author_embeds_hidden = self.author_embed_network(author_embeds)
+            # author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
+            # combine author embeds with hidden states
+            # pass through ANOTHER network to combine
             author_embeds_hidden = self.author_embed_network(author_embeds)
             author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
-            hidden_states = torch.cat([hidden_states, author_embeds_hidden], axis=1)
+            text_author_combined = torch.cat([hidden_states, author_embeds_hidden])
+            hidden_states = self.author_text_combine_network(text_author_combined.squeeze(1).T).unsqueeze(1)
 
         # expand attention_mask
         if attention_mask is not None:
