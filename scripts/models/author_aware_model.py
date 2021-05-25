@@ -47,7 +47,7 @@ class AuthorTextEncoder(BartPretrainedModel):
         self.embed_positions = BartLearnedPositionalEmbedding(
             config.max_position_embeddings,
             embed_dim,
-            self.padding_idx,
+            # self.padding_idx,
         )
         self.layers = nn.ModuleList([BartEncoderLayer(config) for _ in range(config.encoder_layers)])
         self.layernorm_embedding = nn.LayerNorm(embed_dim)
@@ -144,6 +144,9 @@ class AuthorTextEncoder(BartPretrainedModel):
             # pass through ANOTHER network to combine
             author_embeds_hidden = self.author_embed_network(author_embeds)
             author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
+            # tmp debugging
+            print(f'hidden states have dimensions={hidden_states.shape}')
+            print(f'author embeds have dimensions={author_embeds_hidden.shape}')
             text_author_combined = torch.cat([hidden_states, author_embeds_hidden])
             hidden_states = self.author_text_combine_network(text_author_combined.squeeze(1).T).unsqueeze(1)
 
