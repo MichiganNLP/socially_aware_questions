@@ -276,7 +276,8 @@ def main():
     ## train
     torch.cuda.empty_cache()
     trainer.train(
-        model_path=model_out_dir,
+        # model_path=model_out_dir,
+        resume_from_checkpoint=None,
     )
     trainer.save_model()
 
