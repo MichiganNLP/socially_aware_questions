@@ -1142,3 +1142,11 @@ def collect_subreddit_embed_neighbors(author_data_dir, subreddits_to_query):
     else:
         subreddit_combined_neighbors = pd.read_csv(subreddit_neighbor_file, sep='\t', index_col=False, converters={'neighbors': literal_eval})
     return subreddit_combined_neighbors
+
+def try_convert_date(date_str, date_formats=['%Y-%m-%d', '%Y-%m-%d %H:%M:%S']):
+    for date_format in date_formats:
+        try:
+            date_val = datetime.strptime(date_str, date_format)
+        except Exception as e:
+            pass
+    return date_val

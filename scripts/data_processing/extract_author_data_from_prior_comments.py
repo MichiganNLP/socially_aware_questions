@@ -17,7 +17,7 @@ import geocoder as geocoder
 from nltk import PunktSentenceTokenizer
 from requests import Session
 from tqdm import tqdm
-from data_helpers import extract_age, full_location_pipeline, load_all_author_data, split_name_string
+from data_helpers import extract_age, full_location_pipeline, load_all_author_data, split_name_string, try_convert_date
 import numpy as np
 import pandas as pd
 import stanza
@@ -194,11 +194,9 @@ def add_subreddit_location_data(author_data_dir, author_static_data_file):
     clean_subreddit_location_data = clean_subreddit_location_data.assign(**{
         'country': clean_subreddit_location_data.apply(lambda x: country_matches[x.loc['subreddit']] if x.loc['subreddit'] in country_matches else x.loc['country'], axis=1)
     })
-    country_regions = defaultdict(lambda x: 'non_US')
-    country_regions['us'] = 'US'
-    clean_subreddit_location_data = clean_subreddit_location_data.assign(**{
-        'country_region': clean_subreddit_location_data.loc[:, 'country'].apply(country_regions.get)
-    })
+    # tmp debugging
+    # print(f'subreddit location data has country counts =\n{clean_subreddit_location_data.loc[:, "country"].value_counts()}')
+    # print(f'subreddit location data has region counts =\n{clean_subreddit_location_data.loc[:, "country_region"].value_counts()}')
     # update existing subreddit/location data, write to file
     if (len(existing_subreddit_location_data) > 0):
         existing_subreddit_location_data = pd.concat([
@@ -215,24 +213,36 @@ def add_subreddit_location_data(author_data_dir, author_static_data_file):
     high_accuracy_subreddit_location_data = clean_subreddit_location_data[clean_subreddit_location_data.loc[:, 'accuracy'] >= location_accuracy_cutoff]
     # join with author data
     static_author_data = pd.read_csv(author_static_data_file, sep='\t', compression='gzip', index_col=False)
-    high_accuracy_subreddit_location_data.rename(columns={'country': 'subreddit_country', 'country_region': 'subreddit_region'}, inplace=True)
+    # get rid of existing subreddit region data
+    # if('subreddit_region' in static_author_data.columns):
+    #     static_author_data.drop('subreddit_region', axis=1, inplace=True)
+    high_accuracy_subreddit_location_data.rename(columns={'country': 'subreddit_country'}, inplace=True)
     location_author_data = pd.merge(
         full_author_data,
-        high_accuracy_subreddit_location_data.loc[:, ['subreddit', 'subreddit_country', 'subreddit_region']],
+        high_accuracy_subreddit_location_data.loc[:, ['subreddit', 'subreddit_country']],
         on='subreddit', how='inner',
     )
     # limit to valid author-location data
-    location_author_data = location_author_data[location_author_data.loc[:, 'subreddit_region'].apply(lambda x: type(x) is str)].drop_duplicates('author')
+    location_author_data = location_author_data[location_author_data.loc[:, 'subreddit_country'].apply(lambda x: type(x) is str)].drop_duplicates('author')
     # merge w/ original static data
     location_author_data = pd.merge(
         static_author_data,
-        location_author_data.loc[:, ['author', 'subreddit_region']],
+        location_author_data.loc[:, ['author', 'subreddit_country']],
         on='author', how='outer'
     )
-    location_author_data.fillna({'location' : 'UNK', 'subreddit_region' : 'UNK'}, inplace=True)
+    location_author_data.fillna({'location' : 'UNK', 'subreddit_country' : 'UNK'}, inplace=True)
+    # tmp debugging
+    # print(f'location author data sample =\n{location_author_data.head()}')
     ## fix mising location data using extra subreddit data!
     location_author_data = location_author_data.assign(**{
-        'location': location_author_data.apply(lambda x: x.loc['subreddit_region'] if (x.loc['location'] == 'UNK') else x.loc['location'], axis=1)
+        'location': location_author_data.apply(lambda x: x.loc['subreddit_country'] if (x.loc['location'] == 'UNK') else x.loc['location'], axis=1)
+    })
+    ## add region
+    country_regions = defaultdict(lambda: 'NONUS')
+    country_regions['us'] = 'US'
+    country_regions['UNK'] = 'UNK'
+    location_author_data = location_author_data.assign(**{
+        'location_region': location_author_data.loc[:, 'location'].apply(lambda x: country_regions[x])
     })
     # rewrite data
     location_author_data.to_csv(author_static_data_file, sep='\t', compression='gzip', index=False)
@@ -301,7 +311,7 @@ def main():
     author_file_matcher = re.compile('.+_comments.gz')
     author_data_files = list(filter(lambda x: author_file_matcher.match(x) is not None, os.listdir(author_data_dir)))
     author_dynamic_data_file = os.path.join(author_data_dir, 'author_prior_comment_data.gz')
-    collect_dynamic_author_data(author_data_dir, author_data_files, author_dynamic_data_file, question_data)
+    # collect_dynamic_author_data(author_data_dir, author_data_files, author_dynamic_data_file, question_data)
     # author_data = pd.DataFrame(author_data, columns=author_data_cols)
 
     ## collect static data: location, age
@@ -314,31 +324,41 @@ def main():
     combined_author_data = pd.read_csv(author_dynamic_data_file, sep='\t', index_col=False, compression='gzip')
     # remove duplicates
     combined_author_data.drop_duplicates(['author', 'date_day', 'subreddit'], inplace=True)
-    category_cutoff_pct_vals = [95, 50] # [95, 50]
+    category_cutoff_pct_vals = [75, 50] # [95, 50]
     category_vars = ['expert_pct', 'relative_time']
     for category_var_i, category_cutoff_pct_i in zip(category_vars, category_cutoff_pct_vals):
         bin_var_i = f'{category_var_i}_bin'
-        bin_vals = [np.percentile(combined_author_data.loc[:, category_var_i].dropna(), category_cutoff_pct_i)]
+        # get overall bins
+        # bin_vals = [np.percentile(combined_author_data.loc[:, category_var_i].dropna(), category_cutoff_pct_i)]
+        # combined_author_data = combined_author_data.assign(**{
+        #     bin_var_i: np.digitize(combined_author_data.loc[:, category_var_i], bins=bin_vals)
+        # })
+        # get bins per subreddit
+        bin_vals_per_subreddit = combined_author_data.groupby('subreddit').apply(lambda x: [np.percentile(x.loc[:, category_var_i].dropna(), category_cutoff_pct_i)])
         combined_author_data = combined_author_data.assign(**{
-            bin_var_i : np.digitize(combined_author_data.loc[:, category_var_i], bins=bin_vals)
+            bin_var_i : combined_author_data.apply(lambda x: np.digitize(x.loc[category_var_i], bins=bin_vals_per_subreddit[x.loc['subreddit']]), axis=1)
         })
+
     ## reload static data, combine w/ dynamic data, add regions to locations
     author_static_data = pd.read_csv(author_static_data_file, sep='\t', compression='gzip', index_col=False)
     combined_author_data = pd.merge(combined_author_data, author_static_data, on='author')
-    location_region_lookup = defaultdict(lambda x: 'UNK')
-    location_region_lookup.update({'us' : 'US'})
-    non_US_locations = list(set(combined_author_data.loc[:, 'location'].unique()) - {'US', 'UNK'})
-    location_region_lookup.update({
-        x : 'NONUS' for x in non_US_locations
-    })
-    combined_author_data = combined_author_data.assign(**{
-        'location_region' : combined_author_data.loc[:, 'location'].apply(location_region_lookup.get)
-    })
+    # now we do this when we collect the location data
+    # location_region_lookup = defaultdict(lambda x: 'UNK')
+    # location_region_lookup.update({'us' : 'US'})
+    # non_US_locations = list(set(combined_author_data.loc[:, 'location'].unique()) - {'US', 'UNK'})
+    # location_region_lookup.update({
+    #     x : 'NONUS' for x in non_US_locations
+    # })
+    # combined_author_data = combined_author_data.assign(**{
+    #     'location_region' : combined_author_data.loc[:, 'location'].apply(location_region_lookup.get)
+    # })
 
     ## optional: add author embeddings
     author_embeddings_data_files = args.get('author_embeddings_data')
     if(author_embeddings_data_files is not None):
-        combined_author_data = combined_author_data.assign(**{'date_day': combined_author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))})
+        # combined_author_data = combined_author_data.assign(**{'date_day': combined_author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))})
+        date_formats = ['%Y-%m-%d', '%Y-%m-%d %H:%M:%S']
+        combined_author_data = combined_author_data.assign(**{'date_day': combined_author_data.loc[:, 'date_day'].apply(lambda x: try_convert_date(x, date_formats))})
         # tmp debugging: where are we losing embeddings?
         # combined_author_data.to_csv('../../data/reddit_data/author_data/combined_author_data_tmp.gz', sep='\t', compression='gzip', index=False)
         for author_embeddings_data_file in author_embeddings_data_files:
