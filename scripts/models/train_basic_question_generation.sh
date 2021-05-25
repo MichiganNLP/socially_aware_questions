@@ -64,14 +64,14 @@ MODEL_CONFIG_FILE=../../data/model_cache/BART_config.json
 #MODEL_TYPE="bart_author"
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
 # author attention
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
-MODEL_TYPE="bart_author_attention"
-MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
+#MODEL_TYPE="bart_author_attention"
+#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
 # author embed
 # subreddit
-#OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
-#MODEL_TYPE="bart_author_embeds"
-#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_subreddit_embed_model_config.json
+OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
+MODEL_TYPE="bart_author_embeds"
+MODEL_CONFIG_FILE=../../data/model_cache/BART_author_subreddit_embed_model_config.json
 # text
 #OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
 #MODEL_TYPE="bart_author_embeds"
