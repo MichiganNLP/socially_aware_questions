@@ -1,3 +1,0 @@
-VALID_QUESTION_DATA_FILES=(../../data/reddit_data/sample_advice_subreddit_question_labels.tsv ../../data/reddit_data/sample_advice_subreddit_post_initial_question_labels.tsv ../../data/reddit_data/sample_advice_subreddit_parent_reply_question_labels.tsv ../../data/reddit_data/sample_advice_subreddit_no_filter_question_labels.tsv)
-OUT_DIR=../../data/reddit_data/valid_question_model/
-python classify_valid_questions_in_comments.py "${VALID_QUESTION_DATA_FILES[@]}" --out_dir $OUT_DIR
