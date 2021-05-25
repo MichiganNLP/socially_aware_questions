@@ -217,6 +217,8 @@ def add_subreddit_location_data(author_data_dir, author_static_data_file):
     # if('subreddit_region' in static_author_data.columns):
     #     static_author_data.drop('subreddit_region', axis=1, inplace=True)
     high_accuracy_subreddit_location_data.rename(columns={'country': 'subreddit_country'}, inplace=True)
+    # tmp debugging
+    print(f'high accuracy location author data sample\n{high_accuracy_subreddit_location_data.head()}')
     location_author_data = pd.merge(
         full_author_data,
         high_accuracy_subreddit_location_data.loc[:, ['subreddit', 'subreddit_country']],
@@ -224,6 +226,8 @@ def add_subreddit_location_data(author_data_dir, author_static_data_file):
     )
     # limit to valid author-location data
     location_author_data = location_author_data[location_author_data.loc[:, 'subreddit_country'].apply(lambda x: type(x) is str)].drop_duplicates('author')
+    # tmp debugging
+    print(f'location author data sample\n{location_author_data.head()}')
     # merge w/ original static data
     location_author_data = pd.merge(
         static_author_data,
