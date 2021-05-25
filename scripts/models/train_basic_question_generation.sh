@@ -7,7 +7,7 @@
 #SBATCH --mem-per-gpu=20g
 #SBATCH --time=32:00:00
 #SBATCH --partition=gpu
-#SBATCH --gpus=2
+#SBATCH --gpus=1
 
 ###SBATCH --gres=gpu:1
 
