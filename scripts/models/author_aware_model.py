@@ -54,7 +54,7 @@ class AuthorTextEncoder(BartPretrainedModel):
 
         self.author_embed_network = nn.Linear(self.config.author_embeds, embed_dim)
         self.author_embed_layernorm = nn.LayerNorm(embed_dim)
-        self.author_text_combine_network = nn.Linear(self.config.max_position_embeddings+1, self.config.max_position_embeddings)
+        # self.author_text_combine_network = nn.Linear(self.config.max_position_embeddings+1, self.config.max_position_embeddings)
         self.init_weights()
 
     def forward(
@@ -144,19 +144,25 @@ class AuthorTextEncoder(BartPretrainedModel):
             # pass through ANOTHER network to combine
             author_embeds_hidden = self.author_embed_network(author_embeds.unsqueeze(1))
             author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
+            if(hidden_states.shape[1] == self.config.max_position_embeddings):
+                hidden_states = hidden_states[:, :-1, :]
             # tmp debugging
-            print(f'hidden states have dimensions={hidden_states.shape}')
-            print(f'author embeds have dimensions={author_embeds_hidden.shape}')
-            text_author_combined = torch.cat([hidden_states, author_embeds_hidden], dim=1).transpose(1,2)
-            hidden_states = self.author_text_combine_network(text_author_combined).transpose(1,2)
+            # print(f'hidden states have dimensions={hidden_states.shape}')
+            # print(f'author embeds have dimensions={author_embeds_hidden.shape}')
+            hidden_states = torch.cat([hidden_states, author_embeds_hidden], axis=1)
+            # tmp debugging
+            # print(f'hidden states have dimensions={hidden_states.shape}')
+            # print(f'author embeds have dimensions={author_embeds_hidden.shape}')
+            # text_author_combined = torch.cat([hidden_states, author_embeds_hidden], dim=1).transpose(1,2)
+            # print(f'combined embeds have dimensions={text_author_combined.shape}')
+            # hidden_states = self.author_text_combine_network(text_author_combined).transpose(1,2)
 
         # expand attention_mask
         if attention_mask is not None:
-            # set attention to 1 for author embeds!
-            if (author_embeds is not None):
-                attention_mask[:, -1] = 1
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
             attention_mask = _expand_mask(attention_mask, inputs_embeds.dtype)
+            # tmp debugging
+            # print(f'expanded attention mask dimensions={attention_mask.shape}')
 
         encoder_states = () if output_hidden_states else None
         all_attentions = () if output_attentions else None
@@ -725,6 +731,18 @@ class BartAuthorTextModel(BartModel):
         )
         use_cache = use_cache if use_cache is not None else self.config.use_cache
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        ## increase attention size (for encoder) to include author embed
+        if (author_embeds is not None and self.author_embed_module in {'encoder', 'encoder_decoder'}):
+            if (attention_mask.shape[1] == self.config.max_position_embeddings):
+                attention_mask = attention_mask[:, :-1]
+            author_attn = torch.ones(attention_mask.shape[0], 1)
+            author_attn = author_attn.to(attention_mask.device)
+            # tmp debugging
+            # print(f'attention mask dimensions={attention_mask.shape}')
+            # print(f'author attention mask dimensions={author_attn.shape}')
+            attention_mask = torch.cat([attention_mask, author_attn], axis=1)
+            # print(f'combined attention mask dimensions={attention_mask.shape}')
 
         if encoder_outputs is None:
             if(self.author_embed_module in {'encoder', 'encoder_decoder'}):
