@@ -262,6 +262,7 @@ def main():
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         data_collator=data_collator,
+        resume_from_checkpoint=False,
         #     prediction_loss_only=True,
         label_smoothing=model_args['label_smoothing'],
         # optimizer=(),
