@@ -47,8 +47,8 @@ class AuthorTextEncoder(BartPretrainedModel):
         self.embed_positions = BartLearnedPositionalEmbedding(
             config.max_position_embeddings,
             embed_dim,
-            self.padding_idx,
-        )
+            #self.padding_idx,
+       	)
         self.layers = nn.ModuleList([BartEncoderLayer(config) for _ in range(config.encoder_layers)])
         self.layernorm_embedding = nn.LayerNorm(embed_dim)
 
@@ -142,10 +142,13 @@ class AuthorTextEncoder(BartPretrainedModel):
             # author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
             # combine author embeds with hidden states
             # pass through ANOTHER network to combine
-            author_embeds_hidden = self.author_embed_network(author_embeds)
+            author_embeds_hidden = self.author_embed_network(author_embeds.unsqueeze(1))
             author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
-            text_author_combined = torch.cat([hidden_states, author_embeds_hidden])
-            hidden_states = self.author_text_combine_network(text_author_combined.squeeze(1).T).unsqueeze(1)
+            # tmp debugging
+            print(f'hidden states have dimensions={hidden_states.shape}')
+            print(f'author embeds have dimensions={author_embeds_hidden.shape}')
+            text_author_combined = torch.cat([hidden_states, author_embeds_hidden], dim=1).transpose(1,2)
+            hidden_states = self.author_text_combine_network(text_author_combined).transpose(1,2)
 
         # expand attention_mask
         if attention_mask is not None:
@@ -191,7 +194,7 @@ class AuthorTextEncoder(BartPretrainedModel):
                     layer_outputs = encoder_layer(
                         hidden_states,
                         attention_mask,
-                        # layer_head_mask=(head_mask[idx] if head_mask is not None else None), # only in new version??
+                        layer_head_mask=(head_mask[idx] if head_mask is not None else None), # only in new version??
                         output_attentions=output_attentions,
                    )
 
@@ -235,7 +238,7 @@ class AuthorTextDecoder(BartDecoder):
         self.embed_positions = BartLearnedPositionalEmbedding(
             config.max_position_embeddings,
             config.d_model,
-            self.padding_idx,
+            #self.padding_idx,
         )
         self.layers = nn.ModuleList([BartDecoderLayer(config) for _ in range(config.decoder_layers)])
         self.layernorm_embedding = nn.LayerNorm(config.d_model)

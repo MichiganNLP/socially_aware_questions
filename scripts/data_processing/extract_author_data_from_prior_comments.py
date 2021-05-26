@@ -157,66 +157,69 @@ def add_subreddit_location_data(author_data_dir, author_static_data_file):
     :param author_static_data_file:
     :return:
     """
-    # reload data
-    full_author_data = load_all_author_data(author_data_dir, usecols=['author', 'subreddit', 'created_utc', 'id'])
-    # get top-K subreddit counts
-    subreddit_counts = full_author_data.loc[:, 'subreddit'].value_counts()
-    min_subreddit_count_pct = 95
-    min_subreddit_count = np.percentile(subreddit_counts, min_subreddit_count_pct)
-    cutoff_subreddit_counts = subreddit_counts[subreddit_counts >= min_subreddit_count]
-    cutoff_subreddit_names = cutoff_subreddit_counts.index.tolist()
+    # load all author data
+    full_author_data = load_all_author_data(author_data_dir, usecols=['author', 'subreddit'])
     # remove locations that we have already mined
     subreddit_location_file = os.path.join(author_data_dir, 'subreddit_location_data.gz')
     if (os.path.exists(subreddit_location_file)):
-        existing_subreddit_location_data = pd.read_csv(subreddit_location_file, sep='\t', compression='gzip', index_col=False)
-        subreddits_with_location = set(existing_subreddit_location_data.loc[:, 'subreddit'].unique())
-        cutoff_subreddit_names = list(set(cutoff_subreddit_names) - subreddits_with_location)
+        subreddit_location_data = pd.read_csv(subreddit_location_file, sep='\t', compression='gzip', index_col=False, converters={'location_data' : literal_eval})
+        # subreddits_with_location = set(existing_subreddit_location_data.loc[:, 'subreddit'].unique())
+        # cutoff_subreddit_names = list(set(cutoff_subreddit_names) - subreddits_with_location)
     else:
-        existing_subreddit_location_data = []
-    # clean names
-    clean_subreddit_names = list(map(split_name_string, cutoff_subreddit_names))
+        # existing_subreddit_location_data = []
+        # get top-K subreddit counts
+        subreddit_counts = full_author_data.loc[:, 'subreddit'].value_counts()
+        min_subreddit_count_pct = 95
+        min_subreddit_count = np.percentile(subreddit_counts, min_subreddit_count_pct)
+        cutoff_subreddit_counts = subreddit_counts[subreddit_counts >= min_subreddit_count]
+        cutoff_subreddit_names = cutoff_subreddit_counts.index.tolist()
 
-    with Session() as session:
-        clean_subreddit_locations = list(map(lambda x: safe_geocode(x, session=session), tqdm(clean_subreddit_names)))
-    clean_subreddit_location_data = pd.DataFrame(
-        [cutoff_subreddit_names, clean_subreddit_names], index=['subreddit', 'clean_subreddit']
-    ).transpose()
-    # filter to locations with actual location data
-    clean_subreddit_location_data = clean_subreddit_location_data.assign(**{
-        'location_data': list(map(lambda x: x.geojson if x.ok else np.nan, clean_subreddit_locations))
-    })
-    clean_subreddit_location_data.dropna(how='any', axis=0, inplace=True)
-    # add country, region data
-    clean_subreddit_location_data = clean_subreddit_location_data.assign(**{
-        'country': clean_subreddit_location_data.loc[:, 'location_data'].apply(lambda x: x['features'][0]['properties'].get('country_code'))
-    })
-    country_matches = {'europe': 'eur'}
-    clean_subreddit_location_data = clean_subreddit_location_data.assign(**{
-        'country': clean_subreddit_location_data.apply(lambda x: country_matches[x.loc['subreddit']] if x.loc['subreddit'] in country_matches else x.loc['country'], axis=1)
-    })
-    # tmp debugging
-    # print(f'subreddit location data has country counts =\n{clean_subreddit_location_data.loc[:, "country"].value_counts()}')
-    # print(f'subreddit location data has region counts =\n{clean_subreddit_location_data.loc[:, "country_region"].value_counts()}')
-    # update existing subreddit/location data, write to file
-    if (len(existing_subreddit_location_data) > 0):
-        existing_subreddit_location_data = pd.concat([
-            clean_subreddit_location_data, existing_subreddit_location_data
-        ], axis=0)
-    else:
-        existing_subreddit_location_data = clean_subreddit_location_data.copy()
-    existing_subreddit_location_data.to_csv(subreddit_location_file, sep='\t', compression='gzip', index=False)
+        # clean names
+        clean_subreddit_names = list(map(split_name_string, cutoff_subreddit_names))
+        with Session() as session:
+            clean_subreddit_locations = list(map(lambda x: safe_geocode(x, session=session), tqdm(clean_subreddit_names)))
+        subreddit_location_data = pd.DataFrame(
+            [cutoff_subreddit_names, clean_subreddit_names], index=['subreddit', 'clean_subreddit']
+        ).transpose()
+        # filter to locations with actual location data
+        subreddit_location_data = subreddit_location_data.assign(**{
+            'location_data': list(map(lambda x: x.geojson if x.ok else np.nan, clean_subreddit_locations))
+        })
+        subreddit_location_data.dropna(how='any', axis=0, inplace=True)
+        # add country, region data
+        subreddit_location_data = subreddit_location_data.assign(**{
+            'country': subreddit_location_data.loc[:, 'location_data'].apply(lambda x: x['features'][0]['properties'].get('country_code'))
+        })
+        country_matches = {'europe': 'eur'}
+        subreddit_location_data = subreddit_location_data.assign(**{
+            'country': subreddit_location_data.apply(lambda x: country_matches[x.loc['subreddit']] if x.loc['subreddit'] in country_matches else x.loc['country'], axis=1)
+        })
+        # tmp debugging
+        # print(f'subreddit location data has country counts =\n{clean_subreddit_location_data.loc[:, "country"].value_counts()}')
+        # print(f'subreddit location data has region counts =\n{clean_subreddit_location_data.loc[:, "country_region"].value_counts()}')
+        # update existing subreddit/location data, write to file
+        # if (len(existing_subreddit_location_data) > 0):
+        # existing_subreddit_location_data = pd.concat([
+        #     clean_subreddit_location_data, existing_subreddit_location_data
+        # ], axis=0)
+        # existing_subreddit_location_data = clean_subreddit_location_data.copy()
+        # else:
+        #     existing_subreddit_location_data = clean_subreddit_location_data.copy()
+        subreddit_location_data.to_csv(subreddit_location_file, sep='\t', compression='gzip', index=False)
     # define cutoff based on min accuracy of test locations
-    clean_subreddit_location_data = clean_subreddit_location_data.assign(**{
-        'accuracy': clean_subreddit_location_data.loc[:, 'location_data'].apply(lambda x: x['features'][0]['properties']['accuracy'])
+    subreddit_location_data = subreddit_location_data.assign(**{
+        'accuracy': subreddit_location_data.loc[:, 'location_data'].apply(lambda x: x['features'][0]['properties']['accuracy'])
     })
     location_accuracy_cutoff = 0.80
-    high_accuracy_subreddit_location_data = clean_subreddit_location_data[clean_subreddit_location_data.loc[:, 'accuracy'] >= location_accuracy_cutoff]
+    high_accuracy_subreddit_location_data = subreddit_location_data[subreddit_location_data.loc[:, 'accuracy'] >= location_accuracy_cutoff]
     # join with author data
     static_author_data = pd.read_csv(author_static_data_file, sep='\t', compression='gzip', index_col=False)
     # get rid of existing subreddit region data
     # if('subreddit_region' in static_author_data.columns):
     #     static_author_data.drop('subreddit_region', axis=1, inplace=True)
     high_accuracy_subreddit_location_data.rename(columns={'country': 'subreddit_country'}, inplace=True)
+    # tmp debugging
+    # print(f'high accuracy location author data sample\n{high_accuracy_subreddit_location_data.head()}')
     location_author_data = pd.merge(
         full_author_data,
         high_accuracy_subreddit_location_data.loc[:, ['subreddit', 'subreddit_country']],
@@ -224,6 +227,8 @@ def add_subreddit_location_data(author_data_dir, author_static_data_file):
     )
     # limit to valid author-location data
     location_author_data = location_author_data[location_author_data.loc[:, 'subreddit_country'].apply(lambda x: type(x) is str)].drop_duplicates('author')
+    # tmp debugging
+    # print(f'location author data sample\n{location_author_data.head()}')
     # merge w/ original static data
     location_author_data = pd.merge(
         static_author_data,
