@@ -299,8 +299,8 @@ def main():
         #         sys.exit(0)
     # get data name: based on model generation parameters
     generation_params = json.load(open(generation_param_file))
-    generation_type = generation_params['generation_type']
-    generation_str = f'{generation_type}_{"_".join(k+"="+v for k,v in generation_params.items() if k!= "generation_type")}'
+    generation_method = generation_params['generation_method']
+    generation_str = f'{generation_method}_{"_".join(k+"="+str(v) for k,v in generation_params.items() if k!= "generation_method")}'
     output_name = f'{test_data}_{generation_str}_output'
 
     ## generate lol

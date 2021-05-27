@@ -54,8 +54,8 @@ POST_METADATA=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
 # model params
 MODEL_CACHE_DIR=../../data/model_cache/
 # model generation params
-GENERATION_PARAMS=../../data/model_cache/beam_search_generation_params.json
-#GENERATION_PARAMS=../../data/model_cache/sample_generation_params.json
+#GENERATION_PARAMS=../../data/model_cache/beam_search_generation_params.json
+GENERATION_PARAMS=../../data/model_cache/sample_generation_params.json
 
 # set GPU
 #export CUDA_VISIBLE_DEVICES=1

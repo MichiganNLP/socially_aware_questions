@@ -1,4 +1,4 @@
 {
-    "generation_type" : "beam_search",
-    "num_beams" : 8,
+    "generation_method" : "beam_search",
+    "num_beams" : 4
 }
