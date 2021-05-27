@@ -4,6 +4,7 @@ Generate raw output for inspection AND compute
 aggregate scores (BLEU, ROUGE).
 """
 import gzip
+import json
 import os
 from argparse import ArgumentParser
 from rouge_score.rouge_scorer import RougeScorer
@@ -244,6 +245,7 @@ def main():
     parser.add_argument('--out_dir', default='../../data/model_cache/')
     parser.add_argument('--post_metadata', default=None)
     parser.add_argument('--word_embed_file', default='../../data/embeddings/wiki-news-300d-1M.vec.gz')
+    parser.add_argument('--generation_params', default='../../data/model_cache/beam_search_generation_params.json')
     args = vars(parser.parse_args())
     model_file = args['model_file']
     model_cache_dir = args['model_cache_dir']
@@ -253,6 +255,7 @@ def main():
     out_dir = args['out_dir']
     post_metadata = args.get('post_metadata')
     word_embed_file = args.get('word_embed_file')
+    generation_param_file = args.get('generation_params')
     if(not os.path.exists(out_dir)):
         os.mkdir(out_dir)
 
@@ -294,15 +297,20 @@ def main():
         #     if(data_i['reader_token'] is None):
         #         print(f'bad test data with no reader token {data_i}')
         #         sys.exit(0)
-    
+    # get data name: based on model generation parameters
+    generation_params = json.load(open(generation_param_file))
+    generation_method = generation_params['generation_method']
+    generation_str = f'{generation_method}_{"_".join(k+"="+str(v) for k,v in generation_params.items() if k!= "generation_method")}'
+    output_name = f'{test_data}_{generation_str}_output'
+
     ## generate lol
-    generated_text_out_file = os.path.join(out_dir, 'test_data_output_text.gz')
+    generated_text_out_file = os.path.join(out_dir, f'{output_name}_text.gz')
     if(not os.path.exists(generated_text_out_file)):
         generation_method = 'beam_search'
         num_beams = 8
         pred_data = generate_predictions(generation_model, test_data, model_tokenizer,
-                                         generation_method=generation_method,
-                                         num_beams=num_beams, model_kwargs=model_kwargs)
+                                         generation_params=generation_params,
+                                         model_kwargs=model_kwargs)
         pred_data = np.array(pred_data)
         with gzip.open(generated_text_out_file, 'wt') as generated_text_out:
             generated_text_out.write('\n'.join(pred_data))
@@ -311,7 +319,7 @@ def main():
 
     ## get aggregate scores
     generated_text_score_out_file = os.path.join(out_dir,
-                                                 'test_data_output_scores.tsv')
+                                                 f'{output_name}_scores.tsv')
     # print(f'generated score file {generated_text_score_out_file}')
     if(not os.path.exists(generated_text_score_out_file)):
         # tmp debugging
@@ -322,7 +330,7 @@ def main():
         generation_score_data.to_csv(generated_text_score_out_file, sep='\t', index=False)
     ## optional: same thing but for different subsets of post data
     ## reader groups
-    reader_group_score_out_file = os.path.join(out_dir, 'test_data_output_scores_reader_groups.tsv')
+    reader_group_score_out_file = os.path.join(out_dir, f'{output_name}_scores_reader_groups.tsv')
     if(not os.path.exists(reader_group_score_out_file)):
         # if(model_type == 'bart_author_attention'):
         #     reader_groups = list(set(test_data['reader_token']))
@@ -363,7 +371,7 @@ def main():
             generation_score_data_i = generation_score_data_i.assign(**{'community' : community_i})
             community_scores.append(generation_score_data_i)
         community_scores = pd.concat(community_scores, axis=0)
-        community_score_out_file = os.path.join(out_dir, f'test_data_output_scores_communities.tsv')
+        community_score_out_file = os.path.join(out_dir, f'{output_name}_scores_communities.tsv')
         community_scores.to_csv(community_score_out_file, sep='\t', index=False)
 
 

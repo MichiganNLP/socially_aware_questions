@@ -57,8 +57,8 @@ def load_vectors(embed_file):
     return data
 
 def generate_predictions(model, data, tokenizer,
-                         generation_method='beam_search', num_beams=4,
-                         temperature=1.0, top_p=1.0, model_kwargs=[]):
+                         generation_params=[],
+                         model_kwargs=[]):
     """
     Generate predicted text from transformer model.
 
@@ -66,12 +66,15 @@ def generate_predictions(model, data, tokenizer,
     :param data:
     :return:
     """
+    # generation_method = 'beam_search', num_beams = 4,
+    # temperature = 1.0, top_p = 1.0,
     max_decoding_length = 64
     length_penalty = 1
     # device = torch.device(device_name)
     device = torch.cuda.current_device()
     model.to(device)
     pred_text = []
+    generation_method = generation_params['generation_method']
     for batch_i in tqdm(data):
         source_i = batch_i['source_ids']
         attention_i = batch_i['attention_mask']
@@ -90,8 +93,7 @@ def generate_predictions(model, data, tokenizer,
             output_i = model.generate(
                 input_ids=source_i,
                 attention_mask=attention_i,
-                num_beams=num_beams,
-                temperature=temperature,
+                num_beams=generation_params['num_beams'],
                 max_length=max_decoding_length,
                 length_penalty=length_penalty,
                 num_return_sequences=1,
@@ -101,8 +103,8 @@ def generate_predictions(model, data, tokenizer,
             output_i = model.generate(
                 input_ids=source_i,
                 attention_mask=attention_i,
-                temperature=temperature,
-                top_p=top_p,
+                temperature=generation_params['temperature'],
+                top_p=generation_params['top_p'],
                 max_length=max_decoding_length,
                 length_penalty=length_penalty,
                 num_return_sequences=1,

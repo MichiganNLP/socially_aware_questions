@@ -7,7 +7,7 @@
 #SBATCH --mem-per-gpu=20g
 #SBATCH --time=32:00:00
 #SBATCH --partition=gpu
-#SBATCH --gpus=1
+#SBATCH --gpus=2
 
 ###SBATCH --gres=gpu:1
 
@@ -55,9 +55,9 @@ VAL_DATA=../../data/reddit_data/combined_data_val_data.pt
 #OUT_DIR=../../data/nyt_comments/debug_model/
 ## NOTE: for author models modify data/model_cache/BART_author_model_config.json before starting
 # reddit model
-OUT_DIR=../../data/reddit_data/text_only_model/
-MODEL_TYPE='bart'
-MODEL_CONFIG_FILE=../../data/model_cache/BART_config.json
+#OUT_DIR=../../data/reddit_data/text_only_model/
+#MODEL_TYPE='bart'
+#MODEL_CONFIG_FILE=../../data/model_cache/BART_config.json
 # reddit author model
 # author token
 #OUT_DIR=../../data/reddit_data/author_text_data/
@@ -69,9 +69,9 @@ MODEL_CONFIG_FILE=../../data/model_cache/BART_config.json
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
 # author embed
 # subreddit
-OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
-MODEL_TYPE="bart_author_embeds"
-MODEL_CONFIG_FILE=../../data/model_cache/BART_author_subreddit_embed_model_config.json
+#OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
+#MODEL_TYPE="bart_author_embeds"
+#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_subreddit_embed_model_config.json
 # text
 #OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
 #MODEL_TYPE="bart_author_embeds"
@@ -79,9 +79,9 @@ MODEL_CONFIG_FILE=../../data/model_cache/BART_author_subreddit_embed_model_confi
 # author (decoder) embed
 #OUT_DIR=../../data/reddit_data/author_text_data/author_decoder_embed_data/
 # author attention
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
-#MODEL_TYPE="bart_author_attention"
-#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
+MODEL_TYPE="bart_author_attention"
+MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 # regular transformer
 MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML
