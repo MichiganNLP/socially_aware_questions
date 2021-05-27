@@ -21,7 +21,7 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
     def __init__(self, config: BartConfig, reader_group_types):
         super().__init__(config)
         self.embed_dim = config.d_model
-        self.reader_attn_weight = config.reader_attn_weight
+        self.reader_attn_weight = config.__dict__['reader_attn_weight']
         # NOTE we need to include "OTHER" in reader_groups
         # to provide catch-all category
         ## TODO: align attention module matrices between groups?
