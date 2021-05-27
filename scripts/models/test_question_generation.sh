@@ -53,7 +53,9 @@ OUT_DIR=../../data/reddit_data/text_only_model/
 POST_METADATA=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
 # model params
 MODEL_CACHE_DIR=../../data/model_cache/
-# author group attention model
+# model generation params
+GENERATION_PARAMS=../../data/model_cache/beam_search_generation_params.json
+#GENERATION_PARAMS=../../data/model_cache/sample_generation_params.json
 
 # set GPU
 #export CUDA_VISIBLE_DEVICES=1
@@ -63,7 +65,7 @@ MODEL_CACHE_DIR=../../data/model_cache/
 # trained model
 #python test_question_generation.py $TEST_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR
 # trained model + test on post subsets (e.g. community)
-python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA
+python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA --generation_params $GENERATION_PARAMS
 #(python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA)&
 #PID=$!
 #MAX_MEMORY=60000000000 # 50G
