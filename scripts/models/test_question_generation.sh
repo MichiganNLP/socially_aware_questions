@@ -26,15 +26,19 @@ TEST_DATA=../../data/reddit_data/combined_data_val_data.pt
 #MODEL_TYPE='bart'
 #OUT_DIR=../../data/CNN_articles/cnn/
 # text only
-MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-265000/pytorch_model.bin
+MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-305500/pytorch_model.bin
 MODEL_TYPE='bart'
 OUT_DIR=../../data/reddit_data/text_only_model/
 # reddit+author token
-#MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-265000/pytorch_model.bin
+#MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-305500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/
 #MODEL_TYPE='bart_author_token'
+# reddit + author group attention
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/question_generation_model/checkpoint-305500/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
+#MODEL_TYPE='bart_author_attention'
 # reddit + author embed (+ encoder)
-#MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_data/question_generation_model/checkpoint-254500/pytorch_model.bin
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_data/question_generation_model/checkpoint-305500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
 #MODEL_TYPE='bart_author_embeds'
 # reddit + author embed (+ decoder)
@@ -42,20 +46,16 @@ OUT_DIR=../../data/reddit_data/text_only_model/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_decoder_embed_data
 #MODEL_TYPE='bart_author_embeds'
 # reddit + text embed (+ encoder)
-#MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_data/question_generation_model/checkpoint-254500/pytorch_model.bin
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_data/question_generation_model/checkpoint-305500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
 #MODEL_TYPE='bart_author_embeds'
-# reddit + author group attention
-#MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/question_generation_model/checkpoint-265000/pytorch_model.bin
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
-#MODEL_TYPE='bart_author_attention'
 # metadata to test sub-sets of data
 POST_METADATA=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
 # model params
 MODEL_CACHE_DIR=../../data/model_cache/
 # model generation params
-GENERATION_PARAMS=../../data/model_cache/beam_search_generation_params.json
-#GENERATION_PARAMS=../../data/model_cache/sample_generation_params.json
+#GENERATION_PARAMS=../../data/model_cache/beam_search_generation_params.json
+GENERATION_PARAMS=../../data/model_cache/sample_generation_params.json
 
 # set GPU
 #export CUDA_VISIBLE_DEVICES=1
