@@ -1,0 +1,4 @@
+{
+    "generation_type" : "beam_search",
+    "num_beams" : 8,
+}
