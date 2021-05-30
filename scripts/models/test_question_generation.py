@@ -301,13 +301,11 @@ def main():
     generation_params = json.load(open(generation_param_file))
     generation_method = generation_params['generation_method']
     generation_str = f'{generation_method}_{"_".join(k+"="+str(v) for k,v in generation_params.items() if k!= "generation_method")}'
-    output_name = f'{test_data}_{generation_str}_output'
+    output_name = f'test_data_{generation_str}_output'
 
     ## generate lol
     generated_text_out_file = os.path.join(out_dir, f'{output_name}_text.gz')
     if(not os.path.exists(generated_text_out_file)):
-        generation_method = 'beam_search'
-        num_beams = 8
         pred_data = generate_predictions(generation_model, test_data, model_tokenizer,
                                          generation_params=generation_params,
                                          model_kwargs=model_kwargs)
