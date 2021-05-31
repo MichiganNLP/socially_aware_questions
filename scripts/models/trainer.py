@@ -54,7 +54,7 @@ class Trainer(HFTrainer):
         # parallel loss
         if(self.accelerator is not None):
             self.accelerator.backward(loss)
-        if self.args.fp16:
+        elif self.args.fp16:
             with amp.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
         else:
