@@ -197,7 +197,7 @@ def main():
         #for device_id in device_ids:
         #    distributed.init_process_group('gloo', rank=device_id, world_size=n_gpu)
         #model = DistributedDataParallel(model, device_ids=device_ids)
-        model_wrapped = DataParallel(model).cuda()
+        model = DataParallel(model).cuda()
 
     ## fix data tensor format
     tensor_cols = ['source_ids', 'target_ids', 'attention_mask']
@@ -205,24 +205,6 @@ def main():
         tensor_cols.append('author_embeds')
     train_dataset.set_format('torch', columns=tensor_cols, output_all_columns=True)
     val_dataset.set_format('torch', columns=tensor_cols, output_all_columns=True)
-
-    # tmp debugging
-    # print(f'sample train data {train_dataset[0]}')
-    # print(f'sample val data {val_dataset[0]}')
-    # for data_i in train_dataset:
-    #     try:
-    #         data_i['source_ids']
-    #     except Exception as e:
-    #         print(f'bad data {data_i}')
-    #         break
-    # old dumb data loading
-    # train_dataset = train_dataset['train']
-    # val_dataset = val_dataset['train']
-    ## TODO: how to stop sampling from breaking training loop?
-    # if(sample_pct < 1.0):
-    #     train_dataset = sample_dataset(train_dataset, sample_pct)
-    #     val_dataset = sample_dataset(val_dataset, sample_pct)
-        # print(f'sample train data has {len(train_dataset)} data')
 
     ## set up data collator
     # get max source/target len
