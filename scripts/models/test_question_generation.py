@@ -306,8 +306,6 @@ def main():
     ## generate lol
     generated_text_out_file = os.path.join(out_dir, f'{output_name}_text.gz')
     if(not os.path.exists(generated_text_out_file)):
-        generation_method = 'beam_search'
-        num_beams = 8
         pred_data = generate_predictions(generation_model, test_data, model_tokenizer,
                                          generation_params=generation_params,
                                          model_kwargs=model_kwargs)

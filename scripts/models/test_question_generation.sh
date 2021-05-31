@@ -19,7 +19,7 @@
 #OUT_DIR=../../data/CNN_articles/cnn/
 # regular training reddit data
 TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
-TEST_DATA=../../data/reddit_data/combined_data_val_data.pt
+TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
 ## models
 # CNN text only
 #MODEL_FILE=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
