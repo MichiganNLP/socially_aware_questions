@@ -214,9 +214,8 @@ def main():
         pretrained_model_weights = torch.load(pretrained_model)
         model.load_state_dict(pretrained_model_weights)
     model.resize_token_embeddings(len(tokenizer))
-    # send to same device
-    model.to(torch.cuda.current_device())
     if(n_gpu > 1):
+        # no devices (?) for acceler
         #device_ids = list(range(n_gpu))
         #for device_id in device_ids:
         #    distributed.init_process_group('gloo', rank=device_id, world_size=n_gpu)
@@ -225,6 +224,8 @@ def main():
         accelerator = Accelerator()
     else:
         accelerator = None
+        # send to same device
+        model.to(torch.cuda.current_device())
 
     ## fix data tensor format
     tensor_cols = ['source_ids', 'target_ids', 'attention_mask']
@@ -279,7 +280,7 @@ def main():
         data_collator=data_collator,
         #     prediction_loss_only=True,
         label_smoothing=model_args['label_smoothing'],
-        optimizer=optimizer,
+        optimizers=(optimizer, None), # optimizer, scheduler
         accelerator=accelerator,
     )
 
