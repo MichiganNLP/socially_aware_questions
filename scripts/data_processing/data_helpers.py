@@ -544,55 +544,17 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     article_ids = list(sorted(clean_data.loc[:, 'article_id'].unique()))
     N_train = int(len(article_ids) * train_pct)
     train_article_ids = np.random.choice(article_ids, N_train, replace=False)
-    val_article_ids = list(set(article_ids) - set(train_article_ids))
-    # tmp debugging lol
-    # with open('tmp_article_ids.txt', 'w') as tmp_out:
-    #     print(f'writing {len(train_article_ids)} article IDs')
-    #     tmp_out.write('\n'.join(map(str, train_article_ids)))
-    #     import sys
-    #     sys.exit(0)
-    # print(f'{len(train_article_ids)} train articles')
-    # print(f'{len(val_article_ids)} val articles')
+    test_article_ids = list(set(article_ids) - set(train_article_ids))
     clean_data_train = clean_data[clean_data.loc[:, 'article_id'].isin(train_article_ids)]
-    clean_data_val = clean_data[clean_data.loc[:, 'article_id'].isin(val_article_ids)]
-    # print(f'{clean_data_train.shape[0]} train data')
-    # print(f'{clean_data_val.shape[0]} val data')
-    ## split train/val data by questions
-    # N = clean_data.shape[0]
-    # N_train = int(N * train_pct)
-    # np.random.shuffle(clean_data.values)
-    # clean_data_train = clean_data.iloc[:N_train, :]
-    # clean_data_val = clean_data.iloc[N_train:, :]
-    # clean_data_train_out_file = os.path.join(out_dir, f'{data_name}_train_data.csv')
-    # clean_data_val_out_file = os.path.join(out_dir, f'{data_name}_val_data.csv')
-    # # print(f'train data columns = {clean_data_train.columns}')
-    # # tmp debugging
-    # if(not os.path.exists(clean_data_train_out_file)):
-    #     clean_data_train.to_csv(clean_data_train_out_file, sep=',', index=False)
-    #     clean_data_val.to_csv(clean_data_val_out_file, sep=',', index=False)
-    # # reload data into correct format lol
-    # data_dir = os.path.dirname(clean_data_train_out_file)
-    # # every time we load data, we have to re-download csv loader? yikes
-    # train_data_set = nlp.load_dataset('csv', data_files=clean_data_train_out_file, data_dir=data_dir)
-    # val_data_set = nlp.load_dataset('csv', data_files=clean_data_val_out_file, data_dir=data_dir)
-    # # remove temporary directory...ugh
-    # tmp_data_dir = os.path.join(data_dir, 'csv')
-    # if(os.path.exists(tmp_data_dir)):
-    #     shutil.rmtree(tmp_data_dir)
-    # tmp debugging
-    # print(f'train data sample = {clean_data_train.head()}')
+    clean_data_test = clean_data[clean_data.loc[:, 'article_id'].isin(test_article_ids)]
     dataset_columns = ['source_text', 'target_text', 'article_id']
     # if(author_data_type == 'embeds'):
     if(author_data is not None):
         dataset_columns.extend(['subreddit_embed', 'text_embed', 'author_has_subreddit_embed', 'author_has_text_embed'])
         # elif(author_data_type == 'tokens'):
         dataset_columns.extend(['reader_token', 'reader_token_str', 'source_text_reader_token'])
-    # tmp debug: check for data column types
-    # for dataset_col_i in dataset_columns:
-    #     dataset_col_vals_i = clean_data_train.loc[:, dataset_col_i].apply(lambda x: type(x)).value_counts()
-    #     print(f'col {dataset_col_i} has vals {dataset_col_vals_i}')
     train_data_set = convert_dataframe_to_data_set(clean_data_train, dataset_columns)
-    val_data_set = convert_dataframe_to_data_set(clean_data_val, dataset_columns)
+    test_data_set = convert_dataframe_to_data_set(clean_data_test, dataset_columns)
     #     tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
     # get max lengths
     # source_text_tokens = clean_data.loc[:, 'source_text'].apply(lambda x: tokenizer.tokenize(x))
@@ -608,25 +570,25 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # print(f'{train_data_set} train data')
     # print(f'{len(val_data_set["source_text"])} val data')
     train_data = data_processor.process(train_data_set)
-    val_data = data_processor.process(val_data_set)
+    test_data = data_processor.process(test_data_set)
     tensor_data_columns = ["source_ids", "target_ids", "attention_mask"]
     if(author_data is not None):
         tensor_data_columns.extend(['subreddit_embed', 'text_embed'])
     # columns = ["source_ids", "target_ids", "attention_mask", "source_text", "target_text"]
     train_data.set_format(type='torch', columns=tensor_data_columns, output_all_columns=True)
-    val_data.set_format(type='torch', columns=tensor_data_columns, output_all_columns=True)
+    test_data.set_format(type='torch', columns=tensor_data_columns, output_all_columns=True)
     # tmp debugging
     # for data_i in train_data:
     #     print(f'post-cleaned train data sample: {data_i}')
     #     break
     #     logging.debug(f'train data {train_data}')
     train_data_out_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
-    val_data_out_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
+    test_data_out_file = os.path.join(out_dir, f'{data_name}_test_data.pt')
     # tmp debugging
     # print(f'writing val data to file = {val_data_out_file}')
     torch.save(train_data, train_data_out_file)
-    torch.save(val_data, val_data_out_file)
-    # save tokenizer?? yes because we will need to post-process other data
+    torch.save(test_data, test_data_out_file)
+    # save tokenizer because we will need to post-process other data
     tokenizer_name_lookup = {
         BartTokenizer : 'BART',
         LongformerTokenizer : 'LongFormer'
@@ -635,6 +597,17 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     tokenizer_out_file = os.path.join(out_dir, f'{tokenizer_name}_tokenizer.pt')
     torch.save(tokenizer, tokenizer_out_file)
 
+    ## extra step: split train into "train_train" and "train_val"
+    # for parameter tuning UGH
+    val_data_pct = 0.25
+    train_train_idx = list(range(N_train))[:-int(val_data_pct * N_train)]
+    train_val_idx = list(range(N_train))[-int(val_data_pct * N_train):]
+    train_train_data = train_data.select(train_train_idx, keep_in_memory=True, load_from_cache_file=False)
+    train_val_data = train_data.select(train_val_idx, keep_in_memory=True, load_from_cache_file=False)
+    train_train_data_out_file = os.path.join(out_dir, f'{data_name}_train_train_data.pt')
+    train_val_data_out_file = os.path.join(out_dir, f'{data_name}_train_val_data.pt')
+    torch.save(train_train_data, train_train_data_out_file)
+    torch.save(train_val_data, train_val_data_out_file)
 
 def convert_dataframe_to_data_set(data_frame, dataset_columns):
     data_dict = {
@@ -743,8 +716,8 @@ def add_author_tokens(author_vars, clean_data, max_source_length, tokenizer):
             #     logging.debug(f'correct: {len(source_text_tokens_j)} tokens generated in input')
             source_text_j = tokenizer.convert_tokens_to_string(source_text_tokens_j)
             # tmp debugging
-            if(source_text_j != data_j.loc['source_text']):
-                print(f'after adding author info to text = {source_text_j}')
+            # if(source_text_j != data_j.loc['source_text']):
+            #     print(f'after adding author info to text = {source_text_j}')
             data_j.loc[author_source_text_var] = source_text_j
             author_txt_data.append(data_j)
     author_txt_data = pd.concat(author_txt_data, axis=1).transpose()
