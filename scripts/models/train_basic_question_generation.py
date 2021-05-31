@@ -279,7 +279,7 @@ def main():
         data_collator=data_collator,
         #     prediction_loss_only=True,
         label_smoothing=model_args['label_smoothing'],
-        optimizer=optimizer,
+        optimizers=(optimizer, None), # optimizer, scheduler
         accelerator=accelerator,
     )
 

@@ -41,7 +41,7 @@
 #VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
 ## reddit+author data
 TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
-VAL_DATA=../../data/reddit_data/combined_data_val_data.pt
+VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 # regular model
 #OUT_DIR=../../data/nyt_comments/
 #OUT_DIR=../../data/CNN_articles/cnn/
@@ -79,7 +79,9 @@ VAL_DATA=../../data/reddit_data/combined_data_val_data.pt
 # author (decoder) embed
 #OUT_DIR=../../data/reddit_data/author_text_data/author_decoder_embed_data/
 # author attention
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.1/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.9/
 MODEL_TYPE="bart_author_attention"
 MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 # regular transformer
