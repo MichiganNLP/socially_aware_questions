@@ -7,7 +7,7 @@
 #SBATCH --mem-per-gpu=20g
 #SBATCH --time=32:00:00
 #SBATCH --partition=gpu
-#SBATCH --gpus=2
+#SBATCH --gpus=1
 
 ###SBATCH --gres=gpu:1
 
@@ -40,8 +40,10 @@
 #TRAIN_DATA=../../data/reddit_data/advice_subreddit_train_data.pt
 #VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
 ## reddit+author data
-TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
-VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
+#TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
+#VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
+TRAIN_DATA=../../data/reddit_data/combined_data_train_train_data.pt
+VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 # regular model
 #OUT_DIR=../../data/nyt_comments/
 #OUT_DIR=../../data/CNN_articles/cnn/
@@ -91,8 +93,8 @@ MODEL_CACHE_DIR=../../data/model_cache/
 # optional: pretrained model
 #PRETRAINED_MODEL=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
 # optional: multiple GPUs
-#N_GPU=1
-N_GPU=2
+N_GPU=1
+#N_GPU=2
 # use device for single-GPU processes
 #export CUDA_VISIBLE_DEVICES=0
 # regular model
