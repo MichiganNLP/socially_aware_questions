@@ -220,7 +220,7 @@ def main():
         #for device_id in device_ids:
         #    distributed.init_process_group('gloo', rank=device_id, world_size=n_gpu)
         #model = DistributedDataParallel(model, device_ids=device_ids)
-        model = DataParallel(model).cuda()
+        # model = DataParallel(model).cuda()
         accelerator = Accelerator()
     else:
         accelerator = None
