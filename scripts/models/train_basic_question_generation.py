@@ -10,12 +10,13 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.nn import DataParallel
 
 from data_collator import T2TDataCollator
-from transformers import AutoModelForSeq2SeqLM, BartConfig
+from transformers import AutoModelForSeq2SeqLM, BartConfig, AdamW
+from transformers.trainer_pt_utils import get_parameter_names
 from author_aware_model import AuthorTextGenerationModel
 import os
-# tmp debugging
 from author_group_attention_model import AuthorGroupAttentionModelConditionalGeneration
 from trainer import Trainer
+from accelerate import Accelerator
 from model_helpers import DataArguments
 from argparse import ArgumentParser
 import numpy as np
@@ -78,6 +79,29 @@ def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, m
     # limits number of checkpoints => 1 GB per optimizer file ;_;
     training_args.save_total_limit = 2
     return training_args
+
+def get_optimizer(model, args):
+    # stolen from https://huggingface.co/transformers/_modules/transformers/trainer.html
+    decay_parameters = get_parameter_names(model, [torch.nn.LayerNorm])
+    decay_parameters = [name for name in decay_parameters if "bias" not in name]
+    optimizer_grouped_parameters = [
+        {
+            "params": [p for n, p in model.named_parameters() if n in decay_parameters],
+            "weight_decay": args.weight_decay,
+        },
+        {
+            "params": [p for n, p in model.named_parameters() if n not in decay_parameters],
+            "weight_decay": 0.0,
+        },
+    ]
+    optimizer_cls = AdamW
+    optimizer_kwargs = {
+        "betas": (args.adam_beta1, args.adam_beta2),
+        "eps": args.adam_epsilon,
+    }
+    optimizer_kwargs["lr"] = args.learning_rate
+    optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
+    return optimizer
 
 def main():
     parser = ArgumentParser()
@@ -190,14 +214,18 @@ def main():
         pretrained_model_weights = torch.load(pretrained_model)
         model.load_state_dict(pretrained_model_weights)
     model.resize_token_embeddings(len(tokenizer))
-    # send to same device
-    model.to(torch.cuda.current_device())
     if(n_gpu > 1):
+        # no devices (?) for acceler
         #device_ids = list(range(n_gpu))
         #for device_id in device_ids:
         #    distributed.init_process_group('gloo', rank=device_id, world_size=n_gpu)
         #model = DistributedDataParallel(model, device_ids=device_ids)
-        model_wrapped = DataParallel(model).cuda()
+        # model = DataParallel(model).cuda()
+        accelerator = Accelerator()
+    else:
+        accelerator = None
+        # send to same device
+        model.to(torch.cuda.current_device())
 
     ## fix data tensor format
     tensor_cols = ['source_ids', 'target_ids', 'attention_mask']
@@ -205,24 +233,6 @@ def main():
         tensor_cols.append('author_embeds')
     train_dataset.set_format('torch', columns=tensor_cols, output_all_columns=True)
     val_dataset.set_format('torch', columns=tensor_cols, output_all_columns=True)
-
-    # tmp debugging
-    # print(f'sample train data {train_dataset[0]}')
-    # print(f'sample val data {val_dataset[0]}')
-    # for data_i in train_dataset:
-    #     try:
-    #         data_i['source_ids']
-    #     except Exception as e:
-    #         print(f'bad data {data_i}')
-    #         break
-    # old dumb data loading
-    # train_dataset = train_dataset['train']
-    # val_dataset = val_dataset['train']
-    ## TODO: how to stop sampling from breaking training loop?
-    # if(sample_pct < 1.0):
-    #     train_dataset = sample_dataset(train_dataset, sample_pct)
-    #     val_dataset = sample_dataset(val_dataset, sample_pct)
-        # print(f'sample train data has {len(train_dataset)} data')
 
     ## set up data collator
     # get max source/target len
@@ -250,6 +260,12 @@ def main():
     model_args = {
         'label_smoothing': 0,
     }
+    # set up parallel training
+    if (accelerator is not None):
+        optimizer = get_optimizer(model, training_args)
+        model, optimizer, train_dataset = accelerator.prepare(model, optimizer, train_dataset)
+    else:
+        optimizer = None
     ## tmp debugging
     # for data_i in train_dataset:
     #     print(f'sample data before trainer: {data_i}')
@@ -264,7 +280,8 @@ def main():
         data_collator=data_collator,
         #     prediction_loss_only=True,
         label_smoothing=model_args['label_smoothing'],
-        # optimizer=(),
+        optimizers=(optimizer, None), # optimizer, scheduler
+        accelerator=accelerator,
     )
 
     ## tmp debugging

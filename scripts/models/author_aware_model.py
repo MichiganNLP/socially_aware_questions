@@ -4,13 +4,14 @@ to generate text.
 """
 ## transformer boilerplate
 from math import sqrt
-from typing import Optional, Union, Callable, List, Iterable
+from typing import Optional, Union, Callable, List, Iterable, Dict, Any
 import torch
 from torch import nn
 import random
 import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss
 from transformers import BartPretrainedModel, BartConfig
+from transformers.file_utils import ModelOutput
 from transformers.generation_utils import GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqModelOutput, Seq2SeqLMOutput, BaseModelOutputWithPastAndCrossAttentions
 from transformers.models.bart.modeling_bart import BartDecoder, \
@@ -378,11 +379,24 @@ class AuthorTextDecoder(BartDecoder):
             ## add author embeddings
             # remove final token from input, replace with author embedding
             # TODO: add author embedding before padding? not sure that it matters
-            hidden_states = hidden_states[:, :-1, :]
-            author_embeds = author_embeds.reshape(author_embeds.shape[0], 1, author_embeds.shape[1]).float()
-            author_embeds_hidden = self.author_embed_network(author_embeds)
+            author_embeds_hidden = self.author_embed_network(author_embeds.unsqueeze(1))
             author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
+            if(hidden_states.shape[1] == self.config.max_position_embeddings):
+                hidden_states = hidden_states[:, :-1, :]
+            # tmp debugging
+            print(f'hidden states have dimensions={hidden_states.shape}')
+            print(f'author embeds have dimensions={author_embeds_hidden.shape}')
             hidden_states = torch.cat([hidden_states, author_embeds_hidden], axis=1)
+
+            #print(f'hidden state before modification has shape={hidden_states.shape}')
+            #hidden_states = hidden_states[:-1, :, :]
+            #author_embeds = author_embeds.reshape(author_embeds.shape[0], 1, author_embeds.shape[1]).float()
+            #author_embeds_hidden = self.author_embed_network(author_embeds)
+            #author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
+			# tmp debugging
+            #print(f'author embeds has shape={author_embeds_hidden.shape}')
+            #print(f'hidden state has shape={hidden_states.shape}')
+            #hidden_states = torch.cat([hidden_states, author_embeds_hidden], axis=1)
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
@@ -971,6 +985,34 @@ class AuthorTextGenerationModel(BartForConditionalGeneration):
             "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
             'author_embeds' : kwargs['author_embeds'],
         }
+
+    def _prepare_encoder_decoder_kwargs_for_generation(
+            self, input_ids: torch.LongTensor, model_kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get encoder output for generation.
+        NOTE: if model is on "decoder" mode then
+        don't feed author embeds to encoder!
+
+        :param input_ids:
+        :param model_kwargs:
+        :return:
+        """
+        if "encoder_outputs" not in model_kwargs:
+            # retrieve encoder hidden states
+            encoder = self.get_encoder()
+            encoder_kwargs = {
+                argument: value
+                for argument, value in model_kwargs.items()
+                if not (argument.startswith("decoder_") or
+                        argument.startswith("cross_attn") or
+                        (argument=='author_embeds' and self.model.author_embed_module == 'decoder')
+                        )
+            }
+            model_kwargs["encoder_outputs"]: ModelOutput = encoder(input_ids,
+                                                                   return_dict=True,
+                                                                   **encoder_kwargs)
+        return model_kwargs
 
     # def generate(
     #     self,

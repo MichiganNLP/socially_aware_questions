@@ -600,15 +600,15 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     ## extra step: split train into "train_train" and "train_val"
     # for parameter tuning UGH
     val_data_pct = 0.25
-    train_train_idx = list(range(N_train))[:-int(val_data_pct * N_train)]
-    train_val_idx = list(range(N_train))[-int(val_data_pct * N_train):]
+    train_data_count = len(train_data)
+    train_train_idx = list(range(train_data_count))[:-int(val_data_pct * train_data_count)]
+    train_val_idx = list(range(train_data_count))[-int(val_data_pct * train_data_count):]
     train_train_data = train_data.select(train_train_idx, keep_in_memory=True, load_from_cache_file=False)
     train_val_data = train_data.select(train_val_idx, keep_in_memory=True, load_from_cache_file=False)
     train_train_data_out_file = os.path.join(out_dir, f'{data_name}_train_train_data.pt')
     train_val_data_out_file = os.path.join(out_dir, f'{data_name}_train_val_data.pt')
     torch.save(train_train_data, train_train_data_out_file)
     torch.save(train_val_data, train_val_data_out_file)
-
 
 def convert_dataframe_to_data_set(data_frame, dataset_columns):
     data_dict = {
@@ -717,8 +717,8 @@ def add_author_tokens(author_vars, clean_data, max_source_length, tokenizer):
             #     logging.debug(f'correct: {len(source_text_tokens_j)} tokens generated in input')
             source_text_j = tokenizer.convert_tokens_to_string(source_text_tokens_j)
             # tmp debugging
-            if(source_text_j != data_j.loc['source_text']):
-                print(f'after adding author info to text = {source_text_j}')
+            # if(source_text_j != data_j.loc['source_text']):
+            #     print(f'after adding author info to text = {source_text_j}')
             data_j.loc[author_source_text_var] = source_text_j
             author_txt_data.append(data_j)
     author_txt_data = pd.concat(author_txt_data, axis=1).transpose()
