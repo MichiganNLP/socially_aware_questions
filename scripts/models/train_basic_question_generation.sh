@@ -70,22 +70,25 @@ VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 #MODEL_TYPE="bart_author_attention"
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
 # author embed
-# subreddit
-#OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
+# subreddit embed 
+#OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/ # encoder
+#OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_decoder_data/ # decoder
 #MODEL_TYPE="bart_author_embeds"
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_subreddit_embed_model_config.json
-# text
-#OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
-#MODEL_TYPE="bart_author_embeds"
-#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_text_embed_model_config.json
+# text embed
+#OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/ # encoder
+OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_decoder_data/ # decoder
+MODEL_TYPE="bart_author_embeds"
+MODEL_CONFIG_FILE=../../data/model_cache/BART_author_text_embed_model_config.json
 # author (decoder) embed
 #OUT_DIR=../../data/reddit_data/author_text_data/author_decoder_embed_data/
 # author attention
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.1/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.1/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.9/
-MODEL_TYPE="bart_author_attention"
-MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.5/
+#MODEL_TYPE="bart_author_attention"
+#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 # regular transformer
 MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML

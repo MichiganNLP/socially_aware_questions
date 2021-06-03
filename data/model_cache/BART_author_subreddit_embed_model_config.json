@@ -71,6 +71,6 @@
   },
   "vocab_size": 50271,
   "author_embeds" : 100,
-  "author_embed_module" : "encoder",
+  "author_embed_module" : "decoder",
   "author_embed_type" : "subreddit_embed"
 }

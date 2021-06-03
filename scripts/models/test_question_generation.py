@@ -304,9 +304,9 @@ def main():
     output_name = f'test_data_{generation_str}_output'
 
     ## generate lol
-    # debugging
-    if(model_type == 'bart_author_embeds'):
-        print(f'model has input for embeds = {generation_model.model.author_embed_module}')
+    # tmp debugging
+    #if(model_type == 'bart_author_embeds'):
+    #    print(f'model has input for embeds = {generation_model.model.author_embed_module}')
     generated_text_out_file = os.path.join(out_dir, f'{output_name}_text.gz')
     if(not os.path.exists(generated_text_out_file)):
         pred_data = generate_predictions(generation_model, test_data, model_tokenizer,
