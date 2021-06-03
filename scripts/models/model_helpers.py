@@ -100,6 +100,9 @@ def generate_predictions(model, data, tokenizer,
                 **model_kwargs_i
             )
         elif(generation_method == 'sample'):
+            # tmp debugging
+            if('author_embed' in model_kwargs_i):
+                print(f'author embed data = {model_kwargs_i["author_embed"]}')
             output_i = model.generate(
                 input_ids=source_i,
                 attention_mask=attention_i,
