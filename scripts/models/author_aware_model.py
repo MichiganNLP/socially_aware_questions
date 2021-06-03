@@ -4,13 +4,14 @@ to generate text.
 """
 ## transformer boilerplate
 from math import sqrt
-from typing import Optional, Union, Callable, List, Iterable
+from typing import Optional, Union, Callable, List, Iterable, Dict, Any
 import torch
 from torch import nn
 import random
 import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss
 from transformers import BartPretrainedModel, BartConfig
+from transformers.file_utils import ModelOutput
 from transformers.generation_utils import GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqModelOutput, Seq2SeqLMOutput, BaseModelOutputWithPastAndCrossAttentions
 from transformers.models.bart.modeling_bart import BartDecoder, \
@@ -971,6 +972,34 @@ class AuthorTextGenerationModel(BartForConditionalGeneration):
             "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
             'author_embeds' : kwargs['author_embeds'],
         }
+
+    def _prepare_encoder_decoder_kwargs_for_generation(
+            self, input_ids: torch.LongTensor, model_kwargs
+    ) -> Dict[str, Any]:
+        """
+        Get encoder output for generation.
+        NOTE: if model is on "decoder" mode then
+        don't feed author embeds to encoder!
+
+        :param input_ids:
+        :param model_kwargs:
+        :return:
+        """
+        if "encoder_outputs" not in model_kwargs:
+            # retrieve encoder hidden states
+            encoder = self.get_encoder()
+            encoder_kwargs = {
+                argument: value
+                for argument, value in model_kwargs.items()
+                if not (argument.startswith("decoder_") or
+                        argument.startswith("cross_attn") or
+                        (argument=='author_embeds' and self.model.author_embed_module == 'decoder')
+                        )
+            }
+            model_kwargs["encoder_outputs"]: ModelOutput = encoder(input_ids,
+                                                                   return_dict=True,
+                                                                   **encoder_kwargs)
+        return model_kwargs
 
     # def generate(
     #     self,

@@ -331,7 +331,7 @@ class AuthorGroupAttentionModel(BartModel):
         padding_idx, vocab_size = config.pad_token_id, config.vocab_size
         self.shared = nn.Embedding(vocab_size, config.d_model, padding_idx)
 
-        self.encoder = AuthorGroupAttentionEncoder(config, self.shared, reader_group_types=reader_group_types)
+        self.encoder = AuthorGroupAttentionEncoder(config, self.shared, reader_group_types=reader_group_types, reader_attn_position=config.reader_attn_position)
         self.decoder = BartDecoder(config, self.shared)
 
         self.init_weights()
