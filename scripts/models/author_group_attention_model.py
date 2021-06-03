@@ -143,7 +143,7 @@ class AuthorGroupAttentionEncoder(BartEncoder):
         embed_tokens (torch.nn.Embedding): output embedding
     """
 
-    def __init__(self, config: BartConfig, embed_tokens: Optional[nn.Embedding] = None, reader_group_types = []):
+    def __init__(self, config: BartConfig, embed_tokens: Optional[nn.Embedding] = None, reader_group_types = [], reader_attn_position=0):
         super().__init__(config)
 
         self.dropout = config.dropout
@@ -163,11 +163,17 @@ class AuthorGroupAttentionEncoder(BartEncoder):
             config.max_position_embeddings,
             embed_dim,
         )
-        encoder_list = [AuthorGroupAttentionEncoderLayer(config, reader_group_types=reader_group_types)]
-        # tmp debug
-        # encoder_list = [BartEncoderLayer(config)]
-        for i in range(config.encoder_layers-1):
-            encoder_list.append(BartEncoderLayer(config))
+        encoder_list = []
+        for i in range(config.encoder_layers):
+            if(i==reader_attn_position):
+                encoder_list.append(AuthorGroupAttentionEncoderLayer(config, reader_group_types=reader_group_types))
+            else:
+                encoder_list.append(BartEncoderLayer(config))
+        # encoder_list = [AuthorGroupAttentionEncoderLayer(config, reader_group_types=reader_group_types)]
+        # # tmp debug
+        # # encoder_list = [BartEncoderLayer(config)]
+        # for i in range(config.encoder_layers-1):
+        #     encoder_list.append(BartEncoderLayer(config))
         self.layers = nn.ModuleList(encoder_list)
         self.layernorm_embedding = nn.LayerNorm(embed_dim)
 
