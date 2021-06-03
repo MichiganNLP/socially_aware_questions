@@ -98,7 +98,8 @@ def generate_predictions(model, data, tokenizer,
                 length_penalty=length_penalty,
                 num_return_sequences=1,
                 **model_kwargs_i
-            )
+            )            
+        elif(generation_method == 'sample'):
             output_i = model.generate(
                 input_ids=source_i,
                 attention_mask=attention_i,
@@ -110,8 +111,6 @@ def generate_predictions(model, data, tokenizer,
                 do_sample=True,
                 **model_kwargs_i
             )
-        elif(generation_method == 'sample'):
-            pass
         prediction = [tokenizer.decode(ids, skip_special_tokens=True) for ids in output_i]
         pred_text.extend(prediction)
     return pred_text
