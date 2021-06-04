@@ -379,11 +379,27 @@ class AuthorTextDecoder(BartDecoder):
             ## add author embeddings
             # remove final token from input, replace with author embedding
             # TODO: add author embedding before padding? not sure that it matters
-            hidden_states = hidden_states[:, :-1, :]
-            author_embeds = author_embeds.reshape(author_embeds.shape[0], 1, author_embeds.shape[1]).float()
-            author_embeds_hidden = self.author_embed_network(author_embeds)
+            author_embeds_hidden = self.author_embed_network(author_embeds.unsqueeze(1))
             author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
-            hidden_states = torch.cat([hidden_states, author_embeds_hidden], axis=1)
+            if(hidden_states.shape[1] == self.config.max_position_embeddings):
+                hidden_states = hidden_states[:, :-1, :]
+            # tmp debugging
+            print(f'hidden states have dimensions={hidden_states.shape}')
+            print(f'author embeds have dimensions={author_embeds_hidden.shape}')
+            hidden_states = torch.cat([hidden_states, author_embeds_hidden], axis=0)
+            # hidden_states = hidden_states.transpose(0,1)
+            print(f'post-combine hidden states have dimensions={hidden_states.shape}')
+            print(f'attention has dimensions={encoder_attention_mask.shape}')
+
+            #print(f'hidden state before modification has shape={hidden_states.shape}')
+            #hidden_states = hidden_states[:-1, :, :]
+            #author_embeds = author_embeds.reshape(author_embeds.shape[0], 1, author_embeds.shape[1]).float()
+            #author_embeds_hidden = self.author_embed_network(author_embeds)
+            #author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
+			# tmp debugging
+            #print(f'author embeds has shape={author_embeds_hidden.shape}')
+            #print(f'hidden state has shape={hidden_states.shape}')
+            #hidden_states = torch.cat([hidden_states, author_embeds_hidden], axis=1)
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
