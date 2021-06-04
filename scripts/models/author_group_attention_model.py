@@ -292,7 +292,7 @@ class AuthorGroupAttentionEncoder(BartEncoder):
                         (head_mask[idx] if head_mask is not None else None),
                     )
                 else:
-                    # use reader token on first layer to get
+                    # use reader token on specific layer to get
                     # reader-specific attention
                     if(idx == self.reader_attn_position):
                         layer_outputs = encoder_layer(
