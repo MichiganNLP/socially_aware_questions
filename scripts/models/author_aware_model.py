@@ -372,8 +372,10 @@ class AuthorTextDecoder(BartDecoder):
                 # print(f'encoder attention before expanding has shape={encoder_attention_mask.shape}')
                 ## less terrible strategy: modify each dimension of encoder attention
                 ## according to author embedding
+                author_embeds = self.author_embed_network(author_embeds)
+                author_embeds = self.author_embed_layernorm(author_embeds)
                 if(len(encoder_hidden_states.shape)==3):
-                    author_embed_repeat = author_embeds.repeat(encoder_hidden_states.shape[0], encoder_hidden_states.shape[1], 1)
+                    author_embed_repeat = author_embeds.unsqueeze(1).repeat(1, encoder_hidden_states.shape[1], 1)
                     author_embed_hidden_combine = torch.cat([author_embed_repeat, encoder_hidden_states], dim=2)
                     author_embed_attention_combine = self.author_attention_combine_network(author_embed_hidden_combine)
                     encoder_hidden_states = self.author_attention_combine_layernorm(author_embed_attention_combine)
@@ -480,7 +482,7 @@ class AuthorTextDecoder(BartDecoder):
                 )
             else:
                 # tmp debugging
-                print(f'before decoder: encoder hidden state shape = {encoder_hidden_states.shape}')
+                #print(f'before decoder: encoder hidden state shape = {encoder_hidden_states.shape}')
                 layer_outputs = decoder_layer(
                     hidden_states,
                     attention_mask=combined_attention_mask,

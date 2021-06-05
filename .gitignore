@@ -10,6 +10,7 @@ scripts/data_processing/debug_training.py
 scripts/data_processing/pointer-generator/
 scripts/models/question_generation/
 scripts/models/runs/
+scripts/models/run_ner_no_trainer.*
 scripts/*/__pycache__/
 scripts/models/question_generation/
 logs/

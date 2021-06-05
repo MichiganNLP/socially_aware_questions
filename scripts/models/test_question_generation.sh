@@ -46,15 +46,19 @@ TEST_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.5/
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.9/question_generation_model/checkpoint-229000/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.9/
-#MODEL_TYPE='bart_author_attention'
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3/question_generation_model/checkpoint-229000/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3/
+MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5/question_generation_model/checkpoint-229000/pytorch_model.bin
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5/
+MODEL_TYPE='bart_author_attention'
 # reddit + subreddit embed (+ encoder)
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_data/question_generation_model/checkpoint-305500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
 #MODEL_TYPE='bart_author_embeds'
 # reddit + subreddit embed (+ decoder)
-MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_decoder_data/question_generation_model/checkpoint-229000/pytorch_model.bin
-OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_decoder_data/
-MODEL_TYPE='bart_author_embeds'
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_decoder_data/question_generation_model/checkpoint-229000/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_decoder_data/
+#MODEL_TYPE='bart_author_embeds'
 # reddit + text embed (+ encoder)
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_data/question_generation_model/checkpoint-305500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
