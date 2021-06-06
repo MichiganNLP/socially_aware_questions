@@ -378,6 +378,18 @@ class AuthorTextDecoder(BartDecoder):
                     author_embed_repeat = author_embeds.unsqueeze(1).repeat(1, encoder_hidden_states.shape[1], 1)
                     if (author_embeds.shape[0] != encoder_hidden_states[0]):
                         author_embed_repeat = author_embed_repeat.repeat(encoder_hidden_states.shape[0], 1, 1)
+                # tmp debugging
+                #print(f'encoder hidden state has shape {encoder_hidden_states.shape}')
+                #print(f'author embeds has shape {author_embeds.shape}')
+                #if(len(author_embeds.shape)==2):
+                #    author_embeds = author_embeds.unsqueeze(0)
+                if(len(encoder_hidden_states.shape)==3):
+                    author_embed_repeat = author_embeds.unsqueeze(1).repeat(1, encoder_hidden_states.shape[1], 1)
+                    if (author_embeds.shape[0] != encoder_hidden_states.shape[0]):
+                        author_embed_repeat = author_embed_repeat.repeat(encoder_hidden_states.shape[0], 1, 1)
+                    # tmp debugging
+                    #print(f'author embed repeat has shape {author_embed_repeat.shape}')
+>>>>>>> a5653df5ad8023b6f9332464852787fbad3f26ab
                     author_embed_hidden_combine = torch.cat([author_embed_repeat, encoder_hidden_states], dim=2)
                     author_embed_attention_combine = self.author_attention_combine_network(author_embed_hidden_combine)
                     encoder_hidden_states = self.author_attention_combine_layernorm(author_embed_attention_combine)
@@ -484,7 +496,7 @@ class AuthorTextDecoder(BartDecoder):
                 )
             else:
                 # tmp debugging
-                print(f'before decoder: encoder hidden state shape = {encoder_hidden_states.shape}')
+                #print(f'before decoder: encoder hidden state shape = {encoder_hidden_states.shape}')
                 layer_outputs = decoder_layer(
                     hidden_states,
                     attention_mask=combined_attention_mask,
