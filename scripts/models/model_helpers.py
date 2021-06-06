@@ -92,6 +92,7 @@ def generate_predictions(model, data, tokenizer,
             # model_kwargs_i['author_embeds'] =model_kwargs_i['author_embeds'].unsqueeze(0)
             # source_i = source_i.unsqueeze(0)
             # attention_i = attention_i.unsqueeze(0)
+            # tmp debugging
             print(f'author embed data shape={model_kwargs_i["author_embeds"].shape}')
             print(f'input ids shape={source_i.shape}')
             print(f'input ids  {source_i.cpu().numpy()}')
@@ -138,11 +139,11 @@ def prepare_model_kwargs_for_generation(data, model_kwargs):
     })
     # fix lists
     model_kwargs.update({
-        int_kwarg: torch.LongTensor([kwarg_val]).unsqueeze(0)
+        int_kwarg: torch.LongTensor([kwarg_val]).unsqueeze(0).unsqueeze(0)
         for int_kwarg, kwarg_val in list(filter(lambda x: type(x[1]) is list and type(x[1][0]) is int, model_kwargs.items()))
     })
     model_kwargs.update({
-        float_kwarg: torch.Tensor(kwarg_val).unsqueeze(0)
+        float_kwarg: torch.Tensor(kwarg_val).unsqueeze(0).unsqueeze(0)
         for float_kwarg, kwarg_val in list(filter(lambda x: type(x[1]) is list and type(x[1][0]) is float, model_kwargs.items()))
     })
     # fix tensors
