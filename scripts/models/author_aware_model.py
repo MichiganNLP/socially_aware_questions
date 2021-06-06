@@ -389,7 +389,6 @@ class AuthorTextDecoder(BartDecoder):
                         author_embed_repeat = author_embed_repeat.repeat(encoder_hidden_states.shape[0], 1, 1)
                     # tmp debugging
                     #print(f'author embed repeat has shape {author_embed_repeat.shape}')
->>>>>>> a5653df5ad8023b6f9332464852787fbad3f26ab
                     author_embed_hidden_combine = torch.cat([author_embed_repeat, encoder_hidden_states], dim=2)
                     author_embed_attention_combine = self.author_attention_combine_network(author_embed_hidden_combine)
                     encoder_hidden_states = self.author_attention_combine_layernorm(author_embed_attention_combine)
