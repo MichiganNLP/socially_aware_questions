@@ -88,13 +88,13 @@ def generate_predictions(model, data, tokenizer,
         # handle model kwargs: reader tokens, embeddings, etc.
         model_kwargs_i = prepare_model_kwargs_for_generation(batch_i, model_kwargs)
         # tmp debugging
-        if ('author_embeds' in model_kwargs_i):
+        #if ('author_embeds' in model_kwargs_i):
             # model_kwargs_i['author_embeds'] =model_kwargs_i['author_embeds'].unsqueeze(0)
             # source_i = source_i.unsqueeze(0)
             # attention_i = attention_i.unsqueeze(0)
-            print(f'author embed data shape={model_kwargs_i["author_embeds"].shape}')
-            print(f'input ids shape={source_i.shape}')
-            print(f'input ids  {source_i.cpu().numpy()}')
+        #    print(f'author embed data shape={model_kwargs_i["author_embeds"].shape}')
+        #    print(f'input ids shape={source_i.shape}')
+        #    print(f'input ids  {source_i.cpu().numpy()}')
         # print(f'model kwargs after type fix has type: {model_kwargs_i["author_embeds"].dtype}')
         if(generation_method == 'beam_search'):
             output_i = model.generate(
