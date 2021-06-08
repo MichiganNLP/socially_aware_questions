@@ -164,8 +164,9 @@ class AuthorGroupAttentionEncoder(BartEncoder):
             embed_dim,
         )
         encoder_list = []
+        self.reader_attn_position = reader_attn_position
         for i in range(config.encoder_layers):
-            if(i==reader_attn_position):
+            if(i==self.reader_attn_position):
                 encoder_list.append(AuthorGroupAttentionEncoderLayer(config, reader_group_types=reader_group_types))
             else:
                 encoder_list.append(BartEncoderLayer(config))
@@ -291,9 +292,9 @@ class AuthorGroupAttentionEncoder(BartEncoder):
                         (head_mask[idx] if head_mask is not None else None),
                     )
                 else:
-                    # use reader token on first layer to get
+                    # use reader token on specific layer to get
                     # reader-specific attention
-                    if(idx == 0):
+                    if(idx == self.reader_attn_position):
                         layer_outputs = encoder_layer(
                             hidden_states=hidden_states,
                             attention_mask=attention_mask,

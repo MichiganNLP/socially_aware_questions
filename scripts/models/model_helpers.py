@@ -88,6 +88,13 @@ def generate_predictions(model, data, tokenizer,
         # handle model kwargs: reader tokens, embeddings, etc.
         model_kwargs_i = prepare_model_kwargs_for_generation(batch_i, model_kwargs)
         # tmp debugging
+        #if ('author_embeds' in model_kwargs_i):
+            # model_kwargs_i['author_embeds'] =model_kwargs_i['author_embeds'].unsqueeze(0)
+            # source_i = source_i.unsqueeze(0)
+            # attention_i = attention_i.unsqueeze(0)
+        #    print(f'author embed data shape={model_kwargs_i["author_embeds"].shape}')
+        #    print(f'input ids shape={source_i.shape}')
+        #    print(f'input ids  {source_i.cpu().numpy()}')
         # print(f'model kwargs after type fix has type: {model_kwargs_i["author_embeds"].dtype}')
         if(generation_method == 'beam_search'):
             output_i = model.generate(
@@ -100,10 +107,6 @@ def generate_predictions(model, data, tokenizer,
                 **model_kwargs_i
             )            
         elif(generation_method == 'sample'):
-            # tmp debugging
-            if('author_embeds' in model_kwargs_i):
-                print(f'author embed data = {model_kwargs_i["author_embeds"].shape}')
-                print(f'input ids = {source_i.shape}')
             output_i = model.generate(
                 input_ids=source_i,
                 attention_mask=attention_i,
@@ -135,11 +138,11 @@ def prepare_model_kwargs_for_generation(data, model_kwargs):
     })
     # fix lists
     model_kwargs.update({
-        int_kwarg: torch.LongTensor([kwarg_val]).unsqueeze(0)
+        int_kwarg: torch.LongTensor([kwarg_val]).unsqueeze(0).unsqueeze(0)
         for int_kwarg, kwarg_val in list(filter(lambda x: type(x[1]) is list and type(x[1][0]) is int, model_kwargs.items()))
     })
     model_kwargs.update({
-        float_kwarg: torch.Tensor(kwarg_val).unsqueeze(0)
+        float_kwarg: torch.Tensor(kwarg_val).unsqueeze(0).unsqueeze(0)
         for float_kwarg, kwarg_val in list(filter(lambda x: type(x[1]) is list and type(x[1][0]) is float, model_kwargs.items()))
     })
     # fix tensors

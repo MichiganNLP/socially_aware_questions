@@ -250,9 +250,13 @@ class AuthorTextDecoder(BartDecoder):
         self.layers = nn.ModuleList([BartDecoderLayer(config) for _ in range(config.decoder_layers)])
         self.layernorm_embedding = nn.LayerNorm(config.d_model)
 
+        ## autho-specific networks
         embed_dim = config.d_model
         self.author_embed_network = nn.Linear(self.config.author_embeds, embed_dim)
         self.author_embed_layernorm = nn.LayerNorm(embed_dim)
+        self.author_attention_combine_network = nn.Linear(embed_dim*2, embed_dim)
+        self.author_attention_combine_layernorm = nn.LayerNorm(embed_dim)
+
         self.init_weights()
 
     def forward(
@@ -351,6 +355,8 @@ class AuthorTextDecoder(BartDecoder):
                 input_shape, inputs_embeds.dtype, past_key_values_length=past_key_values_length
             ).to(self.device)
 
+        # print(f'before modification: attention mask has shape {attention_mask.shape}')
+
         if attention_mask is not None and combined_attention_mask is not None:
             if (author_embeds is not None):
                 combined_attention_mask[:, -1] = 1
@@ -362,9 +368,54 @@ class AuthorTextDecoder(BartDecoder):
         # expand encoder attention mask
         if encoder_hidden_states is not None and encoder_attention_mask is not None:
             if (author_embeds is not None):
-                encoder_attention_mask[:, -1] = 1
+                # encoder_attention_mask[:, -1] = 1
+                # print(f'encoder attention before expanding has shape={encoder_attention_mask.shape}')
+                ## less terrible strategy: modify each dimension of encoder attention
+                ## according to author embedding
+                author_embeds = self.author_embed_network(author_embeds)
+                author_embeds = self.author_embed_layernorm(author_embeds)
+                if(len(encoder_hidden_states.shape)==3):
+                    author_embed_repeat = author_embeds.unsqueeze(1).repeat(1, encoder_hidden_states.shape[1], 1)
+                    if (author_embeds.shape[0] != encoder_hidden_states[0]):
+                        author_embed_repeat = author_embed_repeat.repeat(encoder_hidden_states.shape[0], 1, 1)
+                # tmp debugging
+                #print(f'encoder hidden state has shape {encoder_hidden_states.shape}')
+                #print(f'author embeds has shape {author_embeds.shape}')
+                #if(len(author_embeds.shape)==2):
+                #    author_embeds = author_embeds.unsqueeze(0)
+                if(len(encoder_hidden_states.shape)==3):
+                    author_embed_repeat = author_embeds.unsqueeze(1).repeat(1, encoder_hidden_states.shape[1], 1)
+                    if (author_embeds.shape[0] != encoder_hidden_states.shape[0]):
+                        author_embed_repeat = author_embed_repeat.repeat(encoder_hidden_states.shape[0], 1, 1)
+                    # tmp debugging
+                    #print(f'author embed repeat has shape {author_embed_repeat.shape}')
+                    author_embed_hidden_combine = torch.cat([author_embed_repeat, encoder_hidden_states], dim=2)
+                    author_embed_attention_combine = self.author_attention_combine_network(author_embed_hidden_combine)
+                    encoder_hidden_states = self.author_attention_combine_layernorm(author_embed_attention_combine)
+                ## old dumb strategy: concatenate author embedding as extra word
+                # get final index of input ids in each row; set idx+1 to 1 (for author embed)
+                ## easy case: 1 input means set last valid idx to 1; add extra row for embed
+                # if(len(encoder_attention_mask.shape) == 2):
+                #     expanded_input_size =  input_ids.shape[0]+1
+                #     author_attention_row = torch.LongTensor([1,]*(expanded_input_size) + [0,]*(encoder_attention_mask.shape[1]-(expanded_input_size))).unsqueeze(0)
+                #     author_attention_row = author_attention_row.to(encoder_attention_mask.device)
+                #     encoder_attention_mask = torch.cat([encoder_attention_mask, author_attention_row])
+                #     encoder_attention_mask[:, input_ids.shape[0]] = 1
+                # # add extra space for author embed
+                # if(len(input_shape) == 2):
+                #     input_shape = torch.Size((input_shape[0]+1, input_shape[1]))
+                # # encoder_attention_mask = torch.cat([encoder_attention_mask, torch.])
+                # print(f'before expanding: encoder hidden state = {encoder_hidden_states.shape}')
+                # author_hidden_state_row = torch.ones(1, encoder_hidden_states.shape[1], encoder_hidden_states.shape[2])
+                # author_hidden_state_row = author_hidden_state_row.to(encoder_hidden_states.device)
+                # encoder_hidden_states = torch.cat([encoder_hidden_states, author_hidden_state_row])
+                # print(f'after expanding: encoder hidden state = {encoder_hidden_states.shape}')
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+            # print(f'input shape = {input_shape}')
             encoder_attention_mask = _expand_mask(encoder_attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1])
+            ## also expand encoder hidden state lol
+
+        # print(f'encoder attention after expanding = {encoder_attention_mask.shape}')
 
         # embed positions
         positions = self.embed_positions(input_shape, past_key_values_length)
@@ -375,18 +426,26 @@ class AuthorTextDecoder(BartDecoder):
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
 
         ## add author info to input data
-        if (author_embeds is not None):
-            ## add author embeddings
-            # remove final token from input, replace with author embedding
-            # TODO: add author embedding before padding? not sure that it matters
-            author_embeds_hidden = self.author_embed_network(author_embeds.unsqueeze(1))
-            author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
-            if(hidden_states.shape[1] == self.config.max_position_embeddings):
-                hidden_states = hidden_states[:, :-1, :]
-            # tmp debugging
-            print(f'hidden states have dimensions={hidden_states.shape}')
-            print(f'author embeds have dimensions={author_embeds_hidden.shape}')
-            hidden_states = torch.cat([hidden_states, author_embeds_hidden], axis=1)
+        ## TODO: how to get these hidden states to match with encoder_hidden_states (src_len * max_len * dim)
+        # if (author_embeds is not None):
+        #     ## add author embeddings
+        #     # remove final token from input, replace with author embedding
+        #     # TODO: add author embedding before padding? not sure that it matters
+        #     author_embeds_hidden = self.author_embed_network(author_embeds.unsqueeze(1))
+        #     author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
+        #     # drop final word if at sequence at max length
+        #     if(hidden_states.shape[1] == self.config.max_position_embeddings):
+        #         hidden_states = hidden_states[:, :-1, :]
+        #     if (hidden_states.shape[0] == self.config.max_position_embeddings):
+        #         hidden_states = hidden_states[:-1, :, :]
+        #     # tmp debugging
+        #     print(f'hidden states have dimensions={hidden_states.shape}')
+        #     print(f'author embeds have dimensions={author_embeds_hidden.shape}')
+        #     hidden_states = torch.cat([hidden_states, author_embeds_hidden], axis=0)
+        #     # hidden_states = hidden_states.transpose(0,1)
+        #     print(f'post-combine hidden states have dimensions={hidden_states.shape}')
+        #     print(f'post-combine attention has dimensions={encoder_attention_mask.shape}')
+        #     print(f'post-combine attention={encoder_attention_mask[:, :, :, :input_shape[0]]}')
 
             #print(f'hidden state before modification has shape={hidden_states.shape}')
             #hidden_states = hidden_states[:-1, :, :]
@@ -435,7 +494,8 @@ class AuthorTextDecoder(BartDecoder):
                     None,
                 )
             else:
-
+                # tmp debugging
+                #print(f'before decoder: encoder hidden state shape = {encoder_hidden_states.shape}')
                 layer_outputs = decoder_layer(
                     hidden_states,
                     attention_mask=combined_attention_mask,
@@ -790,6 +850,10 @@ class BartAuthorTextModel(BartModel):
 
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         if (self.author_embed_module in {'decoder', 'encoder_decoder'}):
+            # tmp debugging
+            # print(f'encoder hidden state has shape {encoder_outputs[0].shape}')
+            # print(f'encoder attention has shape {attention_mask.shape}')
+            # print(f'decoder attention = {decoder_attention_mask}')
             decoder_outputs = self.decoder(
                 input_ids=decoder_input_ids,
                 author_embeds=author_embeds,
