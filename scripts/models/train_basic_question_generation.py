@@ -210,10 +210,10 @@ def main():
             model_path,
             cache_dir=model_cache_dir,
         )
+    model.resize_token_embeddings(len(tokenizer))
     if(pretrained_model is not None):
         pretrained_model_weights = torch.load(pretrained_model)
         model.load_state_dict(pretrained_model_weights)
-    model.resize_token_embeddings(len(tokenizer))
     if(n_gpu > 1):
         # no devices (?) for acceler
         #device_ids = list(range(n_gpu))
