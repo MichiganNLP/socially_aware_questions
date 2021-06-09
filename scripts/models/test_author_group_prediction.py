@@ -2,6 +2,8 @@
 Test how easily we can predict whether a question
 was written by a member of group 1 or 2.
 """
+import os
+
 import pandas as pd
 import numpy as np
 np.random.seed(123)
@@ -94,6 +96,8 @@ def load_sample_data():
         })
         sample_question_data.append(sample_question_data_i)
     sample_question_data = pd.concat(sample_question_data, axis=0)
+    # tmp debugging
+    # print(f'sample question data has label distribution = {sample_question_data.loc[:, "author_group"].value_counts()}')
     sample_post_question_data = pd.merge(post_data, sample_question_data,
                                          on='parent_id', how='inner')
     return sample_post_question_data
@@ -111,7 +115,7 @@ class BasicDataset(Dataset):
             'input_ids' : torch.LongTensor(self.encodings['input_ids'][idx]),
             'attention_mask': torch.Tensor(self.encodings['attention_mask'][idx]),
         }
-        item["labels"] = torch.Tensor([self.labels[idx]])
+        item["labels"] = torch.LongTensor([self.labels[idx]])
         return item
 
     def __len__(self):
@@ -138,10 +142,10 @@ from transformers import TrainingArguments, Trainer, \
     BartForSequenceClassification
 from sklearn.metrics import f1_score
 
-
 def compute_metrics(pred):
     labels = pred.label_ids
-    preds = pred.predictions.argmax(-1)
+    # print(f'final preds = {[x.shape for x in pred.predictions]}')
+    preds = np.argmax(pred.predictions[0], axis=-1)
     score = f1_score(labels, preds)
     metrics = {'F1': score}
     return metrics
@@ -150,6 +154,8 @@ def train_test_transformer_model(data, tokenizer,
                                  text_var='post_question',
                                  pred_var='group_category',
                                  train_pct=0.8, max_length=1024):
+    # tmp debugging
+    print(f'data label dist = {data.loc[:, pred_var].value_counts()}')
     # get train/test data
     np.random.shuffle(data.values)
     N = data.shape[0]
@@ -176,8 +182,9 @@ def train_test_transformer_model(data, tokenizer,
                                                           num_labels=num_labels)
     model.resize_token_embeddings(len(tokenizer))
     # set up training regime
+    out_dir = f'../../data/reddit_data/group_classification_model/group={pred_var}/'
     training_args = TrainingArguments(
-        output_dir='../../data/reddit_data/group_classification_model/',
+        output_dir=out_dir,
         # output directory
         num_train_epochs=3,  # total number of training epochs
         per_device_train_batch_size=1,  # batch size per device during training
@@ -189,8 +196,8 @@ def train_test_transformer_model(data, tokenizer,
         # load the best model when finished training (default metric is loss)
         # but you can specify `metric_for_best_model` argument to change to accuracy or other metric
         logging_steps=10000,  # log & save weights each logging_steps
-        evaluation_strategy="epoch",  # evaluate each `logging_steps`
-        save_total_limit=2,
+        evaluation_strategy="epoch",  # evaluate each `epoch`
+        save_total_limit=1,
     )
     trainer = Trainer(
         model=model,
@@ -200,10 +207,18 @@ def train_test_transformer_model(data, tokenizer,
         compute_metrics=compute_metrics,
     )
     trainer.train()
+    # evaluate
+    test_output = trainer.evaluate()
+    test_output = pd.Series(test_output)
+    ## save to file!!
+    test_output_file = os.path.join(out_dir, f'{pred_var}_prediction_results.csv')
+    test_output.to_csv(test_output_file)
 
 def main():
     ## load question data
     post_question_data = load_sample_data()
+    # tmp debugging
+    # post_question_data = post_question_data.iloc[:1000, :]
     ## set up model etc.
     from transformers import BartTokenizer, BartForSequenceClassification
     model_name = 'facebook/bart-base'
@@ -211,7 +226,6 @@ def main():
                                               cache_dir='../../data/model_cache/')
     # add special token for combining post + question
     tokenizer.add_special_tokens({'cls_token': '<QUESTION>'})
-    #
     max_length = 1024
     post_question_data = post_question_data.assign(**{
         'post_question': post_question_data.apply(
@@ -222,11 +236,12 @@ def main():
     for group_var_i, data_i in post_question_data.groupby(
             'group_category'):
         print(f'testing var = {group_var_i}')
-        group_vals_i = data_i.loc[:, 'group_category'].unique()
+        group_vals_i = data_i.loc[:, 'author_group'].unique()
         data_i = data_i.assign(**{
-            group_var_i: (data_i.loc[:, 'group_category'] == group_vals_i[
+            group_var_i: (data_i.loc[:, 'author_group'] == group_vals_i[
                 0]).astype(int)
         })
+        # print(f'var has dist = {data_i.loc[:, group_var_i].value_counts()}')
         train_test_transformer_model(data_i, tokenizer,
                                      text_var=text_var,
                                      pred_var=group_var_i, train_pct=0.8)
