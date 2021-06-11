@@ -7,17 +7,20 @@ import os
 import pandas as pd
 import numpy as np
 np.random.seed(123)
-def sample_by_subreddit_author_group(data, group_var):
+def sample_by_subreddit_author_group(data, group_var, sample_size=0):
     subreddit_group_counts = data.loc[:, ['subreddit', group_var]].value_counts()
-    min_group_count = subreddit_group_counts.min()
+    if(sample_size == 0):
+        sample_size = subreddit_group_counts.min()
     sample_data = []
     for (subreddit_i, group_var_i), data_i in data.groupby(['subreddit', group_var]):
-        sample_idx_i = np.random.choice(data_i.index, min_group_count, replace=False)
+        N_i = len(data_i)
+        # replace samples if sample > data, i.e. over-sampling
+        sample_idx_i = np.random.choice(data_i.index, sample_size, replace=(N_i < sample_size))
         sample_data.append(data_i.loc[sample_idx_i, :])
     sample_data = pd.concat(sample_data, axis=0)
     return sample_data
 
-def load_sample_data():
+def load_sample_data(sample_size=0):
     question_data = pd.read_csv(
         '../../data/reddit_data/advice_subreddit_filter_comment_question_data.gz',
         sep='\t', compression='gzip', index_col=False)
@@ -81,7 +84,7 @@ def load_sample_data():
         else:
             data_to_sample = question_author_data.copy()
         sample_question_data_i = sample_by_subreddit_author_group(
-            data_to_sample, group_var)
+            data_to_sample, group_var, sample_size=sample_size)
         # reformat to prevent overlap!!
         # text | author group
         sample_question_data_i = sample_question_data_i.loc[:,
@@ -219,7 +222,9 @@ def train_test_transformer_model(data, tokenizer,
 
 def main():
     ## load question data
-    post_question_data = load_sample_data()
+    #sample_size = 0 # no-replacement sampling
+    sample_size = 10000 # sampling with replacement
+    post_question_data = load_sample_data(sample_size=sample_size)
     # tmp debugging
     # post_question_data = post_question_data.iloc[:1000, :]
     ## set up model etc.
