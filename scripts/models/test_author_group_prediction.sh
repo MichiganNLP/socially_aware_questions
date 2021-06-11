@@ -1,2 +1,2 @@
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=1
 python test_author_group_prediction.py

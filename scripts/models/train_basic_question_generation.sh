@@ -63,14 +63,15 @@ VAL_DATA=../../data/reddit_data/combined_data_valid_authors_test_data.pt
 ## NOTE: for author models modify data/model_cache/BART_author_model_config.json before starting
 # reddit model
 #OUT_DIR=../../data/reddit_data/text_only_model/
-#MODEL_TYPE='bart'
-#MODEL_CONFIG_FILE=../../data/model_cache/BART_config.json
+OUT_DIR=../../data/reddit_data/text_only_model/text_only_fine_tune/
+MODEL_TYPE='bart'
+MODEL_CONFIG_FILE=../../data/model_cache/BART_config.json
 # reddit author model
 # author token
 #OUT_DIR=../../data/reddit_data/author_text_data/
-OUT_DIR=../../data/reddit_data/author_text_data/text_only_fine_tune/ # fine-tune
-MODEL_TYPE="bart_author"
-MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
+#OUT_DIR=../../data/reddit_data/author_text_data/text_only_fine_tune/ # fine-tune
+#MODEL_TYPE="bart_author"
+#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
 # author attention
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.1/
