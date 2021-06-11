@@ -7,17 +7,20 @@ import os
 import pandas as pd
 import numpy as np
 np.random.seed(123)
-def sample_by_subreddit_author_group(data, group_var):
+def sample_by_subreddit_author_group(data, group_var, sample_size=0):
     subreddit_group_counts = data.loc[:, ['subreddit', group_var]].value_counts()
-    min_group_count = subreddit_group_counts.min()
+    if(sample_size == 0):
+        sample_size = subreddit_group_counts.min()
     sample_data = []
     for (subreddit_i, group_var_i), data_i in data.groupby(['subreddit', group_var]):
-        sample_idx_i = np.random.choice(data_i.index, min_group_count, replace=False)
+        N_i = len(data_i)
+        # replace samples if sample > data, i.e. over-sampling
+        sample_idx_i = np.random.choice(data_i.index, sample_size, replace=(N_i < sample_size))
         sample_data.append(data_i.loc[sample_idx_i, :])
     sample_data = pd.concat(sample_data, axis=0)
     return sample_data
 
-def load_sample_data():
+def load_sample_data(sample_size=0):
     question_data = pd.read_csv(
         '../../data/reddit_data/advice_subreddit_filter_comment_question_data.gz',
         sep='\t', compression='gzip', index_col=False)
@@ -81,7 +84,7 @@ def load_sample_data():
         else:
             data_to_sample = question_author_data.copy()
         sample_question_data_i = sample_by_subreddit_author_group(
-            data_to_sample, group_var)
+            data_to_sample, group_var, sample_size=sample_size)
         # reformat to prevent overlap!!
         # text | author group
         sample_question_data_i = sample_question_data_i.loc[:,
@@ -146,34 +149,29 @@ def compute_metrics(pred):
     labels = pred.label_ids
     # print(f'final preds = {[x.shape for x in pred.predictions]}')
     preds = np.argmax(pred.predictions[0], axis=-1)
-    score = f1_score(labels, preds)
-    metrics = {'F1': score}
+    pred_f1_score = f1_score(labels, preds)
+    TP = (labels==1 & preds==1).sum()
+    FP = (labels==1 & preds==0).sum()
+    FN = (labels==0 & preds==1).sum()
+    pred_precision = TP / (FP + TP)
+    pred_recall = TP / (FN + TP)
+    metrics = {'F1': pred_f1_score, 'precision' : pred_precision, 'recall' : pred_recall}
     return metrics
 
-def train_test_transformer_model(data, tokenizer,
-                                 text_var='post_question',
-                                 pred_var='group_category',
-                                 train_pct=0.8, max_length=1024):
-    # tmp debugging
-    print(f'data label dist = {data.loc[:, pred_var].value_counts()}')
-    # get train/test data
-    np.random.shuffle(data.values)
-    N = data.shape[0]
-    N_train = int(train_pct * N)
-    train_data = data.iloc[:N_train, :]
-    test_data = data.iloc[-N_train:, :]
-    # get train/test encoding
-    train_encodings = tokenizer(train_data.loc[:, text_var].values.tolist(),
-                                truncation=True, padding=True,
-                                max_length=max_length)
-    test_encodings = tokenizer(test_data.loc[:, text_var].values.tolist(),
-                               truncation=True, padding=True,
-                               max_length=max_length)
-    # get train, test datasets
-    train_dataset = BasicDataset(train_encodings,
-                                 train_data.loc[:, pred_var].values.tolist())
-    test_dataset = BasicDataset(test_encodings,
-                                test_data.loc[:, pred_var].values.tolist())
+def train_transformer_model(data, tokenizer, out_dir,
+                            text_var='post_question',
+                            pred_var='group_category',
+                            train_pct=0.8, max_length=1024):
+    train_data_file = os.path.join(out_dir, 'train_data.pt')
+    test_data_file = os.path.join(out_dir, 'test_data.pt')
+    if(not os.path.exists(train_data_file)):
+        test_dataset, train_dataset = split_data(data, max_length, pred_var,
+                                                 text_var, tokenizer, train_pct)
+        torch.save(test_dataset, test_data_file)
+        torch.save(train_dataset, train_data_file)
+    else:
+        test_dataset = torch.load(test_data_file)
+        train_dataset = torch.load(train_data_file)
     # tmp debugging
     # print(f'train data has labels = ')
     # get model
@@ -184,7 +182,6 @@ def train_test_transformer_model(data, tokenizer,
                                                           num_labels=num_labels)
     model.resize_token_embeddings(len(tokenizer))
     # set up training regime
-    out_dir = f'../../data/reddit_data/group_classification_model/group={pred_var}/'
     training_args = TrainingArguments(
         output_dir=out_dir,
         # output directory
@@ -210,16 +207,59 @@ def train_test_transformer_model(data, tokenizer,
         compute_metrics=compute_metrics,
     )
     trainer.train()
+
+def split_data(data, max_length, pred_var, text_var, tokenizer, train_pct):
+    # tmp debugging
+    print(f'data label dist = {data.loc[:, pred_var].value_counts()}')
+    # get train/test data
+    np.random.shuffle(data.values)
+    N = data.shape[0]
+    N_train = int(train_pct * N)
+    train_data = data.iloc[:N_train, :]
+    test_data = data.iloc[-N_train:, :]
+    # get train/test encoding
+    train_encodings = tokenizer(train_data.loc[:, text_var].values.tolist(),
+                                truncation=True, padding=True,
+                                max_length=max_length)
+    test_encodings = tokenizer(test_data.loc[:, text_var].values.tolist(),
+                               truncation=True, padding=True,
+                               max_length=max_length)
+    # get train, test datasets
+    train_dataset = BasicDataset(train_encodings,
+                                 train_data.loc[:, pred_var].values.tolist())
+    test_dataset = BasicDataset(test_encodings,
+                                test_data.loc[:, pred_var].values.tolist())
+    return test_dataset, train_dataset
+
+
+def test_transformer_model(out_dir, model_weight_file, tokenizer, num_labels, pred_var):
+    test_data_file = os.path.join(out_dir, 'test_data.pt')
+    test_dataset = torch.load(test_data_file)
+    model_name = 'facebook/bart-base'
+    model = BartForSequenceClassification.from_pretrained(model_name,
+                                                          cache_dir='../../data/model_cache/',
+                                                          num_labels=num_labels)
+    model.resize_token_embeddings(len(tokenizer))
+    model_weights = torch.load(model_weight_file)
+    model.load_state_dict(model_weights)
+    # predict
+    model.eval()
+    with torch.no_grad():
+        model_pred = model(**test_dataset)
     # evaluate
-    test_output = trainer.evaluate()
+    test_output = compute_metrics(model_pred)
     test_output = pd.Series(test_output)
     ## save to file!!
-    test_output_file = os.path.join(out_dir, f'{pred_var}_prediction_results.csv')
+    test_output_file = os.path.join(out_dir,
+                                    f'{pred_var}_prediction_results.csv')
     test_output.to_csv(test_output_file)
+    pass
 
 def main():
     ## load question data
-    post_question_data = load_sample_data()
+    #sample_size = 0 # no-replacement sampling
+    sample_size = 10000 # sampling with replacement
+    post_question_data = load_sample_data(sample_size=sample_size)
     # tmp debugging
     # post_question_data = post_question_data.iloc[:1000, :]
     ## set up model etc.
@@ -246,21 +286,35 @@ def main():
         'location_region=NONUS' : 0,
         'location_region=US' : 1,
     }
-    for group_var_i, data_i in post_question_data.groupby(
-            'group_category'):
+    train_pct = 0.8
+    num_labels = 2
+    # group_categories = ['location_region', 'expert_pct_bin', 'relative_time_bin']
+    group_categories = ['expert_pct_bin', 'relative_time_bin']
+    post_question_data = post_question_data[post_question_data.loc[:, 'group_category'].isin(group_categories)]
+    for group_var_i, data_i in post_question_data.groupby('group_category'):
         out_dir_i = f'../../data/reddit_data/group_classification_model/group={group_var_i}/'
         test_output_file_i = os.path.join(out_dir_i, f'{group_var_i}_prediction_results.csv')
         if(not os.path.exists(test_output_file_i)):
             print(f'testing var = {group_var_i}')
             group_vals_i = data_i.loc[:, 'author_group'].unique()
             data_i = data_i.assign(**{
-                group_var_i: (data_i.loc[:, 'author_group'] == group_vals_i[
-                    0]).astype(int)
+                group_var_i: (data_i.loc[:, 'author_group'].apply(lambda x: group_label_lookup[x])).astype(int)
             })
             # print(f'var has dist = {data_i.loc[:, group_var_i].value_counts()}')
-            train_test_transformer_model(data_i, tokenizer,
-                                     text_var=text_var,
-                                     pred_var=group_var_i, train_pct=0.8)
+            # split data into train/test
+            split_data(data_i, group_var_i, text_var, tokenizer, train_pct)
+            model_checkpoint_dirs_i = list(
+                filter(lambda x: x.startswith('checkpoint'), out_dir_i))
+            # train data
+            if(len(model_checkpoint_dirs_i)==0):
+                train_transformer_model(data_i, tokenizer, out_dir_i,
+                                        text_var=text_var,
+                                        pred_var=group_var_i, train_pct=0.8)
+            # get most recent model
+            most_recent_checkpoint_dir_i = max(model_checkpoint_dirs_i, key=lambda x: int(x.split('-')[1]))
+            model_weight_file_i = os.path.join(most_recent_checkpoint_dir_i, 'pytorch_model.bin')
+            test_transformer_model(out_dir_i, model_weight_file_i, tokenizer,
+                                   num_labels, group_var_i)
 
 if __name__ == '__main__':
     main()
