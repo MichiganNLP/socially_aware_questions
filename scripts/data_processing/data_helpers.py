@@ -1124,3 +1124,13 @@ def try_convert_date(date_str, date_formats=['%Y-%m-%d', '%Y-%m-%d %H:%M:%S']):
         except Exception as e:
             pass
     return date_val
+
+def sample_by_subreddit_author_group(data, group_var):
+    subreddit_group_counts = data.loc[:, ['subreddit', group_var]].value_counts()
+    min_group_count = subreddit_group_counts.min()
+    sample_data = []
+    for (subreddit_i, group_var_i), data_i in data.groupby(['subreddit', group_var]):
+        sample_idx_i = np.random.choice(data_i.index, min_group_count, replace=False)
+        sample_data.append(data_i.loc[sample_idx_i, :])
+    sample_data = pd.concat(sample_data, axis=0)
+    return sample_data

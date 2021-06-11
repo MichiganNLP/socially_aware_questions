@@ -171,9 +171,11 @@ def train_test_transformer_model(data, tokenizer,
                                max_length=max_length)
     # get train, test datasets
     train_dataset = BasicDataset(train_encodings,
-                                 train_data.loc[:, pred_var].values)
+                                 train_data.loc[:, pred_var].values.tolist())
     test_dataset = BasicDataset(test_encodings,
-                                test_data.loc[:, pred_var].values)
+                                test_data.loc[:, pred_var].values.tolist())
+    # tmp debugging
+    # print(f'train data has labels = ')
     # get model
     num_labels = data.loc[:, pred_var].nunique()
     model_name = 'facebook/bart-base'
@@ -186,16 +188,16 @@ def train_test_transformer_model(data, tokenizer,
     training_args = TrainingArguments(
         output_dir=out_dir,
         # output directory
-        num_train_epochs=3,  # total number of training epochs
-        per_device_train_batch_size=1,  # batch size per device during training
-        per_device_eval_batch_size=1,  # batch size for evaluation
+        num_train_epochs=5,  # total number of training epochs
+        per_device_train_batch_size=4,  # batch size per device during training
+        per_device_eval_batch_size=4,  # batch size for evaluation
         warmup_steps=500,  # number of warmup steps for learning rate scheduler
         weight_decay=0.01,  # strength of weight decay
         logging_dir='./logs',  # directory for storing logs
         load_best_model_at_end=True,
         # load the best model when finished training (default metric is loss)
         # but you can specify `metric_for_best_model` argument to change to accuracy or other metric
-        logging_steps=10000,  # log & save weights each logging_steps
+        logging_steps=1000,  # log & save weights each logging_steps
         evaluation_strategy="epoch",  # evaluate each `epoch`
         save_total_limit=1,
     )
@@ -233,13 +235,20 @@ def main():
                                                  max_length=max_length), axis=1)
     })
     text_var = 'post_question'
+    group_label_lookup = {
+        'expert_pct_bin=0.0': 0,
+        'expert_pct_bin=1.0' : 1,
+        'relative_time_bin=0.0' : 0,
+        'relative_time_bin=1.0' : 1,
+        'location_region=NONUS' : 0,
+        'location_region=US' : 1,
+    }
     for group_var_i, data_i in post_question_data.groupby(
             'group_category'):
         print(f'testing var = {group_var_i}')
-        group_vals_i = data_i.loc[:, 'author_group'].unique()
+        # convert var to number
         data_i = data_i.assign(**{
-            group_var_i: (data_i.loc[:, 'author_group'] == group_vals_i[
-                0]).astype(int)
+            group_var_i: data_i.loc[:, 'author_group'].apply(lambda x: group_label_lookup[x])
         })
         # print(f'var has dist = {data_i.loc[:, group_var_i].value_counts()}')
         train_test_transformer_model(data_i, tokenizer,
