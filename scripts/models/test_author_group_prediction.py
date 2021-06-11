@@ -186,18 +186,19 @@ def train_test_transformer_model(data, tokenizer,
     training_args = TrainingArguments(
         output_dir=out_dir,
         # output directory
-        num_train_epochs=3,  # total number of training epochs
-        per_device_train_batch_size=1,  # batch size per device during training
-        per_device_eval_batch_size=1,  # batch size for evaluation
+        num_train_epochs=5,  # total number of training epochs
+        per_device_train_batch_size=2,  # batch size per device during training
+        per_device_eval_batch_size=2,  # batch size for evaluation
         warmup_steps=500,  # number of warmup steps for learning rate scheduler
         weight_decay=0.01,  # strength of weight decay
         logging_dir='./logs',  # directory for storing logs
         load_best_model_at_end=True,
         # load the best model when finished training (default metric is loss)
         # but you can specify `metric_for_best_model` argument to change to accuracy or other metric
-        logging_steps=10000,  # log & save weights each logging_steps
+        logging_steps=1000,  # log & save weights each logging_steps
         evaluation_strategy="epoch",  # evaluate each `epoch`
         save_total_limit=1,
+        eval_accumulation_steps=100,
     )
     trainer = Trainer(
         model=model,
@@ -222,8 +223,10 @@ def main():
     ## set up model etc.
     from transformers import BartTokenizer, BartForSequenceClassification
     model_name = 'facebook/bart-base'
-    tokenizer = BartTokenizer.from_pretrained(model_name,
-                                              cache_dir='../../data/model_cache/')
+    #tokenizer = BartTokenizer.from_pretrained(model_name,
+    #                                          cache_dir='../../data/model_cache/')
+    #tokenizer = BartTokenizer.from_pretrained('facebook/bart-base', cache_dir='../../data/model_cache/')
+    tokenizer = torch.load('../../data/model_cache/BART_tokenizer.pt')
     # add special token for combining post + question
     tokenizer.add_special_tokens({'cls_token': '<QUESTION>'})
     max_length = 1024
@@ -235,14 +238,17 @@ def main():
     text_var = 'post_question'
     for group_var_i, data_i in post_question_data.groupby(
             'group_category'):
-        print(f'testing var = {group_var_i}')
-        group_vals_i = data_i.loc[:, 'author_group'].unique()
-        data_i = data_i.assign(**{
-            group_var_i: (data_i.loc[:, 'author_group'] == group_vals_i[
-                0]).astype(int)
-        })
-        # print(f'var has dist = {data_i.loc[:, group_var_i].value_counts()}')
-        train_test_transformer_model(data_i, tokenizer,
+        out_dir_i = f'../../data/reddit_data/group_classification_model/group={group_var_i}/'
+        test_output_file_i = os.path.join(out_dir_i, f'{group_var_i}_prediction_results.csv')
+        if(not os.path.exists(test_output_file_i)):
+            print(f'testing var = {group_var_i}')
+            group_vals_i = data_i.loc[:, 'author_group'].unique()
+            data_i = data_i.assign(**{
+                group_var_i: (data_i.loc[:, 'author_group'] == group_vals_i[
+                    0]).astype(int)
+            })
+            # print(f'var has dist = {data_i.loc[:, group_var_i].value_counts()}')
+            train_test_transformer_model(data_i, tokenizer,
                                      text_var=text_var,
                                      pred_var=group_var_i, train_pct=0.8)
 
