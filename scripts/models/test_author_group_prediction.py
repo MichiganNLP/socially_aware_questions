@@ -134,9 +134,9 @@ def compute_metrics(pred):
     # print(f'final preds = {[x.shape for x in pred.predictions]}')
     preds = np.argmax(pred.predictions[0], axis=-1)
     pred_f1_score = f1_score(labels, preds)
-    TP = (labels==1 & preds==1).sum()
-    FP = (labels==1 & preds==0).sum()
-    FN = (labels==0 & preds==1).sum()
+    TP = ((labels==1) & (preds==1)).sum()
+    FP = ((labels==1) & (preds==0)).sum()
+    FN = ((labels==0) & (preds==1)).sum()
     pred_precision = TP / (FP + TP)
     pred_recall = TP / (FN + TP)
     metrics = {'F1': pred_f1_score, 'precision' : pred_precision, 'recall' : pred_recall}
@@ -237,7 +237,6 @@ def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, 
     test_output_file = os.path.join(out_dir,
                                     f'{pred_var}_prediction_results.csv')
     test_output.to_csv(test_output_file)
-    pass
 
 def main():
     ## load question data
