@@ -237,6 +237,7 @@ def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, 
     test_output_file = os.path.join(out_dir,
                                     f'{pred_var}_prediction_results.csv')
     test_output.to_csv(test_output_file)
+    pass
 
 def main():
     ## load question data
@@ -314,7 +315,6 @@ def main():
             model_weight_file_i = os.path.join(most_recent_checkpoint_dir_i, 'pytorch_model.bin')
             # test model
             test_transformer_model(test_dataset, out_dir_i, model_weight_file_i, tokenizer,
-                                   num_labels, group_var_i)
 
 if __name__ == '__main__':
     main()
