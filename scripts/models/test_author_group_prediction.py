@@ -266,7 +266,7 @@ def main():
     train_pct = 0.8
     num_labels = 2
     # group_categories = ['location_region', 'expert_pct_bin', 'relative_time_bin']
-    group_categories = ['expert_pct_bin', 'relative_time_bin']
+    group_categories = ['relative_time_bin']
     # post_question_data = post_question_data[post_question_data.loc[:, 'group_category'].isin(group_categories)]
     for group_var_i in group_categories:
         out_dir_i = f'../../data/reddit_data/group_classification_model/group={group_var_i}/'
@@ -284,7 +284,7 @@ def main():
                                                              max_length=max_length),
                         axis=1)
                 })
-            data_i = post_question_data[post_question_data.loc[:, 'group_category']==group_categories]
+            data_i = post_question_data[post_question_data.loc[:, 'group_category'].isin(group_categories)]
             data_i = data_i.assign(**{
                 group_var_i: (data_i.loc[:, 'author_group'].apply(
                     lambda x: group_label_lookup[x])).astype(int)
@@ -315,6 +315,7 @@ def main():
             model_weight_file_i = os.path.join(most_recent_checkpoint_dir_i, 'pytorch_model.bin')
             # test model
             test_transformer_model(test_dataset, out_dir_i, model_weight_file_i, tokenizer,
+                                   num_labels, group_var_i)
 
 if __name__ == '__main__':
     main()
