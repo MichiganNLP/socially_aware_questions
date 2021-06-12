@@ -6,6 +6,9 @@ import os
 
 import pandas as pd
 import numpy as np
+
+from model_helpers import BasicDataset
+
 np.random.seed(123)
 def sample_by_subreddit_author_group(data, group_var, sample_size=0):
     subreddit_group_counts = data.loc[:, ['subreddit', group_var]].value_counts()
@@ -105,25 +108,6 @@ def load_sample_data(sample_size=0):
                                          on='parent_id', how='inner')
     return sample_post_question_data
 
-import torch
-from torch.utils.data import Dataset
-class BasicDataset(Dataset):
-    def __init__(self, encodings, labels):
-        self.encodings = encodings
-        self.labels = labels
-
-    def __getitem__(self, idx):
-        # item = {k: torch.Tensor(v[idx]) for k, v in self.encodings.items()}
-        item = {
-            'input_ids' : torch.LongTensor(self.encodings['input_ids'][idx]),
-            'attention_mask': torch.Tensor(self.encodings['attention_mask'][idx]),
-        }
-        item["labels"] = torch.LongTensor([self.labels[idx]])
-        return item
-
-    def __len__(self):
-        return len(self.labels)
-
 ## tokenize data
 def combine_post_question_text(data, tokenizer, max_length=1024):
     post_tokens = tokenizer.tokenize(data.loc['post'])
@@ -150,32 +134,20 @@ def compute_metrics(pred):
     # print(f'final preds = {[x.shape for x in pred.predictions]}')
     preds = np.argmax(pred.predictions[0], axis=-1)
     pred_f1_score = f1_score(labels, preds)
-    TP = (labels==1 & preds==1).sum()
-    FP = (labels==1 & preds==0).sum()
-    FN = (labels==0 & preds==1).sum()
+    TP = ((labels==1) & (preds==1)).sum()
+    FP = ((labels==1) & (preds==0)).sum()
+    FN = ((labels==0) & (preds==1)).sum()
     pred_precision = TP / (FP + TP)
     pred_recall = TP / (FN + TP)
     metrics = {'F1': pred_f1_score, 'precision' : pred_precision, 'recall' : pred_recall}
     return metrics
 
-def train_transformer_model(data, tokenizer, out_dir,
-                            text_var='post_question',
-                            pred_var='group_category',
-                            train_pct=0.8, max_length=1024):
-    train_data_file = os.path.join(out_dir, 'train_data.pt')
-    test_data_file = os.path.join(out_dir, 'test_data.pt')
-    if(not os.path.exists(train_data_file)):
-        test_dataset, train_dataset = split_data(data, max_length, pred_var,
-                                                 text_var, tokenizer, train_pct)
-        torch.save(test_dataset, test_data_file)
-        torch.save(train_dataset, train_data_file)
-    else:
-        test_dataset = torch.load(test_data_file)
-        train_dataset = torch.load(train_data_file)
+def train_transformer_model(train_dataset, test_dataset, tokenizer, out_dir,
+                            n_gpu=1, num_labels=2):
     # tmp debugging
     # print(f'train data has labels = ')
     # get model
-    num_labels = data.loc[:, pred_var].nunique()
+    # num_labels = data.loc[:, pred_var].nunique()
     model_name = 'facebook/bart-base'
     model = BartForSequenceClassification.from_pretrained(model_name,
                                                           cache_dir='../../data/model_cache/',
@@ -198,7 +170,10 @@ def train_transformer_model(data, tokenizer, out_dir,
         evaluation_strategy="epoch",  # evaluate each `epoch`
         save_total_limit=1,
         eval_accumulation_steps=100,
+        ## TODO: multiple gpus
+        # local_rank=(-1 if n_gpu > 1 else 0)
     )
+    # training_args.n_gpu = n_gpu
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -216,7 +191,7 @@ def split_data(data, max_length, pred_var, text_var, tokenizer, train_pct):
     N = data.shape[0]
     N_train = int(train_pct * N)
     train_data = data.iloc[:N_train, :]
-    test_data = data.iloc[-N_train:, :]
+    test_data = data.iloc[N_train:, :]
     # get train/test encoding
     train_encodings = tokenizer(train_data.loc[:, text_var].values.tolist(),
                                 truncation=True, padding=True,
@@ -231,17 +206,26 @@ def split_data(data, max_length, pred_var, text_var, tokenizer, train_pct):
                                 test_data.loc[:, pred_var].values.tolist())
     return test_dataset, train_dataset
 
-
-def test_transformer_model(out_dir, model_weight_file, tokenizer, num_labels, pred_var):
-    test_data_file = os.path.join(out_dir, 'test_data.pt')
-    test_dataset = torch.load(test_data_file)
-    model_name = 'facebook/bart-base'
+def load_model_tokenizer(model_name, model_dir, num_labels=2, model_weight_file=None, tokenizer=None):
+    if(tokenizer is None):
+        tokenizer = torch.load(os.path.join(model_dir,'BART_tokenizer.pt'))
+        # add special token for combining post + question
+        tokenizer.add_special_tokens({'cls_token': '<QUESTION>'})
     model = BartForSequenceClassification.from_pretrained(model_name,
                                                           cache_dir='../../data/model_cache/',
                                                           num_labels=num_labels)
     model.resize_token_embeddings(len(tokenizer))
-    model_weights = torch.load(model_weight_file)
-    model.load_state_dict(model_weights)
+    if(model_weight_file is not None):
+        model_weights = torch.load(model_weight_file)
+        model.load_state_dict(model_weights)
+    return model, tokenizer
+
+def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, num_labels, pred_var):
+    model_name = 'facebook/bart-base'
+    model_dir = '../../data/model_cache'
+    model, _ = load_model_tokenizer(model_name, model_dir, num_labels=num_labels,
+                                            model_weight_file=model_weight_file,
+                                            tokenizer=tokenizer)
     # predict
     model.eval()
     with torch.no_grad():
@@ -253,18 +237,14 @@ def test_transformer_model(out_dir, model_weight_file, tokenizer, num_labels, pr
     test_output_file = os.path.join(out_dir,
                                     f'{pred_var}_prediction_results.csv')
     test_output.to_csv(test_output_file)
-    pass
 
 def main():
     ## load question data
     #sample_size = 0 # no-replacement sampling
     sample_size = 10000 # sampling with replacement
-    post_question_data = load_sample_data(sample_size=sample_size)
+    n_gpu = 1
     # tmp debugging
-    # post_question_data = post_question_data.iloc[:1000, :]
     ## set up model etc.
-    from transformers import BartTokenizer, BartForSequenceClassification
-    model_name = 'facebook/bart-base'
     #tokenizer = BartTokenizer.from_pretrained(model_name,
     #                                          cache_dir='../../data/model_cache/')
     #tokenizer = BartTokenizer.from_pretrained('facebook/bart-base', cache_dir='../../data/model_cache/')
@@ -272,11 +252,7 @@ def main():
     # add special token for combining post + question
     tokenizer.add_special_tokens({'cls_token': '<QUESTION>'})
     max_length = 1024
-    post_question_data = post_question_data.assign(**{
-        'post_question': post_question_data.apply(
-            lambda x: combine_post_question_text(x, tokenizer,
-                                                 max_length=max_length), axis=1)
-    })
+    post_question_data = None # only need data if we need to split train/test
     text_var = 'post_question'
     group_label_lookup = {
         'expert_pct_bin=0.0': 0,
@@ -290,37 +266,54 @@ def main():
     num_labels = 2
     # group_categories = ['location_region', 'expert_pct_bin', 'relative_time_bin']
     group_categories = ['expert_pct_bin', 'relative_time_bin']
-    post_question_data = post_question_data[post_question_data.loc[:, 'group_category'].isin(group_categories)]
-    for group_var_i, data_i in post_question_data.groupby('group_category'):
+    # post_question_data = post_question_data[post_question_data.loc[:, 'group_category'].isin(group_categories)]
+    for group_var_i in group_categories:
         out_dir_i = f'../../data/reddit_data/group_classification_model/group={group_var_i}/'
         if(not os.path.exists(out_dir_i)):
             os.mkdir(out_dir_i)
+        ## split data
+        train_data_file_i = os.path.join(out_dir_i, 'train_data.pt')
+        test_data_file_i = os.path.join(out_dir_i, 'test_data.pt')
+        if (not os.path.exists(train_data_file_i)):
+            if(post_question_data is None):
+                post_question_data = load_sample_data(sample_size=sample_size)
+                post_question_data = post_question_data.assign(**{
+                    'post_question': post_question_data.apply(
+                        lambda x: combine_post_question_text(x, tokenizer,
+                                                             max_length=max_length),
+                        axis=1)
+                })
+            data_i = post_question_data[post_question_data.loc[:, 'group_category']==group_categories]
+            data_i = data_i.assign(**{
+                group_var_i: (data_i.loc[:, 'author_group'].apply(
+                    lambda x: group_label_lookup[x])).astype(int)
+            })
+            test_dataset, train_dataset = split_data(data_i, max_length,
+                                                     group_var_i, text_var,
+                                                     tokenizer, train_pct)
+            torch.save(test_dataset, test_data_file_i)
+            torch.save(train_dataset, train_data_file_i)
+        ## train
+        model_checkpoint_dirs_i = list(filter(lambda x: x.startswith('checkpoint'), out_dir_i))
+        # train data if we don't already have model
+        if (len(model_checkpoint_dirs_i) == 0):
+            # load data
+            train_dataset = torch.load(train_data_file_i)
+            test_dataset = torch.load(test_data_file_i)
+            train_transformer_model(train_dataset, test_dataset, tokenizer,
+                                    out_dir_i, n_gpu=n_gpu, num_labels=num_labels)
+        ## test
         test_output_file_i = os.path.join(out_dir_i, f'{group_var_i}_prediction_results.csv')
         if(not os.path.exists(test_output_file_i)):
             print(f'testing var = {group_var_i}')
+            test_dataset = torch.load(test_data_file_i)
             # group_vals_i = data_i.loc[:, 'author_group'].unique()
-            data_i = data_i.assign(**{
-                group_var_i: (data_i.loc[:, 'author_group'].apply(lambda x: group_label_lookup[x])).astype(int)
-            })
             # print(f'var has dist = {data_i.loc[:, group_var_i].value_counts()}')
-            # split data into train/test
-            train_data_file_i = os.path.join(out_dir_i, 'train_data.pt')
-            test_data_file_i = os.path.join(out_dir_i, 'test_data.pt')
-            if(not os.path.exists(train_data_file_i)):
-                test_dataset, train_dataset = split_data(data_i, max_length, group_var_i, text_var, tokenizer, train_pct)
-                torch.save(test_dataset, test_data_file_i)
-                torch.save(train_dataset, train_data_file_i)
-            model_checkpoint_dirs_i = list(
-                filter(lambda x: x.startswith('checkpoint'), out_dir_i))
-            # train data if we don't already have model
-            if(len(model_checkpoint_dirs_i)==0):
-                train_transformer_model(data_i, tokenizer, out_dir_i,
-                                        text_var=text_var,
-                                        pred_var=group_var_i, train_pct=0.8)
-            # get most recent model
+            # load weights from most recent model
             most_recent_checkpoint_dir_i = max(model_checkpoint_dirs_i, key=lambda x: int(x.split('-')[1]))
             model_weight_file_i = os.path.join(most_recent_checkpoint_dir_i, 'pytorch_model.bin')
-            test_transformer_model(out_dir_i, model_weight_file_i, tokenizer,
+            # test model
+            test_transformer_model(test_dataset, out_dir_i, model_weight_file_i, tokenizer,
                                    num_labels, group_var_i)
 
 if __name__ == '__main__':

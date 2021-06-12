@@ -2,6 +2,7 @@ import gzip
 import pandas as pd
 import torch
 from nltk.translate.bleu_score import sentence_bleu
+from torch.utils.data import Dataset
 from tqdm import tqdm
 from transformers.training_args import TrainingArguments
 from dataclasses import field
@@ -105,7 +106,7 @@ def generate_predictions(model, data, tokenizer,
                 length_penalty=length_penalty,
                 num_return_sequences=1,
                 **model_kwargs_i
-            )            
+            )
         elif(generation_method == 'sample'):
             output_i = model.generate(
                 input_ids=source_i,
@@ -188,3 +189,21 @@ def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=-100):
     eps_i = epsilon / lprobs.size(-1)
     loss = (1.0 - epsilon) * nll_loss + eps_i * smooth_loss
     return loss / bs, nll_loss / bs
+
+
+class BasicDataset(Dataset):
+    def __init__(self, encodings, labels):
+        self.encodings = encodings
+        self.labels = labels
+
+    def __getitem__(self, idx):
+        # item = {k: torch.Tensor(v[idx]) for k, v in self.encodings.items()}
+        item = {
+            'input_ids' : torch.LongTensor(self.encodings['input_ids'][idx]),
+            'attention_mask': torch.Tensor(self.encodings['attention_mask'][idx]),
+        }
+        item["labels"] = torch.LongTensor([self.labels[idx]])
+        return item
+
+    def __len__(self):
+        return len(self.labels)
