@@ -134,9 +134,9 @@ def compute_metrics(pred):
     # print(f'final preds = {[x.shape for x in pred.predictions]}')
     preds = np.argmax(pred.predictions[0], axis=-1)
     pred_f1_score = f1_score(labels, preds)
-    TP = (labels==1 & preds==1).sum()
-    FP = (labels==1 & preds==0).sum()
-    FN = (labels==0 & preds==1).sum()
+    TP = ((labels==1) & (preds==1)).sum()
+    FP = ((labels==1) & (preds==0)).sum()
+    FN = ((labels==0) & (preds==1)).sum()
     pred_precision = TP / (FP + TP)
     pred_recall = TP / (FN + TP)
     metrics = {'F1': pred_f1_score, 'precision' : pred_precision, 'recall' : pred_recall}
@@ -237,7 +237,6 @@ def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, 
     test_output_file = os.path.join(out_dir,
                                     f'{pred_var}_prediction_results.csv')
     test_output.to_csv(test_output_file)
-    pass
 
 def main():
     ## load question data
@@ -307,6 +306,7 @@ def main():
         test_output_file_i = os.path.join(out_dir_i, f'{group_var_i}_prediction_results.csv')
         if(not os.path.exists(test_output_file_i)):
             print(f'testing var = {group_var_i}')
+            print(f'model checkpoints {model_checkpoint_dirs_i}')
             test_dataset = torch.load(test_data_file_i)
             # group_vals_i = data_i.loc[:, 'author_group'].unique()
             # print(f'var has dist = {data_i.loc[:, group_var_i].value_counts()}')
@@ -315,6 +315,7 @@ def main():
             model_weight_file_i = os.path.join(most_recent_checkpoint_dir_i, 'pytorch_model.bin')
             # test model
             test_transformer_model(test_dataset, out_dir_i, model_weight_file_i, tokenizer,
+                                   num_labels, group_var_i)
 
 if __name__ == '__main__':
     main()
