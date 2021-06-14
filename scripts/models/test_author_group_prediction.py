@@ -264,8 +264,8 @@ def main():
     }
     train_pct = 0.8
     num_labels = 2
-    # group_categories = ['location_region', 'expert_pct_bin', 'relative_time_bin']
-    group_categories = ['relative_time_bin']
+    group_categories = ['location_region', 'expert_pct_bin', 'relative_time_bin']
+    #group_categories = ['expert_pct_bin']
     # post_question_data = post_question_data[post_question_data.loc[:, 'group_category'].isin(group_categories)]
     for group_var_i in group_categories:
         out_dir_i = f'../../data/reddit_data/group_classification_model/group={group_var_i}/'
