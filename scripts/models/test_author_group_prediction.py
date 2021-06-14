@@ -306,6 +306,7 @@ def main():
         test_output_file_i = os.path.join(out_dir_i, f'{group_var_i}_prediction_results.csv')
         if(not os.path.exists(test_output_file_i)):
             print(f'testing var = {group_var_i}')
+            print(f'model checkpoints {model_checkpoint_dirs_i}')
             test_dataset = torch.load(test_data_file_i)
             # group_vals_i = data_i.loc[:, 'author_group'].unique()
             # print(f'var has dist = {data_i.loc[:, group_var_i].value_counts()}')
