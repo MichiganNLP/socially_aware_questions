@@ -6,7 +6,7 @@ import os
 
 import pandas as pd
 import numpy as np
-
+from tqdm import tqdm
 from model_helpers import BasicDataset
 
 np.random.seed(123)
@@ -129,10 +129,12 @@ from transformers import TrainingArguments, Trainer, \
     BartForSequenceClassification
 from sklearn.metrics import f1_score
 
-def compute_metrics(pred):
-    labels = pred.label_ids
+def compute_metrics(pred, predictions=None, labels=None):
+    if(pred is not None):
+        labels = pred.label_ids
+        predictions = pred.predictions[0]
     # print(f'final preds = {[x.shape for x in pred.predictions]}')
-    preds = np.argmax(pred.predictions[0], axis=-1)
+    preds = np.argmax(predictions, axis=-1)
     pred_f1_score = f1_score(labels, preds)
     TP = ((labels==1) & (preds==1)).sum()
     FP = ((labels==1) & (preds==0)).sum()
@@ -228,10 +230,22 @@ def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, 
                                             tokenizer=tokenizer)
     # predict
     model.eval()
+    preds = []
     with torch.no_grad():
-        model_pred = model(**test_dataset)
+        for data_i in tqdm(test_dataset):
+            input_ids = data_i['input_ids'].unsqueeze(0).to(model.device)
+            attention_mask = data_i['attention_mask'].unsqueeze(0).to(model.device)
+            labels = data_i['labels'].unsqueeze(0).to(model.device)
+            test_data_clean = {'input_ids' : input_ids, 'attention_mask' : attention_mask, 'labels' : labels}
+            model_pred = model(**test_data_clean)
+            preds.append(model_pred)
+    pred_labels = torch.cat([x.label_ids for x in preds])
+    pred_probs = torch.cat([x.predictions for x in preds])
+    # tmp debugging
+    print(f'pred labels = {pred_labels.shape}')
+    print(f'pred probs = {pred_probs.shape}')
     # evaluate
-    test_output = compute_metrics(model_pred)
+    test_output = compute_metrics(pred=None, labels=pred_labels, predictions=pred_probs)
     test_output = pd.Series(test_output)
     ## save to file!!
     test_output_file = os.path.join(out_dir,
@@ -264,8 +278,8 @@ def main():
     }
     train_pct = 0.8
     num_labels = 2
-    # group_categories = ['location_region', 'expert_pct_bin', 'relative_time_bin']
-    group_categories = ['expert_pct_bin', 'relative_time_bin']
+    group_categories = ['location_region', 'expert_pct_bin', 'relative_time_bin']
+    #group_categories = ['expert_pct_bin']
     # post_question_data = post_question_data[post_question_data.loc[:, 'group_category'].isin(group_categories)]
     for group_var_i in group_categories:
         out_dir_i = f'../../data/reddit_data/group_classification_model/group={group_var_i}/'
@@ -283,7 +297,7 @@ def main():
                                                              max_length=max_length),
                         axis=1)
                 })
-            data_i = post_question_data[post_question_data.loc[:, 'group_category']==group_categories]
+            data_i = post_question_data[post_question_data.loc[:, 'group_category'].isin(group_categories)]
             data_i = data_i.assign(**{
                 group_var_i: (data_i.loc[:, 'author_group'].apply(
                     lambda x: group_label_lookup[x])).astype(int)
@@ -294,7 +308,9 @@ def main():
             torch.save(test_dataset, test_data_file_i)
             torch.save(train_dataset, train_data_file_i)
         ## train
-        model_checkpoint_dirs_i = list(filter(lambda x: x.startswith('checkpoint'), out_dir_i))
+        model_checkpoint_dirs_i = list(filter(lambda x: x.startswith('checkpoint'), os.listdir(out_dir_i)))
+        model_checkpoint_dirs_i = list(map(lambda x: os.path.join(out_dir_i, x), model_checkpoint_dirs_i))
+        print(f'model checkpoints = {model_checkpoint_dirs_i}')
         # train data if we don't already have model
         if (len(model_checkpoint_dirs_i) == 0):
             # load data
