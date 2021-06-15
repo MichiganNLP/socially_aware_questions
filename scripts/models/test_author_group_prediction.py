@@ -3,11 +3,15 @@ Test how easily we can predict whether a question
 was written by a member of group 1 or 2.
 """
 import os
+from math import ceil
 
 import pandas as pd
 import numpy as np
+from accelerate import accelerator
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from model_helpers import BasicDataset
+from datasets import load_metric
 
 np.random.seed(123)
 def sample_by_subreddit_author_group(data, group_var, sample_size=0):
@@ -126,7 +130,7 @@ import numpy as np
 
 np.random.seed(123)
 from transformers import TrainingArguments, Trainer, \
-    BartForSequenceClassification
+    BartForSequenceClassification, AdamW, get_scheduler
 from sklearn.metrics import f1_score
 
 def compute_metrics(pred, predictions=None, labels=None):
@@ -166,7 +170,20 @@ def train_transformer_model(train_dataset, test_dataset, tokenizer, out_dir,
                                                           num_labels=num_labels)
     model.resize_token_embeddings(len(tokenizer))
     # set up training regime
-    training_args = TrainingArguments(
+    training_args = load_training_args(out_dir)
+    # training_args.n_gpu = n_gpu
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=test_dataset,
+        compute_metrics=compute_metrics,
+    )
+    trainer.train()
+
+
+def load_training_args(out_dir):
+    return TrainingArguments(
         output_dir=out_dir,
         # output directory
         num_train_epochs=5,  # total number of training epochs
@@ -185,15 +202,105 @@ def train_transformer_model(train_dataset, test_dataset, tokenizer, out_dir,
         ## TODO: multiple gpus
         # local_rank=(-1 if n_gpu > 1 else 0)
     )
-    # training_args.n_gpu = n_gpu
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=test_dataset,
-        compute_metrics=compute_metrics,
+
+
+def train_model_parallel(train_dataset, test_dataset, tokenizer, out_dir, num_labels=2):
+    model_name = 'facebook/bart-base'
+    model = BartForSequenceClassification.from_pretrained(model_name,
+                                                          cache_dir='../../data/model_cache/',
+                                                          num_labels=num_labels)
+    from transformers.data.data_collator import DataCollatorWithPadding
+    data_collator = DataCollatorWithPadding(tokenizer, padding=True)
+    training_args = load_training_args(out_dir)
+    train_data_loader = DataLoader(train_dataset, shuffle=True, collate_fn=data_collator, batch_size=training_args.per_device_train_batch_size)
+    test_data_loader = DataLoader(test_dataset, shuffle=True, collate_fn=data_collator, batch_size=training_args.per_device_train_batch_size)
+    no_decay = ["bias", "LayerNorm.weight"]
+    optimizer_grouped_parameters = [
+        {
+            "params": [p for n, p in model.named_parameters() if
+                       not any(nd in n for nd in no_decay)],
+            "weight_decay": training_args.weight_decay,
+        },
+        {
+            "params": [p for n, p in model.named_parameters() if
+                       any(nd in n for nd in no_decay)],
+            "weight_decay": 0.0,
+        },
+    ]
+    optimizer = AdamW(optimizer_grouped_parameters, lr=training_args.learning_rate)
+    model, optimizer, train_data_loader, eval_data_loader = accelerator.prepare(
+        model, optimizer, train_data_loader, test_data_loader
     )
-    trainer.train()
+    num_update_steps_per_epoch = ceil(
+        len(train_data_loader) / training_args.gradient_accumulation_steps)
+    if training_args.max_train_steps is None:
+        training_args.max_train_steps = training_args.num_train_epochs * num_update_steps_per_epoch
+    else:
+        training_args.num_train_epochs = ceil(
+            training_args.max_train_steps / num_update_steps_per_epoch)
+
+    lr_scheduler = get_scheduler(
+        name=training_args.lr_scheduler_type,
+        optimizer=optimizer,
+        num_warmup_steps=training_args.num_warmup_steps,
+        num_training_steps=training_args.max_train_steps,
+    )
+    metric = load_metric('accuracy')
+    ## train lol
+    total_batch_size = training_args.per_device_train_batch_size * accelerator.num_processes * training_args.gradient_accumulation_steps
+
+    print("***** Running training *****")
+    print(f"  Num examples = {len(train_dataset)}")
+    print(f"  Num Epochs = {training_args.num_train_epochs}")
+    print(
+        f"  Instantaneous batch size per device = {training_args.per_device_train_batch_size}")
+    print(
+        f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
+    print(
+        f"  Gradient Accumulation steps = {training_args.gradient_accumulation_steps}")
+    print(f"  Total optimization steps = {training_args.max_train_steps}")
+    progress_bar = tqdm(range(training_args.max_train_steps), disable=not accelerator.is_local_main_process)
+    completed_steps = 0
+
+    for epoch in range(training_args.num_train_epochs):
+        print(f'epoch={epoch}')
+        model.train()
+        for step, batch in enumerate(train_data_loader):
+            outputs = model(**batch)
+            loss = outputs.loss
+            loss = loss / training_args.gradient_accumulation_steps
+            accelerator.backward(loss)
+            if step % training_args.gradient_accumulation_steps == 0 or step == len(
+                    train_data_loader) - 1:
+                optimizer.step()
+                lr_scheduler.step()
+                optimizer.zero_grad()
+                progress_bar.update(1)
+                completed_steps += 1
+
+            if completed_steps >= training_args.max_train_steps:
+                break
+
+        model.eval()
+        if training_args.val_max_target_length is None:
+            training_args.val_max_target_length = training_args.max_target_length
+
+        for step, batch in enumerate(test_data_loader):
+            with torch.no_grad():
+                model_output = model(**batch)
+                labels = accelerator.gather(batch['labels']).cpu()
+                pred = np.argmax(accelerator.gather(model_output.logits.cpu()), axis=-1)
+                metric.add_batch(pred, labels)
+
+        result = metric.compute()
+
+        print(f'test result: {result}')
+
+    if training_args.output_dir is not None:
+        accelerator.wait_for_everyone()
+        unwrapped_model = accelerator.unwrap_model(model)
+        unwrapped_model.save_pretrained(training_args.output_dir,
+                                        save_function=accelerator.save)
 
 def split_data(data, max_length, pred_var, text_var, tokenizer, train_pct):
     # tmp debugging
