@@ -134,14 +134,24 @@ def compute_metrics(pred, predictions=None, labels=None):
         labels = pred.label_ids
         predictions = pred.predictions[0]
     # print(f'final preds = {[x.shape for x in pred.predictions]}')
+    # tmp debugging
+    print(f'prediction sample = {predictions}')
     preds = np.argmax(predictions, axis=-1)
-    pred_f1_score = f1_score(labels, preds)
+    labels = labels.squeeze(1)
+    preds = preds.squeeze(0)
+    print(f'preds have shape {preds.shape}')
+    print(f'labels have shape {labels.shape}')
+    acc = float((preds == labels).sum()) / labels.shape[0]
+    # get F1 for 1 class and 0 class
+    pred_f1_score_1 = f1_score(labels, preds)
+    pred_f1_score_0 = f1_score((1-labels), (1-preds))
     TP = ((labels==1) & (preds==1)).sum()
     FP = ((labels==1) & (preds==0)).sum()
     FN = ((labels==0) & (preds==1)).sum()
     pred_precision = TP / (FP + TP)
     pred_recall = TP / (FN + TP)
-    metrics = {'F1': pred_f1_score, 'precision' : pred_precision, 'recall' : pred_recall}
+    #metrics = {'F1': pred_f1_score, 'precision' : float(pred_precision), 'recall' : float(pred_recall)}
+    metrics = {'acc' : acc, 'F1_class_1' : pred_f1_score_1, 'F1_class_0' : pred_f1_score_0}
     return metrics
 
 def train_transformer_model(train_dataset, test_dataset, tokenizer, out_dir,
@@ -162,7 +172,7 @@ def train_transformer_model(train_dataset, test_dataset, tokenizer, out_dir,
         num_train_epochs=5,  # total number of training epochs
         per_device_train_batch_size=2,  # batch size per device during training
         per_device_eval_batch_size=2,  # batch size for evaluation
-        warmup_steps=500,  # number of warmup steps for learning rate scheduler
+        warmup_steps=1000,  # number of warmup steps for learning rate scheduler
         weight_decay=0.01,  # strength of weight decay
         logging_dir='./logs',  # directory for storing logs
         load_best_model_at_end=True,
@@ -220,6 +230,10 @@ def load_model_tokenizer(model_name, model_dir, num_labels=2, model_weight_file=
     if(model_weight_file is not None):
         model_weights = torch.load(model_weight_file)
         model.load_state_dict(model_weights)
+        # tmp debugging
+        print(f'loaded model weights')
+    # move to GPU
+    model = model.to('cuda:0')
     return model, tokenizer
 
 def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, num_labels, pred_var):
@@ -230,7 +244,10 @@ def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, 
                                             tokenizer=tokenizer)
     # predict
     model.eval()
-    preds = []
+    pred_labels = []
+    pred_probs = []
+    # tmp debugging
+    print(f'label distribution = {pd.Series([int(x["labels"][0]) for x in test_dataset]).value_counts()}') 
     with torch.no_grad():
         for data_i in tqdm(test_dataset):
             input_ids = data_i['input_ids'].unsqueeze(0).to(model.device)
@@ -238,12 +255,14 @@ def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, 
             labels = data_i['labels'].unsqueeze(0).to(model.device)
             test_data_clean = {'input_ids' : input_ids, 'attention_mask' : attention_mask, 'labels' : labels}
             model_pred = model(**test_data_clean)
-            preds.append(model_pred)
-    pred_labels = torch.cat([x.label_ids for x in preds])
-    pred_probs = torch.cat([x.predictions for x in preds])
+            ##print(f'model pred has vals {dir(model_pred)}')
+            pred_labels.append(labels.to('cpu'))
+            pred_probs.append(model_pred.logits.to('cpu'))
+    pred_labels = torch.cat(pred_labels)
+    pred_probs = torch.cat(pred_probs)
     # tmp debugging
-    print(f'pred labels = {pred_labels.shape}')
-    print(f'pred probs = {pred_probs.shape}')
+    #print(f'pred labels = {pred_labels.shape}')
+    #print(f'pred probs = {pred_probs.shape}')
     # evaluate
     test_output = compute_metrics(pred=None, labels=pred_labels, predictions=pred_probs)
     test_output = pd.Series(test_output)
@@ -253,9 +272,8 @@ def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, 
     test_output.to_csv(test_output_file)
 
 def main():
-    ## load question data
     #sample_size = 0 # no-replacement sampling
-    sample_size = 10000 # sampling with replacement
+    sample_size = 20000 # sampling with replacement
     n_gpu = 1
     # tmp debugging
     ## set up model etc.
@@ -278,10 +296,11 @@ def main():
     }
     train_pct = 0.8
     num_labels = 2
-    group_categories = ['location_region', 'expert_pct_bin', 'relative_time_bin']
-    #group_categories = ['expert_pct_bin']
+    #group_categories = ['location_region', 'expert_pct_bin', 'relative_time_bin']
+    group_categories = ['location_region']
     # post_question_data = post_question_data[post_question_data.loc[:, 'group_category'].isin(group_categories)]
     for group_var_i in group_categories:
+        print(f'processing group var {group_var_i}')
         out_dir_i = f'../../data/reddit_data/group_classification_model/group={group_var_i}/'
         if(not os.path.exists(out_dir_i)):
             os.mkdir(out_dir_i)
@@ -323,6 +342,8 @@ def main():
         if(not os.path.exists(test_output_file_i)):
             print(f'testing var = {group_var_i}')
             test_dataset = torch.load(test_data_file_i)
+            # tmp debugging
+            #test_dataset = test_dataset.select(list(range(1000)), keep_in_memory=True, load_from_cache_file=False)
             # group_vals_i = data_i.loc[:, 'author_group'].unique()
             # print(f'var has dist = {data_i.loc[:, group_var_i].value_counts()}')
             # load weights from most recent model
