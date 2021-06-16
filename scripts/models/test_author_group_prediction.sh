@@ -5,10 +5,11 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem-per-gpu=50g
-#SBATCH --time=24:00:00
+#SBATCH --time=4:00:00
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 
 # specify CUDA device (only for LIT machines)
 #export CUDA_VISIBLE_DEVICES=0
-python test_author_group_prediction.py
+#python test_author_group_prediction.py
+python -m torch.distributed.launch --nproc_per_node 2 --use_env test_author_group_prediction.py 
