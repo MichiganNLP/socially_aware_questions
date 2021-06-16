@@ -187,8 +187,8 @@ def load_training_args(out_dir):
         output_dir=out_dir,
         # output directory
         num_train_epochs=5,  # total number of training epochs
-        per_device_train_batch_size=2,  # batch size per device during training
-        per_device_eval_batch_size=2,  # batch size for evaluation
+        per_device_train_batch_size=4,  # batch size per device during training
+        per_device_eval_batch_size=4,  # batch size for evaluation
         warmup_steps=1000,  # number of warmup steps for learning rate scheduler
         weight_decay=0.01,  # strength of weight decay
         logging_dir='./logs',  # directory for storing logs
@@ -453,10 +453,11 @@ def main():
             # load data
             train_dataset = torch.load(train_data_file_i)
             test_dataset = torch.load(test_data_file_i)
-            #train_transformer_model(train_dataset, test_dataset, tokenizer,
-            #                        out_dir_i, n_gpu=n_gpu, num_labels=num_labels)
+            train_transformer_model(train_dataset, test_dataset, tokenizer,
+                                    out_dir_i, n_gpu=n_gpu, num_labels=num_labels)
             # parallel training
-            train_model_parallel(train_dataset, test_dataset, tokenizer, out_dir_i, num_labels=num_labels)
+            # TODO: debug device sharing
+            #train_model_parallel(train_dataset, test_dataset, tokenizer, out_dir_i, num_labels=num_labels)
         ## test
         test_output_file_i = os.path.join(out_dir_i, f'{group_var_i}_prediction_results.csv')
         if(not os.path.exists(test_output_file_i)):
