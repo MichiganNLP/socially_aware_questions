@@ -7,7 +7,7 @@ from math import ceil
 
 import pandas as pd
 import numpy as np
-from accelerate import accelerator
+from accelerate import Accelerator 
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from model_helpers import BasicDataset
@@ -239,6 +239,7 @@ def train_model_parallel(train_dataset, test_dataset, tokenizer, out_dir, num_la
         },
     ]
     optimizer = AdamW(optimizer_grouped_parameters, lr=args['learning_rate'])
+    accelerator = Accelerator()
     model, optimizer, train_data_loader, eval_data_loader = accelerator.prepare(
         model, optimizer, train_data_loader, test_data_loader
     )
@@ -452,8 +453,10 @@ def main():
             # load data
             train_dataset = torch.load(train_data_file_i)
             test_dataset = torch.load(test_data_file_i)
-            train_transformer_model(train_dataset, test_dataset, tokenizer,
-                                    out_dir_i, n_gpu=n_gpu, num_labels=num_labels)
+            #train_transformer_model(train_dataset, test_dataset, tokenizer,
+            #                        out_dir_i, n_gpu=n_gpu, num_labels=num_labels)
+            # parallel training
+            train_model_parallel(train_dataset, test_dataset, tokenizer, out_dir_i, num_labels=num_labels)
         ## test
         test_output_file_i = os.path.join(out_dir_i, f'{group_var_i}_prediction_results.csv')
         if(not os.path.exists(test_output_file_i)):
