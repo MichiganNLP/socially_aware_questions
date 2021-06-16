@@ -16,4 +16,4 @@ GROUP_CATEGORIES=("location_region")
 python test_author_group_prediction.py --group_categories "${GROUP_CATEGORIES[@]}"
 # dumb parallel code that doesn't work fml
 #export LOCAL_RANK=1
-#python -m torch.distributed.launch --nproc_per_node 2 --use_env test_author_group_prediction.py 
+#python -m torch.distributed.launch --nproc_per_node 2 --use_env test_author_group_prediction.py "${GROUP_CATEGORIES[@]}"
