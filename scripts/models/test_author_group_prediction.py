@@ -3,6 +3,7 @@ Test how easily we can predict whether a question
 was written by a member of group 1 or 2.
 """
 import os
+from argparse import ArgumentParser
 from math import ceil
 
 import pandas as pd
@@ -390,6 +391,9 @@ def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, 
     test_output.to_csv(test_output_file)
 
 def main():
+    parser = ArgumentParser()
+    parser.add_argument('--group_categories', nargs='+', default=['location_region', 'expert_pct_bin', 'relative_time_bin'])
+    args = vars(parser.parse_args())
     #sample_size = 0 # no-replacement sampling
     sample_size = 20000 # sampling with replacement
     n_gpu = 1
@@ -414,8 +418,9 @@ def main():
     }
     train_pct = 0.8
     num_labels = 2
+    group_categories = args['group_categories']
     #group_categories = ['location_region', 'expert_pct_bin', 'relative_time_bin']
-    group_categories = ['location_region']
+    # group_categories = ['location_region']
     # post_question_data = post_question_data[post_question_data.loc[:, 'group_category'].isin(group_categories)]
     for group_var_i in group_categories:
         print(f'processing group var {group_var_i}')

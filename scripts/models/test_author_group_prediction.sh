@@ -11,5 +11,7 @@
 
 # specify CUDA device (only for LIT machines)
 #export CUDA_VISIBLE_DEVICES=0
-#python test_author_group_prediction.py
-python -m torch.distributed.launch --nproc_per_node 2 --use_env test_author_group_prediction.py 
+#GROUP_CATEGORIES=("location_region" "expert_pct_bin" "relative_time_bin")
+GROUP_CATEGORIES=("location_region")
+python test_author_group_prediction.py --group_categories "${GROUP_CATEGORIES[@]}"
+#python -m torch.distributed.launch --nproc_per_node 2 --use_env test_author_group_prediction.py
