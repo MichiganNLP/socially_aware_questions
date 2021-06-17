@@ -3,11 +3,16 @@ Test how easily we can predict whether a question
 was written by a member of group 1 or 2.
 """
 import os
+from argparse import ArgumentParser
+from math import ceil
 
 import pandas as pd
 import numpy as np
+from accelerate import Accelerator 
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from model_helpers import BasicDataset
+from datasets import load_metric
 
 np.random.seed(123)
 def sample_by_subreddit_author_group(data, group_var, sample_size=0):
@@ -126,7 +131,7 @@ import numpy as np
 
 np.random.seed(123)
 from transformers import TrainingArguments, Trainer, \
-    BartForSequenceClassification
+    BartForSequenceClassification, AdamW, get_scheduler
 from sklearn.metrics import f1_score
 
 def compute_metrics(pred, predictions=None, labels=None):
@@ -134,14 +139,24 @@ def compute_metrics(pred, predictions=None, labels=None):
         labels = pred.label_ids
         predictions = pred.predictions[0]
     # print(f'final preds = {[x.shape for x in pred.predictions]}')
+    # tmp debugging
+    print(f'prediction sample = {predictions}')
     preds = np.argmax(predictions, axis=-1)
-    pred_f1_score = f1_score(labels, preds)
+    labels = labels.squeeze(1)
+    preds = preds.squeeze(0)
+    print(f'preds have shape {preds.shape}')
+    print(f'labels have shape {labels.shape}')
+    acc = float((preds == labels).sum()) / labels.shape[0]
+    # get F1 for 1 class and 0 class
+    pred_f1_score_1 = f1_score(labels, preds)
+    pred_f1_score_0 = f1_score((1-labels), (1-preds))
     TP = ((labels==1) & (preds==1)).sum()
     FP = ((labels==1) & (preds==0)).sum()
     FN = ((labels==0) & (preds==1)).sum()
     pred_precision = TP / (FP + TP)
     pred_recall = TP / (FN + TP)
-    metrics = {'F1': pred_f1_score, 'precision' : pred_precision, 'recall' : pred_recall}
+    #metrics = {'F1': pred_f1_score, 'precision' : float(pred_precision), 'recall' : float(pred_recall)}
+    metrics = {'acc' : acc, 'F1_class_1' : pred_f1_score_1, 'F1_class_0' : pred_f1_score_0}
     return metrics
 
 def train_transformer_model(train_dataset, test_dataset, tokenizer, out_dir,
@@ -156,13 +171,26 @@ def train_transformer_model(train_dataset, test_dataset, tokenizer, out_dir,
                                                           num_labels=num_labels)
     model.resize_token_embeddings(len(tokenizer))
     # set up training regime
-    training_args = TrainingArguments(
+    training_args = load_training_args(out_dir)
+    # training_args.n_gpu = n_gpu
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=test_dataset,
+        compute_metrics=compute_metrics,
+    )
+    trainer.train()
+
+
+def load_training_args(out_dir):
+    return TrainingArguments(
         output_dir=out_dir,
         # output directory
         num_train_epochs=5,  # total number of training epochs
-        per_device_train_batch_size=2,  # batch size per device during training
-        per_device_eval_batch_size=2,  # batch size for evaluation
-        warmup_steps=500,  # number of warmup steps for learning rate scheduler
+        per_device_train_batch_size=4,  # batch size per device during training
+        per_device_eval_batch_size=4,  # batch size for evaluation
+        warmup_steps=1000,  # number of warmup steps for learning rate scheduler
         weight_decay=0.01,  # strength of weight decay
         logging_dir='./logs',  # directory for storing logs
         load_best_model_at_end=True,
@@ -175,15 +203,116 @@ def train_transformer_model(train_dataset, test_dataset, tokenizer, out_dir,
         ## TODO: multiple gpus
         # local_rank=(-1 if n_gpu > 1 else 0)
     )
-    # training_args.n_gpu = n_gpu
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=test_dataset,
-        compute_metrics=compute_metrics,
+
+PARALLEL_MODEL_ARGS= {
+    'per_device_train_batch_size' : 2,
+    'weight_decay' : 0.01,
+    'learning_rate' : 5e-5,
+    'gradient_accumulation_steps' : 1,
+    'num_train_epochs' : 5,
+    'lr_scheduler_type' : 'linear',
+    'num_warmup_steps' : 1000,
+    'max_train_steps' : 100000,
+    'max_target_length' : 64,
+}
+def train_model_parallel(train_dataset, test_dataset, tokenizer, out_dir, num_labels=2,
+                        args=PARALLEL_MODEL_ARGS):
+    model_name = 'facebook/bart-base'
+    model = BartForSequenceClassification.from_pretrained(model_name,
+                                                          cache_dir='../../data/model_cache/',
+                                                          num_labels=num_labels)
+    from transformers.data.data_collator import DataCollatorWithPadding
+    data_collator = DataCollatorWithPadding(tokenizer, padding=True)
+    # training_args = load_training_args(out_dir)
+    train_data_loader = DataLoader(train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args['per_device_train_batch_size'])
+    test_data_loader = DataLoader(test_dataset, shuffle=True, collate_fn=data_collator, batch_size=args['per_device_train_batch_size'])
+    no_decay = ["bias", "LayerNorm.weight"]
+    optimizer_grouped_parameters = [
+        {
+            "params": [p for n, p in model.named_parameters() if
+                       not any(nd in n for nd in no_decay)],
+            "weight_decay": args['weight_decay'],
+        },
+        {
+            "params": [p for n, p in model.named_parameters() if
+                       any(nd in n for nd in no_decay)],
+            "weight_decay": 0.0,
+        },
+    ]
+    optimizer = AdamW(optimizer_grouped_parameters, lr=args['learning_rate'])
+    accelerator = Accelerator()
+    model, optimizer, train_data_loader, eval_data_loader = accelerator.prepare(
+        model, optimizer, train_data_loader, test_data_loader
     )
-    trainer.train()
+    num_update_steps_per_epoch = ceil(
+        len(train_data_loader) / args['gradient_accumulation_steps'])
+    if(args.get('max_train_steps') is None):
+        args['max_train_steps'] = args['num_train_epochs'] * num_update_steps_per_epoch
+    else:
+        args['num_train_epochs'] = ceil(
+            args['max_train_steps'] / num_update_steps_per_epoch)
+
+    lr_scheduler = get_scheduler(
+        name=args['lr_scheduler_type'],
+        optimizer=optimizer,
+        num_warmup_steps=args['num_warmup_steps'],
+        num_training_steps=args['max_train_steps'],
+    )
+    metric = load_metric('accuracy')
+    ## train lol
+    total_batch_size = args['per_device_train_batch_size'] * accelerator.num_processes * args['gradient_accumulation_steps']
+
+    print("***** Running training *****")
+    print(f"  Num examples = {len(train_dataset)}")
+    print(f"  Num Epochs = {args['num_train_epochs']}")
+    print(
+        f"  Instantaneous batch size per device = {args['per_device_train_batch_size']}")
+    print(
+        f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
+    print(
+        f"  Gradient Accumulation steps = {args['gradient_accumulation_steps']}")
+    print(f"  Total optimization steps = {args['max_train_steps']}")
+    progress_bar = tqdm(range(args['max_train_steps']), disable=not accelerator.is_local_main_process)
+    completed_steps = 0
+
+    for epoch in range(args['num_train_epochs']):
+        print(f'epoch={epoch}')
+        model.train()
+        for step, batch in enumerate(train_data_loader):
+            outputs = model(**batch)
+            loss = outputs.loss
+            loss = loss / args['gradient_accumulation_steps']
+            accelerator.backward(loss)
+            if (step % args['gradient_accumulation_steps'] == 0 or step == len(train_data_loader) - 1):
+                optimizer.step()
+                lr_scheduler.step()
+                optimizer.zero_grad()
+                progress_bar.update(1)
+                completed_steps += 1
+
+            if(completed_steps >= args['max_train_steps:']):
+                break
+
+        model.eval()
+        if(args['val_max_target_length'] is None):
+            args['val_max_target_length'] = args['max_target_length']
+
+        for step, batch in enumerate(test_data_loader):
+            with torch.no_grad():
+                model_output = model(**batch)
+                labels = accelerator.gather(batch['labels']).cpu()
+                pred = np.argmax(accelerator.gather(model_output.logits.cpu()), axis=-1)
+                metric.add_batch(pred, labels)
+
+        result = metric.compute()
+
+        print(f'test result: {result}')
+
+    if(out_dir is not None):
+        accelerator.wait_for_everyone()
+        unwrapped_model = accelerator.unwrap_model(model)
+        unwrapped_model.save_pretrained(out_dir,
+                                        save_function=accelerator.save)
 
 def split_data(data, max_length, pred_var, text_var, tokenizer, train_pct):
     # tmp debugging
@@ -220,6 +349,10 @@ def load_model_tokenizer(model_name, model_dir, num_labels=2, model_weight_file=
     if(model_weight_file is not None):
         model_weights = torch.load(model_weight_file)
         model.load_state_dict(model_weights)
+        # tmp debugging
+        print(f'loaded model weights')
+    # move to GPU
+    model = model.to('cuda:0')
     return model, tokenizer
 
 def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, num_labels, pred_var):
@@ -230,7 +363,10 @@ def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, 
                                             tokenizer=tokenizer)
     # predict
     model.eval()
-    preds = []
+    pred_labels = []
+    pred_probs = []
+    # tmp debugging
+    print(f'label distribution = {pd.Series([int(x["labels"][0]) for x in test_dataset]).value_counts()}') 
     with torch.no_grad():
         for data_i in tqdm(test_dataset):
             input_ids = data_i['input_ids'].unsqueeze(0).to(model.device)
@@ -238,12 +374,14 @@ def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, 
             labels = data_i['labels'].unsqueeze(0).to(model.device)
             test_data_clean = {'input_ids' : input_ids, 'attention_mask' : attention_mask, 'labels' : labels}
             model_pred = model(**test_data_clean)
-            preds.append(model_pred)
-    pred_labels = torch.cat([x.label_ids for x in preds])
-    pred_probs = torch.cat([x.predictions for x in preds])
+            ##print(f'model pred has vals {dir(model_pred)}')
+            pred_labels.append(labels.to('cpu'))
+            pred_probs.append(model_pred.logits.to('cpu'))
+    pred_labels = torch.cat(pred_labels)
+    pred_probs = torch.cat(pred_probs)
     # tmp debugging
-    print(f'pred labels = {pred_labels.shape}')
-    print(f'pred probs = {pred_probs.shape}')
+    #print(f'pred labels = {pred_labels.shape}')
+    #print(f'pred probs = {pred_probs.shape}')
     # evaluate
     test_output = compute_metrics(pred=None, labels=pred_labels, predictions=pred_probs)
     test_output = pd.Series(test_output)
@@ -253,9 +391,11 @@ def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, 
     test_output.to_csv(test_output_file)
 
 def main():
-    ## load question data
+    parser = ArgumentParser()
+    parser.add_argument('--group_categories', nargs='+', default=['location_region', 'expert_pct_bin', 'relative_time_bin'])
+    args = vars(parser.parse_args())
     #sample_size = 0 # no-replacement sampling
-    sample_size = 10000 # sampling with replacement
+    sample_size = 20000 # sampling with replacement
     n_gpu = 1
     # tmp debugging
     ## set up model etc.
@@ -278,10 +418,12 @@ def main():
     }
     train_pct = 0.8
     num_labels = 2
-    group_categories = ['location_region', 'expert_pct_bin', 'relative_time_bin']
-    #group_categories = ['expert_pct_bin']
+    group_categories = args['group_categories']
+    #group_categories = ['location_region', 'expert_pct_bin', 'relative_time_bin']
+    # group_categories = ['location_region']
     # post_question_data = post_question_data[post_question_data.loc[:, 'group_category'].isin(group_categories)]
     for group_var_i in group_categories:
+        print(f'processing group var {group_var_i}')
         out_dir_i = f'../../data/reddit_data/group_classification_model/group={group_var_i}/'
         if(not os.path.exists(out_dir_i)):
             os.mkdir(out_dir_i)
@@ -318,12 +460,16 @@ def main():
             test_dataset = torch.load(test_data_file_i)
             train_transformer_model(train_dataset, test_dataset, tokenizer,
                                     out_dir_i, n_gpu=n_gpu, num_labels=num_labels)
+            # parallel training
+            # TODO: debug device sharing
+            #train_model_parallel(train_dataset, test_dataset, tokenizer, out_dir_i, num_labels=num_labels)
         ## test
         test_output_file_i = os.path.join(out_dir_i, f'{group_var_i}_prediction_results.csv')
         if(not os.path.exists(test_output_file_i)):
             print(f'testing var = {group_var_i}')
-            print(f'model checkpoints {model_checkpoint_dirs_i}')
             test_dataset = torch.load(test_data_file_i)
+            # tmp debugging
+            #test_dataset = test_dataset.select(list(range(1000)), keep_in_memory=True, load_from_cache_file=False)
             # group_vals_i = data_i.loc[:, 'author_group'].unique()
             # print(f'var has dist = {data_i.loc[:, group_var_i].value_counts()}')
             # load weights from most recent model
