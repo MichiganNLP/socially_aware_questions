@@ -199,7 +199,7 @@ def main():
         # add extra token to tokenizer
         tokenizer.add_tokens({'<AUTHOR_EMBED>' : len(tokenizer)}, special_tokens=True)
         # tmp debugging
-        print(f'tokenizer has {len(tokenizer)} tokens')
+        # print(f'tokenizer has {len(tokenizer)} tokens')
     elif(model_type == 'bart_author_attention'):
         # config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
         config = BartConfig.from_json_file(model_config_file)
