@@ -143,9 +143,6 @@ class AuthorTextEncoder(BartPretrainedModel):
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids) * self.embed_scale
 
-        embed_pos = self.embed_positions(input_shape)
-        hidden_states = inputs_embeds + embed_pos
-
         ## add author embeddings
         if(author_embeds is not None):
             author_embeds_hidden = self.author_embed_network(author_embeds.unsqueeze(2))
@@ -154,6 +151,11 @@ class AuthorTextEncoder(BartPretrainedModel):
                 # replace first padding index with author embeds
                 padding_idx_i = np.where(input_id_row_i==self.padding_idx)[0]
                 input_id_row_i[:, padding_idx_i[0]] = author_embed_row_i
+            # tmp debugging
+            print(f'new input has shape {inputs_embeds.shape}')
+
+        embed_pos = self.embed_positions(input_shape)
+        hidden_states = inputs_embeds + embed_pos
 
         hidden_states = self.layernorm_embedding(hidden_states)
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
