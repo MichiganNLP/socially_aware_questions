@@ -69,8 +69,9 @@
       "num_beams": 6
     }
   },
-  "vocab_size": 50271,
+  "vocab_size": 50272,
   "author_embeds" : 100,
   "author_embed_module" : "decoder",
-  "author_embed_type" : "text_embed"
+  "author_embed_type" : "text_embed",
+  "author_embed_token_id" : 50271
 }
