@@ -23,6 +23,8 @@ torch.set_num_threads(CPU_COUNT)
 from transformers import AutoModelForSeq2SeqLM, BartTokenizer, BartConfig
 import pandas as pd
 import numpy as np
+np.random.seed(123)
+torch.manual_seed(123)
 from author_aware_model import AuthorTextGenerationModel
 from nltk.tokenize import WordPunctTokenizer
 
@@ -32,7 +34,7 @@ question_words = {'where', 'when', 'what', 'how', 'why', 'which', 'did', 'could'
 referent_words = {'he', 'she', 'they', 'his', 'her', 'their'}
 STOP_WORDS = STOP_WORDS - question_words
 STOP_WORDS = STOP_WORDS - referent_words
-def get_generation_scores(pred_data, test_data, model, model_type='bart', word_embed_file=None, sample_size=1000, train_data=None):
+def get_generation_scores(pred_data, test_data, model, model_type='bart', word_embed_file=None, sample_size=5000, train_data=None):
     """
     Get generation scores for all predicted data, compute
     mean and SD
@@ -131,22 +133,24 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
     generation_score_data = generation_score_data.reset_index().rename(columns={'index': 'stat'})
     return generation_score_data
 
-def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words=[]):
+def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words=[], tokenizer=None):
     text_overlap_scores = []
     bleu_weights = [1.0, 0., 0., 0.]  # 100% 1-grams, 0% 2-grams, etc.
     rouge_scorer = RougeScorer(['rougeL'], use_stemmer=True)
     sentence_embed_model = SentenceTransformer('paraphrase-distilroberta-base-v1')
     score_cols = ['BLEU-1', 'ROUGE-L', 'sentence_dist']
+    if(tokenizer is None):
+        tokenizer = WordPunctTokenizer()
     # load embeddings for word mover distance
     if(word_embed_file is not None):
         word_embeds = load_vectors(word_embed_file)
-        tokenizer = WordPunctTokenizer()
         score_cols.append('WMD')
         word_embed_vocab = set(word_embeds.index) - stop_words
     for test_data_i, pred_data_i in zip(test_data['target_text'], pred_data):
-        bleu_score_i = compute_text_bleu(test_data_i, pred_data_i,
-                                         weights=bleu_weights)
-        # bleu_score_i = 0.
+        # get tokens lol
+        pred_tokens_i = list(map(lambda x: x.lower(), tokenizer.tokenize(pred_data_i)))
+        test_tokens_i = list(map(lambda x: x.lower(), tokenizer.tokenize(test_data_i)))
+        bleu_score_i = compute_text_bleu(test_tokens_i, pred_tokens_i, weights=bleu_weights)
         rouge_score_data_i = rouge_scorer.score(test_data_i, pred_data_i)
         rouge_score_i = rouge_score_data_i['rougeL'].fmeasure
         sentence_embeds_i = sentence_embed_model.encode([test_data_i, pred_data_i])
@@ -154,8 +158,6 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
         generation_scores_i = [bleu_score_i, rouge_score_i, sentence_embed_dist_i]
         if(word_embed_file is not None):
             # tokenize/normalize data
-            pred_tokens_i = list(map(lambda x: x.lower(), tokenizer.tokenize(pred_data_i)))
-            test_tokens_i = list(map(lambda x: x.lower(), tokenizer.tokenize(test_data_i)))
             clean_pred_tokens_i = list(filter(lambda x: x in word_embed_vocab, pred_tokens_i))
             clean_test_tokens_i = list(filter(lambda x: x in word_embed_vocab, test_tokens_i))
             word_mover_dist_i = 1.
@@ -273,7 +275,7 @@ def main():
         test_data.rename_column_('source_ids_reader_token', 'source_ids')
     data_cols = ['source_ids', 'target_ids', 'attention_mask']
     if(model_type == 'bart_author_embeds'):
-        # choose appropriate column
+        # choose appropriate column for embeds
         test_data.rename_column_(generation_model.config.__dict__['author_embed_type'], 'author_embeds')
         data_cols.append('author_embeds')
     test_data.set_format('torch', columns=data_cols, output_all_columns=True)

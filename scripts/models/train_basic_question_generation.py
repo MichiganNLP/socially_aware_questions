@@ -196,6 +196,8 @@ def main():
         # print(f'author embed type = {config.__dict__["author_embed_type"]}')
         train_dataset.rename_column_(config.__dict__['author_embed_type'], 'author_embeds')
         val_dataset.rename_column_(config.__dict__['author_embed_type'], 'author_embeds')
+        # add extra token to tokenizer
+        tokenizer.add_tokens({'<AUTHOR_EMBED>' : len(tokenizer)}, special_tokens=True)
     elif(model_type == 'bart_author_attention'):
         # config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
         config = BartConfig.from_json_file(model_config_file)
