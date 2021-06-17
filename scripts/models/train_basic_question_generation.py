@@ -198,6 +198,8 @@ def main():
         val_dataset.rename_column_(config.__dict__['author_embed_type'], 'author_embeds')
         # add extra token to tokenizer
         tokenizer.add_tokens({'<AUTHOR_EMBED>' : len(tokenizer)}, special_tokens=True)
+        # tmp debugging
+        print(f'tokenizer has {len(tokenizer)} tokens')
     elif(model_type == 'bart_author_attention'):
         # config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
         config = BartConfig.from_json_file(model_config_file)
@@ -217,7 +219,7 @@ def main():
         pretrained_model_weights = torch.load(pretrained_model)
         model.load_state_dict(pretrained_model_weights)
     if(n_gpu > 1):
-        # no devices (?) for acceler
+        # no devices (?) for accelerate
         #device_ids = list(range(n_gpu))
         #for device_id in device_ids:
         #    distributed.init_process_group('gloo', rank=device_id, world_size=n_gpu)
