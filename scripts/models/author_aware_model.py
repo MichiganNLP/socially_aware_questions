@@ -129,31 +129,77 @@ class AuthorTextEncoder(BartPretrainedModel):
         ## add special embed token to input IDs
         if(author_embeds is not None):
             # clip final input tokens to make room
+            clean_input_ids = []
+            # print(f'pre-clean input IDs has shape {input_ids.shape}')
             for input_id_row_i in input_ids:
-                padding_idx_i = np.where(input_id_row_i == self.padding_idx)[0]
-                if(len(padding_idx_i) <= 2):
-                    input_id_row_i[-2] = self.config.eos_token_id
-                    input_id_row_i[-2:] = self.padding_idx
-            # add embed token
-            for input_id_row_i in input_ids:
-                padding_idx_i = np.where(input_id_row_i==self.padding_idx)[0]
-                if(len(padding_idx_i) > 0):
+                # tmp debugging
+                # print(f'input ID row = {input_id_row_i}')
+                padding_idx_i = np.where(input_id_row_i.cpu() == self.padding_idx)[0]
+                # print(f'padding idx = {padding_idx_i}')
+                # handling input without padding
+                if(len(padding_idx_i) < 2):
+                    # clip final tokens on max-length input
+                    if (len(input_id_row_i) > (self.config.max_position_embeddings - 3)):
+                        clip_len_i = len(input_id_row_i) - self.config.max_position_embeddings + 3
+                        input_id_row_i = input_id_row_i[:-clip_len_i]
+                        end_of_input_idx_i = len(input_id_row_i)
+                    else:
+                        end_of_input_idx_i = padding_idx_i[-1] if len(padding_idx_i) > 0 else len(input_id_row_i)-1
+                    # append EOS + padding + padding to end of non-padded input
+                    # print(f'end of input idx = {end_of_input_idx_i}')
+                    input_id_row_i = torch.cat([input_id_row_i[:end_of_input_idx_i],
+                                                torch.LongTensor([self.config.eos_token_id, self.padding_idx, self.padding_idx]).to(input_id_row_i.device)])
+                # add embed token at end of sequence
+                padding_idx_i = np.where(input_id_row_i.cpu() == self.padding_idx)[0]
+                if (len(padding_idx_i) > 0):
                     input_id_row_i[padding_idx_i[0]] = self.author_embed_token_id
+                    # print(f'input with embed token {input_id_row_i}')
+                clean_input_ids.append(input_id_row_i)
+            # add extra padding to all short input ID rows
+            # print(f'clean input IDs have len {[len(x) for x in clean_input_ids]}')
+            max_input_len = max([len(x) for x in clean_input_ids])
+            clean_input_ids = list(map(lambda x: torch.cat([x, torch.LongTensor([self.padding_idx,]*(max_input_len-len(x))).to(x.device)]), clean_input_ids))
+            # re-combine input IDs
+            clean_input_ids = list(map(lambda x: x.unsqueeze(0), clean_input_ids))
+            input_ids = torch.cat(clean_input_ids, axis=0)
+            # update shape
+            input_shape = input_ids.size()
+            # print(f'clean input ids has shape {input_ids.shape}')
+
+            # for input_id_row_i in input_ids:
+            #     padding_idx_i = np.where(input_id_row_i.cpu()==self.padding_idx)[0]
+            #     if(len(padding_idx_i) > 0):
+            #         input_id_row_i[padding_idx_i[0]] = self.author_embed_token_id
+            #         print(f'input with embed token {input_id_row_i}')
 
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids) * self.embed_scale
 
         ## add author embeddings
         if(author_embeds is not None):
-            author_embeds_hidden = self.author_embed_network(author_embeds.unsqueeze(2))
+            author_embeds_hidden = self.author_embed_network(author_embeds.unsqueeze(1))
             author_embeds_hidden = self.author_embed_layernorm(author_embeds_hidden)
-            for input_id_row_i, author_embed_row_i in zip(input_ids, author_embeds_hidden):
-                # replace first padding index with author embeds
-                padding_idx_i = np.where(input_id_row_i==self.padding_idx)[0]
-                input_id_row_i[:, padding_idx_i[0]] = author_embed_row_i
             # tmp debugging
-            print(f'new input has shape {inputs_embeds.shape}')
-
+            # print(f'input embeds has shape {inputs_embeds.shape}')
+            # print(f'author embed hidden has shape {author_embeds_hidden.shape}')
+            clean_input_embeds = []
+            # print(f'text-only input embeds has shape {inputs_embeds.shape}')
+            for input_embeds_row_i, input_ids_row_i, author_embed_row_i, attention_mask_row_i in zip(inputs_embeds, input_ids, author_embeds_hidden, attention_mask):
+                # replace first padding index with author embeds
+                # print(f'input embed row has shape {input_embeds_row_i.shape}')
+                # print(f'author embed row has shape {author_embed_row_i.shape}')
+                # print(f'input embeds without author embed has shape {input_embeds_row_i.shape}')
+                padding_idx_i = np.where(input_ids_row_i.cpu()==self.padding_idx)[0]
+                # print(f'padding idx = {padding_idx_i}')
+                # insert author embedding
+                # inputs_embeds_row_i[padding_idx_i[0], :] = author_embed_row_i[0, :].to(inputs_embeds_row_i.device)
+                input_embeds_row_i = torch.cat([input_embeds_row_i[:padding_idx_i[0], :], author_embed_row_i, input_embeds_row_i[(padding_idx_i[0]+1):, :]])
+                clean_input_embeds.append(input_embeds_row_i)
+                # tmp debugging
+                # print(f'input embeds with author embed {input_embeds_row_i}')
+                # print(f'input embeds has shape {input_embeds_row_i.shape}')
+            inputs_embeds = torch.cat([x.unsqueeze(0) for x in clean_input_embeds], axis=0)
+            # print(f'text+author input embeds has shape {inputs_embeds.shape}')
         embed_pos = self.embed_positions(input_shape)
         hidden_states = inputs_embeds + embed_pos
 
@@ -834,16 +880,38 @@ class BartAuthorTextModel(BartModel):
         use_cache = use_cache if use_cache is not None else self.config.use_cache
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        ## increase attention size (for encoder) to include author embed
+        ## increase attention size (for encoder) to include author token + embed
         if (author_embeds is not None and self.author_embed_module in {'encoder', 'encoder_decoder'}):
-            if (attention_mask.shape[1] == self.config.max_position_embeddings):
-                attention_mask = attention_mask[:, :-1]
-            author_attn = torch.ones(attention_mask.shape[0], 1)
-            author_attn = author_attn.to(attention_mask.device)
+            attention_pad_len = 2 # add 2 slots: one for special token and one for author embed
+            clean_attention_mask = []
+            # print(f'attention mask before cleaning has shape = {attention_mask.shape}')
+            for attention_mask_row_i in attention_mask:
+                # print(f'pre-clean attention mask row has shape {attention_mask_row_i.shape}')
+                extra_attention_mask_i = torch.ones(attention_pad_len).to(attention_mask_row_i.device)
+                padding_idx_i = np.where(attention_mask_row_i.cpu() == 0)[0]
+                # print(f'attention mask padding idx = {padding_idx_i}')
+                # clip max-length sequence, i.e. where there is no padding left
+                if(len(attention_mask_row_i) > self.config.max_position_embeddings-attention_pad_len):
+                    clip_len_i = len(attention_mask_row_i) - self.config.max_position_embeddings + attention_pad_len
+                    attention_mask_row_i = attention_mask_row_i[:-clip_len_i]
+                    # print(f'max-length attention mask after fix = {attention_mask_row_i.shape}')
+                if(len(padding_idx_i) == 0):
+                    attention_mask_row_i = torch.cat([attention_mask_row_i, extra_attention_mask_i])
+                else:
+                    attention_mask_row_i = torch.cat([attention_mask_row_i[:padding_idx_i[0]], extra_attention_mask_i, attention_mask_row_i[(padding_idx_i[0]):]])
+                # print(f'clean attention mask row has shape {attention_mask_row_i.shape}')
+                clean_attention_mask.append(attention_mask_row_i)
+            attention_mask = torch.cat([x.unsqueeze(0) for x in clean_attention_mask])
             # tmp debugging
-            # print(f'attention mask dimensions={attention_mask.shape}')
-            # print(f'author attention mask dimensions={author_attn.shape}')
-            attention_mask = torch.cat([attention_mask, author_attn], axis=1)
+            # print(f'attention mask after cleaning has shape {attention_mask.shape}')
+            # if (attention_mask.shape[1] == self.config.max_position_embeddings):
+            #     attention_mask = attention_mask[:, :-1]
+            # author_attn = torch.ones(attention_mask.shape[0], 1)
+            # author_attn = author_attn.to(attention_mask.device)
+            # # tmp debugging
+            # # print(f'attention mask dimensions={attention_mask.shape}')
+            # # print(f'author attention mask dimensions={author_attn.shape}')
+            # attention_mask = torch.cat([attention_mask, author_attn], axis=1)
             # print(f'combined attention mask dimensions={attention_mask.shape}')
 
         if encoder_outputs is None:
