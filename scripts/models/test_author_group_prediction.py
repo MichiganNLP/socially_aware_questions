@@ -11,9 +11,10 @@ import numpy as np
 from accelerate import Accelerator 
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from model_helpers import BasicDataset
+from model_helpers import BasicDataset, select_from_dataset
 from datasets import load_metric
-
+import torch
+torch.manual_seed(123)
 np.random.seed(123)
 def sample_by_subreddit_author_group(data, group_var, sample_size=0):
     subreddit_group_counts = data.loc[:, ['subreddit', group_var]].value_counts()
@@ -123,13 +124,6 @@ def combine_post_question_text(data, tokenizer, max_length=1024):
     combined_text = tokenizer.convert_tokens_to_string(combined_tokens)
     return combined_text
 
-
-import torch
-
-torch.manual_seed(123)
-import numpy as np
-
-np.random.seed(123)
 from transformers import TrainingArguments, Trainer, \
     BartForSequenceClassification, AdamW, get_scheduler
 from sklearn.metrics import f1_score
@@ -160,7 +154,7 @@ def compute_metrics(pred, predictions=None, labels=None):
     return metrics
 
 def train_transformer_model(train_dataset, test_dataset, tokenizer, out_dir,
-                            n_gpu=1, num_labels=2):
+                            n_gpu=1, num_labels=2, model_weight_file=None):
     # tmp debugging
     # print(f'train data has labels = ')
     # get model
@@ -170,6 +164,9 @@ def train_transformer_model(train_dataset, test_dataset, tokenizer, out_dir,
                                                           cache_dir='../../data/model_cache/',
                                                           num_labels=num_labels)
     model.resize_token_embeddings(len(tokenizer))
+    if(model_weight_file is not None):
+        model_weights = torch.load(model_weight_file)
+        model.load_state_dict(model_weights)
     # set up training regime
     training_args = load_training_args(out_dir)
     # training_args.n_gpu = n_gpu
@@ -393,6 +390,7 @@ def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, 
 def main():
     parser = ArgumentParser()
     parser.add_argument('--group_categories', nargs='+', default=['location_region', 'expert_pct_bin', 'relative_time_bin'])
+    parser.add_argument('--retrain', dest='feature', action='store_true')
     args = vars(parser.parse_args())
     #sample_size = 0 # no-replacement sampling
     sample_size = 20000 # sampling with replacement
@@ -453,13 +451,23 @@ def main():
         model_checkpoint_dirs_i = list(filter(lambda x: x.startswith('checkpoint'), os.listdir(out_dir_i)))
         model_checkpoint_dirs_i = list(map(lambda x: os.path.join(out_dir_i, x), model_checkpoint_dirs_i))
         print(f'model checkpoints = {model_checkpoint_dirs_i}')
-        # train data if we don't already have model
-        if (len(model_checkpoint_dirs_i) == 0):
+        # train data if we don't already have model or we're going to retrain
+        if (len(model_checkpoint_dirs_i) == 0 or args['retrain']):
             # load data
             train_dataset = torch.load(train_data_file_i)
             test_dataset = torch.load(test_data_file_i)
+            ## down-sample data because model can't handle it all boo hoo
+            test_sample_size = 5000
+            test_idx = np.random.choice(list(range(len(test_dataset.labels))), test_sample_size, replace=False)
+            test_dataset = select_from_dataset(test_dataset, test_idx)
+            # optional: load model
+            model_weight_file_i = None
+            if(args['retrain']):
+                most_recent_checkpoint_dir_i = max(model_checkpoint_dirs_i,key=lambda x: int(x.split('-')[1]))
+                model_weight_file_i = os.path.join(most_recent_checkpoint_dir_i, 'pytorch_model.bin')
             train_transformer_model(train_dataset, test_dataset, tokenizer,
-                                    out_dir_i, n_gpu=n_gpu, num_labels=num_labels)
+                                    out_dir_i, n_gpu=n_gpu, num_labels=num_labels,
+                                    model_weight_file=model_weight_file_i)
             # parallel training
             # TODO: debug device sharing
             #train_model_parallel(train_dataset, test_dataset, tokenizer, out_dir_i, num_labels=num_labels)
