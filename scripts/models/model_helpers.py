@@ -4,6 +4,7 @@ import torch
 from nltk.translate.bleu_score import sentence_bleu
 from torch.utils.data import Dataset
 from tqdm import tqdm
+from transformers import BatchEncoding
 from transformers.training_args import TrainingArguments
 from dataclasses import field
 from typing import Optional
@@ -207,3 +208,11 @@ class BasicDataset(Dataset):
 
     def __len__(self):
         return len(self.labels)
+
+def select_from_dataset(dataset, idx):
+    dataset.encodings = BatchEncoding({
+        'input_ids': [dataset.encodings['input_ids'][x] for x in idx],
+        'attention_mask' : [dataset.encodings['attention_mask'][x] for x in idx],
+        })
+    dataset.labels = [dataset.labels[x] for x in idx]
+    return dataset
