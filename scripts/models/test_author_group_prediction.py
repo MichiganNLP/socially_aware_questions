@@ -137,6 +137,8 @@ def compute_metrics(pred, predictions=None, labels=None):
     print(f'prediction sample = {predictions}')
     preds = np.argmax(predictions, axis=-1)
     labels = labels.squeeze(1)
+    # tmp debugging
+    print(f'preds have shape {preds.shape}')
     preds = preds.squeeze(0)
     print(f'preds have shape {preds.shape}')
     print(f'labels have shape {labels.shape}')
@@ -194,7 +196,10 @@ def load_training_args(out_dir):
         # load the best model when finished training (default metric is loss)
         # but you can specify `metric_for_best_model` argument to change to accuracy or other metric
         logging_steps=1000,  # log & save weights each logging_steps
-        evaluation_strategy="epoch",  # evaluate each `epoch`
+        # evaluation_strategy="epoch",  # evaluate each `epoch`
+        # tmp debugging: shorter evals => figure out why prediction is broken
+        evaluation_strategy="steps",  # evaluate each `eval_steps`
+        eval_steps=1000,  # evaluate each `eval_steps`
         save_total_limit=1,
         eval_accumulation_steps=100,
         ## TODO: multiple gpus
