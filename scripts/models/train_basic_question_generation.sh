@@ -83,15 +83,15 @@ VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 # author embed
 # subreddit embed 
-#OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/ # encoder
+OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/ # encoder
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_decoder_data/ # decoder
-#MODEL_TYPE="bart_author_embeds"
-#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_subreddit_embed_model_config.json
-# text embed
-OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/ # encoder
-#OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_decoder_data/ # decoder
 MODEL_TYPE="bart_author_embeds"
-MODEL_CONFIG_FILE=../../data/model_cache/BART_author_text_embed_model_config.json
+MODEL_CONFIG_FILE=../../data/model_cache/BART_author_subreddit_embed_model_config.json
+# text embed
+#OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/ # encoder
+#OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_decoder_data/ # decoder
+#MODEL_TYPE="bart_author_embeds"
+#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_text_embed_model_config.json
 # regular transformer
 MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML
