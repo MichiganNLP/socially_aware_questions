@@ -134,23 +134,23 @@ def compute_metrics(pred, predictions=None, labels=None):
         predictions = pred.predictions[0]
     # print(f'final preds = {[x.shape for x in pred.predictions]}')
     # tmp debugging
-    print(f'prediction sample = {predictions}')
+    # print(f'prediction sample = {predictions}')
     preds = np.argmax(predictions, axis=-1)
-    labels = labels.squeeze(1)
+    labels = labels.squeeze(1).numpy()
     # tmp debugging
-    print(f'preds have shape {preds.shape}')
-    preds = preds.squeeze(0)
-    print(f'preds have shape {preds.shape}')
-    print(f'labels have shape {labels.shape}')
+    # print(f'preds have shape {preds.shape}')
+    # print(f'labels have shape {labels.shape}')
+    # preds = preds.squeeze(0)
+    # print(f'preds have shape {preds.shape}')
     acc = float((preds == labels).sum()) / labels.shape[0]
     # get F1 for 1 class and 0 class
     pred_f1_score_1 = f1_score(labels, preds)
     pred_f1_score_0 = f1_score((1-labels), (1-preds))
-    TP = ((labels==1) & (preds==1)).sum()
-    FP = ((labels==1) & (preds==0)).sum()
-    FN = ((labels==0) & (preds==1)).sum()
-    pred_precision = TP / (FP + TP)
-    pred_recall = TP / (FN + TP)
+    # TP = ((labels==1) & (preds==1)).sum()
+    # FP = ((labels==1) & (preds==0)).sum()
+    # FN = ((labels==0) & (preds==1)).sum()
+    # pred_precision = TP / (FP + TP)
+    # pred_recall = TP / (FN + TP)
     #metrics = {'F1': pred_f1_score, 'precision' : float(pred_precision), 'recall' : float(pred_recall)}
     metrics = {'acc' : acc, 'F1_class_1' : pred_f1_score_1, 'F1_class_0' : pred_f1_score_0}
     return metrics
