@@ -184,9 +184,9 @@ def load_training_args(out_dir):
     return TrainingArguments(
         output_dir=out_dir,
         # output directory
-        num_train_epochs=5,  # total number of training epochs
-        per_device_train_batch_size=4,  # batch size per device during training
-        per_device_eval_batch_size=4,  # batch size for evaluation
+        num_train_epochs=3,  # total number of training epochs
+        per_device_train_batch_size=3,  # batch size per device during training
+        per_device_eval_batch_size=3,  # batch size for evaluation
         warmup_steps=1000,  # number of warmup steps for learning rate scheduler
         weight_decay=0.01,  # strength of weight decay
         logging_dir='./logs',  # directory for storing logs
