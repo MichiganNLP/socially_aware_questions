@@ -132,11 +132,14 @@ def compute_metrics(pred, predictions=None, labels=None):
     if(pred is not None):
         labels = pred.label_ids
         predictions = pred.predictions[0]
+        if(type(labels) is torch.Tensor):
+            labels = labels.numpy()
+        if(labels.dim() == 2):
+            labels = labels.squeeze(1)
     # print(f'final preds = {[x.shape for x in pred.predictions]}')
     # tmp debugging
     # print(f'prediction sample = {predictions}')
     preds = np.argmax(predictions, axis=-1)
-    labels = labels.squeeze(1).numpy()
     # tmp debugging
     # print(f'preds have shape {preds.shape}')
     # print(f'labels have shape {labels.shape}')
