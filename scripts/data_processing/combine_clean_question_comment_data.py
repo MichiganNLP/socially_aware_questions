@@ -93,6 +93,37 @@ def filter_comments_by_valid_question_prob(comment_data, model_file):
     print(f'{valid_comment_data.shape[0]}/{comment_data.shape[0]} comments retained after filtering for P(valid question)')
     return valid_comment_data
 
+
+def remove_exact_match_questions(comment_data, post_data):
+    """
+    Remove all questions that exactly match one of the
+    sentences in the original post.
+
+    :param comment_data:
+    :param post_data:
+    :return:
+    """
+    comment_post_data = pd.merge(comment_data,
+                                 post_data.loc[:, ['parent_id', 'parent_text']],
+                                 on='parent_id', how='left')
+    # break into sentences
+    sent_tokenizer = PunktSentenceTokenizer()
+    comment_post_data = comment_post_data.assign(**{
+        'parent_text_sents': comment_post_data.loc[:, 'parent_text'].apply(
+            lambda x: list(
+                map(lambda y: y.lower(), sent_tokenizer.tokenize(x))))})
+    comment_post_data = comment_post_data.assign(**{
+        'question_matches_post': comment_post_data.apply(
+            lambda x: x.loc['question'].lower() in x.loc['parent_text_sents'])})
+    comment_post_data = comment_post_data[
+        ~comment_post_data.loc[:, 'question_matches_post']]
+    comment_data = pd.merge(comment_data, comment_post_data.loc[:,
+                                          ['parent_id', 'question_id',
+                                           'author']],
+                            on=['parent_id', 'question_id', 'author'],
+                            how='inner')
+    return comment_data
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('data_dir')
@@ -173,6 +204,8 @@ def main():
     # tmp debugging
     # print(f'filter overlap {filter_overlap}')
     print(f'{comment_data.shape[0]} questions before filtering')
+    # remove questions that overlap exactly with content from post
+    comment_data = remove_exact_match_questions(comment_data, post_data)
     if('filter_overlap' in args):
         # post_data = load_zipped_json_data(args['post_data'])
         # if(args.get('post_data') is not None):
@@ -189,6 +222,7 @@ def main():
     data_name = args['data_name']
     out_file = os.path.join(data_dir, f'{data_name}_comment_question_data.gz')
     comment_data.to_csv(out_file, sep='\t', compression='gzip', index=False)
+
 
 if __name__ == '__main__':
     main()

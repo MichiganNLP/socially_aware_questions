@@ -130,21 +130,23 @@ class AuthorTextEncoder(BartPretrainedModel):
         if(author_embeds is not None):
             # clip final input tokens to make room
             clean_input_ids = []
-            print(f'pre-clean input IDs has shape {input_ids.shape}')
+            # print(f'pre-clean input IDs has shape {input_ids.shape}')
             for input_id_row_i in input_ids:
                 # tmp debugging
                 # print(f'input ID row = {input_id_row_i}')
                 padding_idx_i = np.where(input_id_row_i.cpu() == self.padding_idx)[0]
-                print(f'padding idx = {padding_idx_i}')
+                # print(f'padding idx = {padding_idx_i}')
                 # handling input without padding
                 if(len(padding_idx_i) < 2):
                     # clip final tokens on max-length input
                     if (len(input_id_row_i) > (self.config.max_position_embeddings - 3)):
                         clip_len_i = len(input_id_row_i) - self.config.max_position_embeddings + 3
                         input_id_row_i = input_id_row_i[:-clip_len_i]
+                        end_of_input_idx_i = len(input_id_row_i)
+                    else:
+                        end_of_input_idx_i = padding_idx_i[-1] if len(padding_idx_i) > 0 else len(input_id_row_i)-1
                     # append EOS + padding + padding to end of non-padded input
-                    end_of_input_idx_i = padding_idx_i[-1] if len(padding_idx_i) > 0 else len(input_id_row_i)
-                    print(f'end of input idx = {end_of_input_idx_i}')
+                    # print(f'end of input idx = {end_of_input_idx_i}')
                     input_id_row_i = torch.cat([input_id_row_i[:end_of_input_idx_i],
                                                 torch.LongTensor([self.config.eos_token_id, self.padding_idx, self.padding_idx]).to(input_id_row_i.device)])
                 # add embed token at end of sequence
@@ -162,7 +164,7 @@ class AuthorTextEncoder(BartPretrainedModel):
             input_ids = torch.cat(clean_input_ids, axis=0)
             # update shape
             input_shape = input_ids.size()
-            print(f'clean input ids has shape {input_ids.shape}')
+            # print(f'clean input ids has shape {input_ids.shape}')
 
             # for input_id_row_i in input_ids:
             #     padding_idx_i = np.where(input_id_row_i.cpu()==self.padding_idx)[0]
@@ -882,7 +884,7 @@ class BartAuthorTextModel(BartModel):
         if (author_embeds is not None and self.author_embed_module in {'encoder', 'encoder_decoder'}):
             attention_pad_len = 2 # add 2 slots: one for special token and one for author embed
             clean_attention_mask = []
-            print(f'attention mask before cleaning has shape = {attention_mask.shape}')
+            # print(f'attention mask before cleaning has shape = {attention_mask.shape}')
             for attention_mask_row_i in attention_mask:
                 # print(f'pre-clean attention mask row has shape {attention_mask_row_i.shape}')
                 extra_attention_mask_i = torch.ones(attention_pad_len).to(attention_mask_row_i.device)
@@ -901,7 +903,7 @@ class BartAuthorTextModel(BartModel):
                 clean_attention_mask.append(attention_mask_row_i)
             attention_mask = torch.cat([x.unsqueeze(0) for x in clean_attention_mask])
             # tmp debugging
-            print(f'attention mask after cleaning has shape {attention_mask.shape}')
+            # print(f'attention mask after cleaning has shape {attention_mask.shape}')
             # if (attention_mask.shape[1] == self.config.max_position_embeddings):
             #     attention_mask = attention_mask[:, :-1]
             # author_attn = torch.ones(attention_mask.shape[0], 1)

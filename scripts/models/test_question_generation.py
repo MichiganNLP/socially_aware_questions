@@ -207,6 +207,10 @@ def load_model(model_cache_dir, model_file, model_type, data_dir):
         model_tokenizer = torch.load(tokenizer_file)
     else:
         model_tokenizer = BartTokenizer.from_pretrained(full_model_name, cache_dir=model_cache_dir)
+    # add extra token for author embeds
+    if(model_type == 'bart_author_embeds'):
+        # add extra token to tokenizer
+        model_tokenizer.add_tokens({'<AUTHOR_EMBED>': len(model_tokenizer)}, special_tokens=True)
     # get config file from same directory as model
     config_file = os.path.join(os.path.dirname(model_file), 'config.json')
     config = BartConfig.from_json_file(config_file)
@@ -342,13 +346,24 @@ def main():
         reader_groups = list(set(test_data['reader_token']))
         reader_group_scores = []
         for reader_group_i in reader_groups:
-            idx_i = np.where(np.array(test_data['reader_token'])==reader_group_i)[0]
-            # tmp debugging
-            # print(f'reader group {reader_group_i} has idx={idx_i}')
+            if(reader_group_i == 'UNK'):
+                idx_i = np.where(np.array(test_data['reader_token'])!=reader_group_i)[0]
+                reader_group_i = 'non_UNK'
+            else:
+                idx_i = np.where(np.array(test_data['reader_token'])==reader_group_i)[0]
             test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
             pred_data_i = pred_data[idx_i]
             generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
             generation_score_data_i = generation_score_data_i.assign(**{'reader_group' : reader_group_i})
+            reader_group_scores.append(generation_score_data_i)
+        # also: get scores for readers with embeddings
+        embed_groups = ['author_has_subreddit_embed', 'author_has_text_embed']
+        for embed_group_i in embed_groups:
+            idx_i = np.where(np.array(test_data[embed_group_i]))[0]
+            test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
+            pred_data_i = pred_data[idx_i]
+            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
+            generation_score_data_i = generation_score_data_i.assign(**{'reader_group': embed_group_i})
             reader_group_scores.append(generation_score_data_i)
         reader_group_scores = pd.concat(reader_group_scores, axis=0)
         reader_group_scores.to_csv(reader_group_score_out_file, sep='\t', index=False)

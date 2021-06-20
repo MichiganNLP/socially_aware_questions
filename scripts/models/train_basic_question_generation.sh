@@ -102,12 +102,13 @@ MODEL_CACHE_DIR=../../data/model_cache/
 N_GPU=1
 #N_GPU=2
 # device for single-GPU processes
-export CUDA_VISIBLE_DEVICES=3
+#export CUDA_VISIBLE_DEVICES=3
 # regular model
-(python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU)&
+#(python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU)&
+python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU
 # pretrained model
 #(python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --pretrained_model $PRETRAINED_MODEL)&
 # args for single-GPU processes
-PID=$!
-MAX_MEMORY=50000000000 # 50G
-prlimit --pid $PID --as=$MAX_MEMORY
+#PID=$!
+#MAX_MEMORY=50000000000 # 50G
+#prlimit --pid $PID --as=$MAX_MEMORY

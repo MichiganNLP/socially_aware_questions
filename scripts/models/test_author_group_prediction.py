@@ -11,9 +11,10 @@ import numpy as np
 from accelerate import Accelerator 
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from model_helpers import BasicDataset
+from model_helpers import BasicDataset, select_from_dataset
 from datasets import load_metric
-
+import torch
+torch.manual_seed(123)
 np.random.seed(123)
 def sample_by_subreddit_author_group(data, group_var, sample_size=0):
     subreddit_group_counts = data.loc[:, ['subreddit', group_var]].value_counts()
@@ -123,13 +124,6 @@ def combine_post_question_text(data, tokenizer, max_length=1024):
     combined_text = tokenizer.convert_tokens_to_string(combined_tokens)
     return combined_text
 
-
-import torch
-
-torch.manual_seed(123)
-import numpy as np
-
-np.random.seed(123)
 from transformers import TrainingArguments, Trainer, \
     BartForSequenceClassification, AdamW, get_scheduler
 from sklearn.metrics import f1_score
@@ -140,27 +134,29 @@ def compute_metrics(pred, predictions=None, labels=None):
         predictions = pred.predictions[0]
     # print(f'final preds = {[x.shape for x in pred.predictions]}')
     # tmp debugging
-    print(f'prediction sample = {predictions}')
+    # print(f'prediction sample = {predictions}')
     preds = np.argmax(predictions, axis=-1)
-    labels = labels.squeeze(1)
-    preds = preds.squeeze(0)
-    print(f'preds have shape {preds.shape}')
-    print(f'labels have shape {labels.shape}')
+    labels = labels.squeeze(1).numpy()
+    # tmp debugging
+    # print(f'preds have shape {preds.shape}')
+    # print(f'labels have shape {labels.shape}')
+    # preds = preds.squeeze(0)
+    # print(f'preds have shape {preds.shape}')
     acc = float((preds == labels).sum()) / labels.shape[0]
     # get F1 for 1 class and 0 class
     pred_f1_score_1 = f1_score(labels, preds)
     pred_f1_score_0 = f1_score((1-labels), (1-preds))
-    TP = ((labels==1) & (preds==1)).sum()
-    FP = ((labels==1) & (preds==0)).sum()
-    FN = ((labels==0) & (preds==1)).sum()
-    pred_precision = TP / (FP + TP)
-    pred_recall = TP / (FN + TP)
+    # TP = ((labels==1) & (preds==1)).sum()
+    # FP = ((labels==1) & (preds==0)).sum()
+    # FN = ((labels==0) & (preds==1)).sum()
+    # pred_precision = TP / (FP + TP)
+    # pred_recall = TP / (FN + TP)
     #metrics = {'F1': pred_f1_score, 'precision' : float(pred_precision), 'recall' : float(pred_recall)}
     metrics = {'acc' : acc, 'F1_class_1' : pred_f1_score_1, 'F1_class_0' : pred_f1_score_0}
     return metrics
 
 def train_transformer_model(train_dataset, test_dataset, tokenizer, out_dir,
-                            n_gpu=1, num_labels=2):
+                            n_gpu=1, num_labels=2, model_weight_file=None):
     # tmp debugging
     # print(f'train data has labels = ')
     # get model
@@ -170,6 +166,9 @@ def train_transformer_model(train_dataset, test_dataset, tokenizer, out_dir,
                                                           cache_dir='../../data/model_cache/',
                                                           num_labels=num_labels)
     model.resize_token_embeddings(len(tokenizer))
+    if(model_weight_file is not None):
+        model_weights = torch.load(model_weight_file)
+        model.load_state_dict(model_weights)
     # set up training regime
     training_args = load_training_args(out_dir)
     # training_args.n_gpu = n_gpu
@@ -187,9 +186,9 @@ def load_training_args(out_dir):
     return TrainingArguments(
         output_dir=out_dir,
         # output directory
-        num_train_epochs=5,  # total number of training epochs
-        per_device_train_batch_size=4,  # batch size per device during training
-        per_device_eval_batch_size=4,  # batch size for evaluation
+        num_train_epochs=3,  # total number of training epochs
+        per_device_train_batch_size=3,  # batch size per device during training
+        per_device_eval_batch_size=3,  # batch size for evaluation
         warmup_steps=1000,  # number of warmup steps for learning rate scheduler
         weight_decay=0.01,  # strength of weight decay
         logging_dir='./logs',  # directory for storing logs
@@ -197,7 +196,10 @@ def load_training_args(out_dir):
         # load the best model when finished training (default metric is loss)
         # but you can specify `metric_for_best_model` argument to change to accuracy or other metric
         logging_steps=1000,  # log & save weights each logging_steps
-        evaluation_strategy="epoch",  # evaluate each `epoch`
+        # evaluation_strategy="epoch",  # evaluate each `epoch`
+        # tmp debugging: shorter evals => figure out why prediction is broken
+        evaluation_strategy="steps",  # evaluate each `eval_steps`
+        eval_steps=1000,  # evaluate each `eval_steps`
         save_total_limit=1,
         eval_accumulation_steps=100,
         ## TODO: multiple gpus
@@ -393,6 +395,7 @@ def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, 
 def main():
     parser = ArgumentParser()
     parser.add_argument('--group_categories', nargs='+', default=['location_region', 'expert_pct_bin', 'relative_time_bin'])
+    parser.add_argument('--retrain', dest='feature', action='store_true', default=False)
     args = vars(parser.parse_args())
     #sample_size = 0 # no-replacement sampling
     sample_size = 20000 # sampling with replacement
@@ -453,13 +456,24 @@ def main():
         model_checkpoint_dirs_i = list(filter(lambda x: x.startswith('checkpoint'), os.listdir(out_dir_i)))
         model_checkpoint_dirs_i = list(map(lambda x: os.path.join(out_dir_i, x), model_checkpoint_dirs_i))
         print(f'model checkpoints = {model_checkpoint_dirs_i}')
-        # train data if we don't already have model
-        if (len(model_checkpoint_dirs_i) == 0):
+        # train data if we don't already have model or we're going to retrain
+        retrain = 'retrain' in args and args['retrain']
+        if (len(model_checkpoint_dirs_i) == 0 or retrain):
             # load data
             train_dataset = torch.load(train_data_file_i)
             test_dataset = torch.load(test_data_file_i)
+            ## down-sample data because model can't handle it all boo hoo
+            test_sample_size = 5000
+            test_idx = np.random.choice(list(range(len(test_dataset.labels))), test_sample_size, replace=False)
+            test_dataset = select_from_dataset(test_dataset, test_idx)
+            # optional: load model
+            model_weight_file_i = None
+            if(retrain):
+                most_recent_checkpoint_dir_i = max(model_checkpoint_dirs_i,key=lambda x: int(x.split('-')[1]))
+                model_weight_file_i = os.path.join(most_recent_checkpoint_dir_i, 'pytorch_model.bin')
             train_transformer_model(train_dataset, test_dataset, tokenizer,
-                                    out_dir_i, n_gpu=n_gpu, num_labels=num_labels)
+                                    out_dir_i, n_gpu=n_gpu, num_labels=num_labels,
+                                    model_weight_file=model_weight_file_i)
             # parallel training
             # TODO: debug device sharing
             #train_model_parallel(train_dataset, test_dataset, tokenizer, out_dir_i, num_labels=num_labels)
