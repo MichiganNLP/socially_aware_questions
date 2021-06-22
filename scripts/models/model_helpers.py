@@ -2,7 +2,9 @@ import gzip
 import pandas as pd
 import torch
 from nltk.translate.bleu_score import sentence_bleu
+from torch.utils.data import Dataset
 from tqdm import tqdm
+from transformers import BatchEncoding
 from transformers.training_args import TrainingArguments
 from dataclasses import field
 from typing import Optional
@@ -88,6 +90,13 @@ def generate_predictions(model, data, tokenizer,
         # handle model kwargs: reader tokens, embeddings, etc.
         model_kwargs_i = prepare_model_kwargs_for_generation(batch_i, model_kwargs)
         # tmp debugging
+        #if ('author_embeds' in model_kwargs_i):
+            # model_kwargs_i['author_embeds'] =model_kwargs_i['author_embeds'].unsqueeze(0)
+            # source_i = source_i.unsqueeze(0)
+            # attention_i = attention_i.unsqueeze(0)
+        #    print(f'author embed data shape={model_kwargs_i["author_embeds"].shape}')
+        #    print(f'input ids shape={source_i.shape}')
+        #    print(f'input ids  {source_i.cpu().numpy()}')
         # print(f'model kwargs after type fix has type: {model_kwargs_i["author_embeds"].dtype}')
         if(generation_method == 'beam_search'):
             output_i = model.generate(
@@ -136,11 +145,11 @@ def prepare_model_kwargs_for_generation(data, model_kwargs):
     })
     # fix lists
     model_kwargs.update({
-        int_kwarg: torch.LongTensor([kwarg_val]).unsqueeze(0)
+        int_kwarg: torch.LongTensor([kwarg_val]).unsqueeze(0).unsqueeze(0)
         for int_kwarg, kwarg_val in list(filter(lambda x: type(x[1]) is list and type(x[1][0]) is int, model_kwargs.items()))
     })
     model_kwargs.update({
-        float_kwarg: torch.Tensor(kwarg_val).unsqueeze(0)
+        float_kwarg: torch.Tensor(kwarg_val).unsqueeze(0).unsqueeze(0)
         for float_kwarg, kwarg_val in list(filter(lambda x: type(x[1]) is list and type(x[1][0]) is float, model_kwargs.items()))
     })
     # fix tensors
@@ -186,3 +195,29 @@ def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=-100):
     eps_i = epsilon / lprobs.size(-1)
     loss = (1.0 - epsilon) * nll_loss + eps_i * smooth_loss
     return loss / bs, nll_loss / bs
+
+
+class BasicDataset(Dataset):
+    def __init__(self, encodings, labels):
+        self.encodings = encodings
+        self.labels = labels
+
+    def __getitem__(self, idx):
+        # item = {k: torch.Tensor(v[idx]) for k, v in self.encodings.items()}
+        item = {
+            'input_ids' : torch.LongTensor(self.encodings['input_ids'][idx]),
+            'attention_mask': torch.Tensor(self.encodings['attention_mask'][idx]),
+        }
+        item["labels"] = torch.LongTensor([self.labels[idx]])
+        return item
+
+    def __len__(self):
+        return len(self.labels)
+
+def select_from_dataset(dataset, idx):
+    dataset.encodings = BatchEncoding({
+        'input_ids': [dataset.encodings['input_ids'][x] for x in idx],
+        'attention_mask' : [dataset.encodings['attention_mask'][x] for x in idx],
+        })
+    dataset.labels = [dataset.labels[x] for x in idx]
+    return dataset

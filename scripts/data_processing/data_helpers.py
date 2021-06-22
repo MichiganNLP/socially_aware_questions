@@ -1138,3 +1138,4 @@ def sample_by_subreddit_author_group(data, group_var):
         sample_data.append(data_i.loc[sample_idx_i, :])
     sample_data = pd.concat(sample_data, axis=0)
     return sample_data
+

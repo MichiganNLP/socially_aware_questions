@@ -53,5 +53,5 @@ SAMPLE_PCT=0.25
 # reddit + author
 (python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT)&
 PID=$!
-MAX_MEMORY=80000000000 # 80G
+MAX_MEMORY=80000000000 # 100G
 prlimit --pid $PID --as=$MAX_MEMORY
