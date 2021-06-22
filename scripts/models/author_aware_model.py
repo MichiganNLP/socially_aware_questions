@@ -5,7 +5,6 @@ to generate text.
 ## transformer boilerplate
 from math import sqrt
 from typing import Optional, Union, Callable, List, Iterable, Dict, Any
-
 import numpy as np
 import torch
 from torch import nn

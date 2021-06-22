@@ -35,7 +35,7 @@ TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
 #MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-305500/pytorch_model.bin
 #MODEL_TYPE='bart'
 #OUT_DIR=../../data/reddit_data/text_only_model/
-# text+author token
+# reddit+author token
 #MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-305500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/
 # text+author token: fine-tuning author data
