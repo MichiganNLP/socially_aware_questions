@@ -226,19 +226,31 @@ def add_subreddit_location_data(author_data_dir, author_static_data_file):
         on='subreddit', how='inner',
     )
     # limit to valid author-location data
-    location_author_data = location_author_data[location_author_data.loc[:, 'subreddit_country'].apply(lambda x: type(x) is str)].drop_duplicates('author')
+    # location_author_data = location_author_data[location_author_data.loc[:, 'subreddit_country'].apply(lambda x: type(x) is str)].drop_duplicates('author')
+    location_author_data = location_author_data[location_author_data.loc[:, 'subreddit_country'].apply(lambda x: type(x) is str)]
+    # limit to consistent posting behavior: does author post at least X times in the subreddit? does author post predominantly in a particular country?
+    location_subreddit_country_counts_per_author = location_author_data.groupby('author').apply(lambda x: x.loc[:, 'subreddit_country'].value_counts()).reset_index().rename(columns={'level_1':'subreddit_country', 'subreddit' : 'subreddit_country_count'}).head()
+    total_subreddit_counts_per_author = location_author_data.loc[:, 'author'].value_counts().reset_index(name='post_count').rename(columns={'index' : 'author'})
+    location_subreddit_country_counts_per_author = pd.merge(location_subreddit_country_counts_per_author, total_subreddit_counts_per_author, on='author')
+    location_subreddit_country_counts_per_author = location_subreddit_country_counts_per_author.assign(**{'subreddit_country_pct' : location_subreddit_country_counts_per_author.loc[:, 'subreddit_country_count'] / location_subreddit_country_counts_per_author.loc[:, 'post_count']})
+    min_location_subreddit_count = 5
+    min_location_subreddit_pct = 0.50
+    location_subreddit_country_counts_per_author = location_subreddit_country_counts_per_author[(location_subreddit_country_counts_per_author.loc[:, 'subreddit_country_count']>=min_location_subreddit_count) &
+                                                                                (location_subreddit_country_counts_per_author.loc[:, 'subreddit_country_pct']>=min_location_subreddit_pct)]
+    clean_location_author_data = location_subreddit_country_counts_per_author.drop_duplicates('author', inplace=True)
     # tmp debugging
     # print(f'location author data sample\n{location_author_data.head()}')
     # merge w/ original static data
     location_author_data = pd.merge(
         static_author_data,
-        location_author_data.loc[:, ['author', 'subreddit_country']],
+        # location_author_data.loc[:, ['author', 'subreddit_country']],
+        clean_location_author_data.loc[:, ['author', 'subreddit_country']],
         on='author', how='outer'
     )
     location_author_data.fillna({'location' : 'UNK', 'subreddit_country' : 'UNK'}, inplace=True)
     # tmp debugging
     # print(f'location author data sample =\n{location_author_data.head()}')
-    ## fix mising location data using extra subreddit data!
+    ## fix missing location data using extra subreddit data!
     location_author_data = location_author_data.assign(**{
         'location': location_author_data.apply(lambda x: x.loc['subreddit_country'] if (x.loc['location'] == 'UNK') else x.loc['location'], axis=1)
     })
