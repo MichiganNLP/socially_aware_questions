@@ -109,9 +109,10 @@ def load_sample_data(sample_size=0):
         sample_question_data.append(sample_question_data_i)
     sample_question_data = pd.concat(sample_question_data, axis=0)
     # tmp debugging
-    # print(f'sample question data has label distribution = {sample_question_data.loc[:, "author_group"].value_counts()}')
+    print(f'sample question data has label distribution = {sample_question_data.loc[:, "author_group"].value_counts()}')
     sample_post_question_data = pd.merge(post_data, sample_question_data,
                                          on='parent_id', how='inner')
+    print(f'sample post/question data has label distribution = {sample_post_question_data.loc[:, "author_group"].value_counts()}')
     return sample_post_question_data
 
 ## tokenize data
@@ -134,8 +135,8 @@ def compute_metrics(pred, predictions=None, labels=None):
         predictions = pred.predictions[0]
         if(type(labels) is torch.Tensor):
             labels = labels.numpy()
-        if(labels.dim() == 2):
-            labels = labels.squeeze(1)
+            if(labels.dim() == 2):
+                labels = labels.squeeze(1)
     # print(f'final preds = {[x.shape for x in pred.predictions]}')
     # tmp debugging
     # print(f'prediction sample = {predictions}')
@@ -413,7 +414,9 @@ def main():
     tokenizer.add_special_tokens({'cls_token': '<QUESTION>'})
     max_length = 1024
     post_question_data = None # only need data if we need to split train/test
-    text_var = 'post_question'
+    # text_var = 'post_question'
+    # tmp debugging: only use question
+    text_var = 'question'
     group_label_lookup = {
         'expert_pct_bin=0.0': 0,
         'expert_pct_bin=1.0' : 1,
@@ -465,7 +468,7 @@ def main():
             # load data
             train_dataset = torch.load(train_data_file_i)
             test_dataset = torch.load(test_data_file_i)
-            ## down-sample data because model can't handle it all boo hoo
+            ## down-sample test data because model can't handle it all boo hoo
             test_sample_size = 5000
             test_idx = np.random.choice(list(range(len(test_dataset.labels))), test_sample_size, replace=False)
             test_dataset = select_from_dataset(test_dataset, test_idx)
@@ -490,6 +493,8 @@ def main():
             # group_vals_i = data_i.loc[:, 'author_group'].unique()
             # print(f'var has dist = {data_i.loc[:, group_var_i].value_counts()}')
             # load weights from most recent model
+            model_checkpoint_dirs_i = list(filter(lambda x: x.startswith('checkpoint'), os.listdir(out_dir_i)))
+            model_checkpoint_dirs_i = list(map(lambda x: os.path.join(out_dir_i, x), model_checkpoint_dirs_i))
             most_recent_checkpoint_dir_i = max(model_checkpoint_dirs_i, key=lambda x: int(x.split('-')[1]))
             model_weight_file_i = os.path.join(most_recent_checkpoint_dir_i, 'pytorch_model.bin')
             # test model

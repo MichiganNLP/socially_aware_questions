@@ -817,13 +817,17 @@ def full_location_pipeline(text, location_matcher,
                            sent_tokenizer,
                            ner_pipeline,
                            valid_NE_types={'GPE'},
-                           location_pct_cutoff=0.5):
+                           location_pct_cutoff=0.5,
+                           return_raw_locations=False):
     locations = extract_NE_locations(text, location_matcher, sent_tokenizer, ner_pipeline, valid_NE_types=valid_NE_types)
     location_country_est = 'UNK'
     if(len(locations) > 0):
         location_countries = estimate_locations(locations)
         location_country_est = estimate_country(location_countries, location_pct_cutoff=location_pct_cutoff)
-    return location_country_est
+    if(return_raw_locations):
+        return locations, location_country_est
+    else:
+        return location_country_est
 
 ## topic modeling
 PUNCT = list(',.?!;:"\'-’')
