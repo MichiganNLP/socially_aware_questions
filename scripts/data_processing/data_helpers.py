@@ -600,8 +600,9 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     ## extra step: split train into "train_train" and "train_val"
     # for parameter tuning UGH
     val_data_pct = 0.25
-    train_train_idx = list(range(N_train))[:-int(val_data_pct * N_train)]
-    train_val_idx = list(range(N_train))[-int(val_data_pct * N_train):]
+    train_data_count = len(train_data)
+    train_train_idx = list(range(train_data_count))[:-int(val_data_pct * train_data_count)]
+    train_val_idx = list(range(train_data_count))[-int(val_data_pct * train_data_count):]
     train_train_data = train_data.select(train_train_idx, keep_in_memory=True, load_from_cache_file=False)
     train_val_data = train_data.select(train_val_idx, keep_in_memory=True, load_from_cache_file=False)
     train_train_data_out_file = os.path.join(out_dir, f'{data_name}_train_train_data.pt')
@@ -816,13 +817,17 @@ def full_location_pipeline(text, location_matcher,
                            sent_tokenizer,
                            ner_pipeline,
                            valid_NE_types={'GPE'},
-                           location_pct_cutoff=0.5):
+                           location_pct_cutoff=0.5,
+                           return_raw_locations=False):
     locations = extract_NE_locations(text, location_matcher, sent_tokenizer, ner_pipeline, valid_NE_types=valid_NE_types)
     location_country_est = 'UNK'
     if(len(locations) > 0):
         location_countries = estimate_locations(locations)
         location_country_est = estimate_country(location_countries, location_pct_cutoff=location_pct_cutoff)
-    return location_country_est
+    if(return_raw_locations):
+        return locations, location_country_est
+    else:
+        return location_country_est
 
 ## topic modeling
 PUNCT = list(',.?!;:"\'-’')
@@ -1123,3 +1128,13 @@ def try_convert_date(date_str, date_formats=['%Y-%m-%d', '%Y-%m-%d %H:%M:%S']):
         except Exception as e:
             pass
     return date_val
+
+def sample_by_subreddit_author_group(data, group_var):
+    subreddit_group_counts = data.loc[:, ['subreddit', group_var]].value_counts()
+    min_group_count = subreddit_group_counts.min()
+    sample_data = []
+    for (subreddit_i, group_var_i), data_i in data.groupby(['subreddit', group_var]):
+        sample_idx_i = np.random.choice(data_i.index, min_group_count, replace=False)
+        sample_data.append(data_i.loc[sample_idx_i, :])
+    sample_data = pd.concat(sample_data, axis=0)
+    return sample_data

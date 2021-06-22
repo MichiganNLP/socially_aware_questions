@@ -12,12 +12,13 @@ if is_apex_available():
 from model_helpers import label_smoothed_nll_loss
 
 class Trainer(HFTrainer):
-    def __init__(self, label_smoothing: float = 0, **kwargs):
+    def __init__(self, label_smoothing: float = 0, accelerator = None, **kwargs):
         super().__init__(**kwargs)
         ## TODO: figure out amp to enable fp16 data encoding
         #if(is_apex_available()):
         #    self.model = amp.initialize(self.model, self.optimizer)
         self.label_smoothing = label_smoothing
+        self.accelerator = accelerator
     
     # override to support label smoothing
     def _training_step(
@@ -50,7 +51,10 @@ class Trainer(HFTrainer):
         if self.args.gradient_accumulation_steps > 1:
             loss = loss / self.args.gradient_accumulation_steps
 
-        if self.args.fp16:
+        # parallel loss
+        if(self.accelerator is not None):
+            self.accelerator.backward(loss)
+        elif self.args.fp16:
             with amp.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
         else:

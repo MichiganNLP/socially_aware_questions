@@ -98,8 +98,13 @@ def generate_predictions(model, data, tokenizer,
                 length_penalty=length_penalty,
                 num_return_sequences=1,
                 **model_kwargs_i
-            )
+            )            
         elif(generation_method == 'sample'):
+            # tmp debugging
+            if('author_embeds' in model_kwargs_i):
+                print(f'author embed data = {model_kwargs_i["author_embeds"].shape}')
+                print(f'input ids = {source_i.shape}')
+                print(f'input ids  {source_i}')
             output_i = model.generate(
                 input_ids=source_i,
                 attention_mask=attention_i,
