@@ -94,7 +94,7 @@ def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynam
 
 
 def collect_static_author_data(author_static_data_file, author_data_dir, author_data_files, question_authors):
-    author_static_data_cols = ['author', 'age', 'location']
+    author_static_data_cols = ['author', 'age', 'location_self_id', 'location']
     existing_static_authors = set()
     if (os.path.exists(author_static_data_file)):
         existing_static_author_data = pd.read_csv(author_static_data_file, sep='\t', compression='gzip', index_col=False)
@@ -125,14 +125,13 @@ def collect_static_author_data(author_static_data_file, author_data_dir, author_
                 age_i = extract_age(text_i)
                 # location
                 loc_i = full_location_pipeline(text_i, location_matcher, sent_tokenizer, nlp_pipeline)
-                static_author_data.append([author_i, age_i, loc_i])
+                static_author_data.append([author_i, age_i, loc_i, loc_i])
                 # author_static_data_out.write('\t'.join([author_i, str(age_i), loc_i]) + '\n')
                 if (len(static_author_data) % 100 == 0):
                     print(f'writing static author data to file ')
                     static_author_data = write_flush_data(author_static_data_cols, author_static_data_file, static_author_data)
             except Exception as e:
-                print(
-                    f'failed to read file {author_comment_file_i} because error {e}')
+                print(f'failed to read file {author_comment_file_i} because error {e}')
     # handle remaining data
     if (len(static_author_data) > 0):
         write_flush_data(author_static_data_cols, author_static_data_file, static_author_data)
@@ -215,8 +214,8 @@ def add_subreddit_location_data(author_data_dir, author_static_data_file):
     # join with author data
     static_author_data = pd.read_csv(author_static_data_file, sep='\t', compression='gzip', index_col=False)
     # get rid of existing subreddit region data
-    # if('subreddit_region' in static_author_data.columns):
-    #     static_author_data.drop('subreddit_region', axis=1, inplace=True)
+    if('subreddit_country' in static_author_data.columns):
+        static_author_data.drop('subreddit_country', axis=1, inplace=True)
     high_accuracy_subreddit_location_data.rename(columns={'country': 'subreddit_country'}, inplace=True)
     # tmp debugging
     # print(f'high accuracy location author data sample\n{high_accuracy_subreddit_location_data.head()}')
@@ -228,18 +227,22 @@ def add_subreddit_location_data(author_data_dir, author_static_data_file):
     # limit to valid author-location data
     # location_author_data = location_author_data[location_author_data.loc[:, 'subreddit_country'].apply(lambda x: type(x) is str)].drop_duplicates('author')
     location_author_data = location_author_data[location_author_data.loc[:, 'subreddit_country'].apply(lambda x: type(x) is str)]
+    # print(f'raw location author data:\n{location_author_data.head()}')
     # limit to consistent posting behavior: does author post at least X times in the subreddit? does author post predominantly in a particular country?
-    location_subreddit_country_counts_per_author = location_author_data.groupby('author').apply(lambda x: x.loc[:, 'subreddit_country'].value_counts()).reset_index().rename(columns={'level_1':'subreddit_country', 'subreddit' : 'subreddit_country_count'}).head()
+    location_subreddit_country_counts_per_author = location_author_data.groupby('author').apply(lambda x: x.loc[:, 'subreddit_country'].value_counts()).reset_index().rename(columns={'level_1':'subreddit_country', 'subreddit_country' : 'subreddit_country_count'})
+    # print(f'location subreddit  country counts per author:\n{location_subreddit_country_counts_per_author.head(20)}')
     total_subreddit_counts_per_author = location_author_data.loc[:, 'author'].value_counts().reset_index(name='post_count').rename(columns={'index' : 'author'})
+    # print(f'total subreddit counts per author:\n{total_subreddit_counts_per_author}')
     location_subreddit_country_counts_per_author = pd.merge(location_subreddit_country_counts_per_author, total_subreddit_counts_per_author, on='author')
     location_subreddit_country_counts_per_author = location_subreddit_country_counts_per_author.assign(**{'subreddit_country_pct' : location_subreddit_country_counts_per_author.loc[:, 'subreddit_country_count'] / location_subreddit_country_counts_per_author.loc[:, 'post_count']})
+    # print(f'location subreddit country counts sample:\n{location_subreddit_country_counts_per_author.head()}')
     min_location_subreddit_count = 5
     min_location_subreddit_pct = 0.50
     location_subreddit_country_counts_per_author = location_subreddit_country_counts_per_author[(location_subreddit_country_counts_per_author.loc[:, 'subreddit_country_count']>=min_location_subreddit_count) &
-                                                                                (location_subreddit_country_counts_per_author.loc[:, 'subreddit_country_pct']>=min_location_subreddit_pct)]
-    clean_location_author_data = location_subreddit_country_counts_per_author.drop_duplicates('author', inplace=True)
+                                                                                                (location_subreddit_country_counts_per_author.loc[:, 'subreddit_country_pct']>=min_location_subreddit_pct)]
+    clean_location_author_data = location_subreddit_country_counts_per_author.drop_duplicates('author', inplace=False)
     # tmp debugging
-    # print(f'location author data sample\n{location_author_data.head()}')
+    # print(f'location author data sample\n{clean_location_author_data.head()}')
     # merge w/ original static data
     location_author_data = pd.merge(
         static_author_data,
