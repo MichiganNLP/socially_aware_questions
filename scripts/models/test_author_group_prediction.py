@@ -614,6 +614,5 @@ def main():
     #                                           post_question_data, sample_size,
     #                                           text_var, tokenizer, train_pct, retrain=retrain)
 
-
 if __name__ == '__main__':
     main()
