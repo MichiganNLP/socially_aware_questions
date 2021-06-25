@@ -106,20 +106,16 @@ def remove_exact_match_questions(comment_data, post_data):
     comment_post_data = pd.merge(comment_data,
                                  post_data.loc[:, ['parent_id', 'parent_text']],
                                  on='parent_id', how='left')
+    # tmp debugging
+    # print(f'remove exact match questions: comment data has columns={comment_post_data.columns}')
+    # print(f'remove exact match questions: comment data has shape={comment_post_data.shape}')
     # break into sentences
     sent_tokenizer = PunktSentenceTokenizer()
     comment_post_data = comment_post_data.assign(**{
-        'parent_text_sents': comment_post_data.loc[:, 'parent_text'].apply(
-            lambda x: list(
-                map(lambda y: y.lower(), sent_tokenizer.tokenize(x))))})
-    comment_post_data = comment_post_data.assign(**{
-        'question_matches_post': comment_post_data.apply(
-            lambda x: x.loc['question'].lower() in x.loc['parent_text_sents'])})
-    comment_post_data = comment_post_data[
-        ~comment_post_data.loc[:, 'question_matches_post']]
-    comment_data = pd.merge(comment_data, comment_post_data.loc[:,
-                                          ['parent_id', 'question_id',
-                                           'author']],
+        'parent_text_sents': comment_post_data.loc[:, 'parent_text'].apply(lambda x: list(map(lambda y: y.lower(), sent_tokenizer.tokenize(x))))})
+    comment_post_data = comment_post_data.assign(**{'question_matches_post': comment_post_data.apply(lambda x: x.loc['question'].lower() in x.loc['parent_text_sents'], axis=1)})
+    comment_post_data = comment_post_data[~comment_post_data.loc[:, 'question_matches_post']]
+    comment_data = pd.merge(comment_data, comment_post_data.loc[:,['parent_id', 'question_id', 'author']],
                             on=['parent_id', 'question_id', 'author'],
                             how='inner')
     return comment_data

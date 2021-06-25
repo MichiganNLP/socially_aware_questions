@@ -12,6 +12,7 @@ import numpy as np
 from accelerate import Accelerator 
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+tqdm.pandas()
 from model_helpers import BasicDataset, select_from_dataset
 from datasets import load_metric
 import torch
@@ -473,7 +474,7 @@ def train_test_basic_classifier(group_categories, sample_size, out_dir):
         author_group_scores.append(model_scores)
         # save model!
         model_out_file = os.path.join(out_dir, f'MLP_prediction_group={group_var_i}_class1={class_var_1_i}.pkl')
-        with open(model_out_file, 'w') as model_output:
+        with open(model_out_file, 'wb') as model_output:
             pickle.dump(full_model_i, model_output)
     author_group_scores = pd.concat(author_group_scores, axis=1).transpose()
     # write scores
