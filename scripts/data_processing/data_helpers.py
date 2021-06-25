@@ -990,6 +990,9 @@ def load_all_author_data(data_dir, usecols=None, valid_authors={}):
         except Exception as e:
             print(f'skipping file {author_file_i} because error {e}')
     author_data = pd.concat(author_data, axis=0)
+    # get rid of bad authors for some reason
+    num_matcher = re.compile('^(\d+|\d+\.\d+)$')
+    author_data = author_data[author_data.loc[:, 'author'].apply(lambda x: type(x) is str and num_matcher.match(x) is None)]
     return author_data
 
 ## text overlap

@@ -10,10 +10,10 @@
 #SBATCH --gpus=1
 
 # specify CUDA device (only for LIT machines)
-#export CUDA_VISIBLE_DEVICES=0
-#GROUP_CATEGORIES=("location_region" "expert_pct_bin" "relative_time_bin")
-GROUP_CATEGORIES=("relative_time_bin")
-python test_author_group_prediction.py --group_categories "${GROUP_CATEGORIES[@]}"
+export CUDA_VISIBLE_DEVICES=3
+GROUP_CATEGORIES=("location_region" "expert_pct_bin" "relative_time_bin")
+#GROUP_CATEGORIES=("relative_time_bin")
+python test_author_group_prediction.py --group_categories "${GROUP_CATEGORIES[@]}" --out_dir ../../data/reddit_data/group_classification_model/
 #python test_author_group_prediction.py --group_categories "${GROUP_CATEGORIES[@]}" --retrain
 # dumb parallel code that doesn't work fml
 #export LOCAL_RANK=1
