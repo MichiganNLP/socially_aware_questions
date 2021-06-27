@@ -74,11 +74,6 @@ VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
 # author attention
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.1/
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.9/
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.5/
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3/
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5/
 #MODEL_TYPE="bart_author_attention"
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 # author embed
@@ -88,8 +83,8 @@ VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 #MODEL_TYPE="bart_author_embeds"
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_subreddit_embed_model_config.json
 # text embed
-#OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/ # encoder
-OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_decoder_data/ # decoder
+OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/ # encoder
+#OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_decoder_data/ # decoder
 MODEL_TYPE="bart_author_embeds"
 MODEL_CONFIG_FILE=../../data/model_cache/BART_author_text_embed_model_config.json
 # author (decoder) embed

@@ -32,19 +32,19 @@ TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
 #MODEL_TYPE='bart'
 #OUT_DIR=../../data/CNN_articles/cnn/
 # text only
-#MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-305500/pytorch_model.bin
+#MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-273500/pytorch_model.bin
 #MODEL_TYPE='bart'
 #OUT_DIR=../../data/reddit_data/text_only_model/
 # text+author token
-MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-305500/pytorch_model.bin
-OUT_DIR=../../data/reddit_data/author_text_data/
+#MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-273500/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/
 # text+author token: fine-tuning author data
 #MODEL_FILE=../../data/reddit_data/author_text_data/text_only_fine_tune/question_generation_model/checkpoint-213500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/text_only_fine_tune/no_author_data/
-MODEL_TYPE='bart_author_token' # test w/ author data
+#MODEL_TYPE='bart_author_token' # test w/ author data
 #MODEL_TYPE='bart' # test w/out author data
 # reddit + author group attention
-#MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/question_generation_model/checkpoint-305500/pytorch_model.bin
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/question_generation_model/checkpoint-273500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
 # reddit + author group attention: hyperparameter tuning
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.1/question_generation_model/checkpoint-229000/pytorch_model.bin
@@ -59,7 +59,7 @@ MODEL_TYPE='bart_author_token' # test w/ author data
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5/
 #MODEL_TYPE='bart_author_attention'
 # reddit + subreddit embed (+ encoder)
-#MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_data/question_generation_model/checkpoint-305500/pytorch_model.bin
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_data/question_generation_model/checkpoint-273500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
 #MODEL_TYPE='bart_author_embeds'
 # reddit + subreddit embed (+ decoder)
@@ -69,12 +69,12 @@ MODEL_TYPE='bart_author_token' # test w/ author data
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_decoder_data/
 #MODEL_TYPE='bart_author_embeds'
 # reddit + text embed (+ encoder)
-#MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_data/question_generation_model/checkpoint-305500/pytorch_model.bin
-#OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
+MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_data/question_generation_model/checkpoint-273500/pytorch_model.bin
+OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
 # reddit + text embed (+ decoder)
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_decoder_data/question_generation_model/checkpoint-229000/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_decoder_data/
-#MODEL_TYPE='bart_author_embeds'
+MODEL_TYPE='bart_author_embeds'
 
 # metadata to test sub-sets of data
 POST_METADATA=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
