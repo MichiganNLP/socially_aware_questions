@@ -5,6 +5,7 @@ was written by a member of group 1 or 2.
 import os
 import pickle
 from argparse import ArgumentParser
+from ast import literal_eval
 from math import ceil
 
 import pandas as pd
@@ -445,24 +446,30 @@ def train_test_model_with_encoding(data, group_var, text_var='question_encoded',
 def train_test_basic_classifier(group_categories, sample_size, out_dir):
     ## get sentence encodings for all posts/questions
     post_question_data = load_sample_data(sample_size=sample_size)
-    sentence_model = SentenceTransformer('paraphrase-distilroberta-base-v1')
-    post_question_data = post_question_data.assign(**{
-        'question_encoded': post_question_data.loc[:, 'question'].progress_apply(lambda x: sentence_model.encode(x))
-    })
-    post_question_data = post_question_data.assign(**{
-        'post_encoded': post_question_data.loc[:, 'post'].progress_apply(lambda x: sentence_model.encode(x)),
-    })
-    ## compress via PCA => prevent overfitting
-    embed_dim = 100
-    pca = PCA(n_components=embed_dim, random_state=123)
+    sample_post_question_data_file = os.path.join(out_dir, 'sample_post_question_data.gz')
     embed_vars = ['question_encoded', 'post_encoded']
-    for embed_var_i in embed_vars:
-        mat_i = np.vstack(post_question_data.loc[:, embed_var_i])
-        reduce_mat_i = pca.fit_transform(mat_i)
+    if(not os.path.exists(sample_post_question_data_file)):
+        sentence_model = SentenceTransformer('paraphrase-distilroberta-base-v1')
         post_question_data = post_question_data.assign(**{
-            f'PCA_{embed_var_i}': [reduce_mat_i[i, :] for i in range(reduce_mat_i.shape[0])]
+            'question_encoded': post_question_data.loc[:, 'question'].progress_apply(lambda x: sentence_model.encode(x))
         })
-    author_group_scores = []
+        post_question_data = post_question_data.assign(**{
+            'post_encoded': post_question_data.loc[:, 'post'].progress_apply(lambda x: sentence_model.encode(x)),
+        })
+        ## compress via PCA => prevent overfitting
+        embed_dim = 100
+        pca = PCA(n_components=embed_dim, random_state=123)
+        for embed_var_i in embed_vars:
+            mat_i = np.vstack(post_question_data.loc[:, embed_var_i])
+            reduce_mat_i = pca.fit_transform(mat_i)
+            post_question_data = post_question_data.assign(**{
+                f'PCA_{embed_var_i}': [reduce_mat_i[i, :] for i in range(reduce_mat_i.shape[0])]
+            })
+        post_question_data.to_csv(sample_post_question_data_file, sep='\t', compression='gzip', index=False)
+    else:
+        post_question_data = pd.read_csv(sample_post_question_data_file, sep='\t', compression='gzip', index_col=False,
+                                         converters={f'PCA_{embed_var}' : literal_eval for embed_var in embed_vars})
+    # author_group_scores = []
     text_var = 'PCA_question_encoded'
     post_var = 'PCA_post_encoded'
     # for group_var_i, data_i in post_question_data.groupby('group_category'):
@@ -471,15 +478,16 @@ def train_test_basic_classifier(group_categories, sample_size, out_dir):
         print(f'testing var = {group_var_i}')
         full_model_i, class_var_1_i, model_scores = train_test_model_with_encoding(data_i, 'author_group', text_var=text_var, post_var=post_var)
         model_scores.loc['author_group'] = group_var_i
-        author_group_scores.append(model_scores)
+        # tmp debugging
+        print(f'model scores:\n{model_scores}')
         # save model!
         model_out_file = os.path.join(out_dir, f'MLP_prediction_group={group_var_i}_class1={class_var_1_i}.pkl')
         with open(model_out_file, 'wb') as model_output:
             pickle.dump(full_model_i, model_output)
-    author_group_scores = pd.concat(author_group_scores, axis=1).transpose()
-    # write scores
-    author_group_score_out_file = os.path.join(out_dir, f'MLP_prediction_group={group_var_i}_class1={class_var_1_i}_scores.tsv')
-    author_group_scores.to_csv(author_group_score_out_file, sep='\t', index=False)
+        # author_group_scores = pd.concat(author_group_scores, axis=1).transpose()
+        # write scores
+        author_group_score_out_file = os.path.join(out_dir, f'MLP_prediction_group={group_var_i}_class1={class_var_1_i}_scores.tsv')
+        model_scores.to_csv(author_group_score_out_file, sep='\t', index=False)
 
 def train_test_transformer_classification(group_categories, group_var,
                                           max_length, n_gpu, num_labels,
