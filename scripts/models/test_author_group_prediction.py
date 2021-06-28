@@ -403,7 +403,7 @@ def test_transformer_model(test_dataset, out_dir, model_weight_file, tokenizer, 
     test_output_file = os.path.join(out_dir, f'{pred_var}_prediction_results.csv')
     test_output.to_csv(test_output_file)
 
-def train_test_model_with_encoding(data, group_var, text_var='question_encoded', post_var='post_encoded', n_folds=10):
+def train_test_model_with_encoding(data, group_var, out_dir, text_var='question_encoded', post_var='post_encoded', n_folds=10):
     if(post_var is not None):
         X = np.hstack([np.vstack(data.loc[:, text_var].values), np.vstack(data.loc[:, post_var].values)])
     else:
@@ -435,12 +435,19 @@ def train_test_model_with_encoding(data, group_var, text_var='question_encoded',
     # compute mean, sd for all scores
     model_agg_scores = {}
     for score_var in score_vars:
-        model_agg_scores[f'{score_var}_mean'] = model_scores.groupby(score_var).mean()
-        model_agg_scores[f'{score_var}_SD'] = model_scores.groupby(score_var).std()
+        model_agg_scores[f'{score_var}_mean'] = model_scores.loc[:, score_var].mean()
+        model_agg_scores[f'{score_var}_SD'] = model_scores.loc[:, score_var].std()
     model_agg_scores = pd.Series(model_agg_scores)
-    # fit model on full data for later use
-    full_model = MLPClassifier(hidden_layer_sizes=[layer_size, ], activation='relu', max_iter=1000, random_state=123)
-    full_model.fit(X, Y)
+    model_out_file = os.path.join(out_dir, f'MLP_prediction_group={group_var}_class1={class_1}.pkl')
+    if (not os.path.exists(model_out_file)):
+        # fit model on full data for later use
+        full_model = MLPClassifier(hidden_layer_sizes=[layer_size, ], activation='relu', max_iter=1000, random_state=123)
+        full_model.fit(X, Y)
+        # save model
+        with open(model_out_file, 'wb') as model_output:
+            pickle.dump(full_model, model_output)
+    else:
+        full_model = pickle.load(open(model_out_file, 'rb'))
     return full_model, class_1, model_agg_scores
 
 def train_test_basic_classifier(group_categories, sample_size, out_dir):
@@ -467,27 +474,31 @@ def train_test_basic_classifier(group_categories, sample_size, out_dir):
             })
         post_question_data.to_csv(sample_post_question_data_file, sep='\t', compression='gzip', index=False)
     else:
+        import re
+        bracket_matcher = re.compile('[\[\]]')
         post_question_data = pd.read_csv(sample_post_question_data_file, sep='\t', compression='gzip', index_col=False,
-                                         converters={f'PCA_{embed_var}' : literal_eval for embed_var in embed_vars})
+                                         converters={f'PCA_{embed_var}' : lambda x: np.fromstring(bracket_matcher.sub('', x).strip(), sep=' ', dtype=float) for embed_var in embed_vars})
+
     # author_group_scores = []
     text_var = 'PCA_question_encoded'
     post_var = 'PCA_post_encoded'
     # for group_var_i, data_i in post_question_data.groupby('group_category'):
+    question_post_out_dir = os.path.join(out_dir, 'question_post_data')
+    question_out_dir = os.path.join(out_dir, 'question_data')
+    out_dirs = [question_out_dir, question_post_out_dir]
+    post_vars = [None, post_var]
     for group_var_i in group_categories:
         data_i = post_question_data[post_question_data.loc[:, 'group_category'] == group_var_i]
         print(f'testing var = {group_var_i}')
-        full_model_i, class_var_1_i, model_scores = train_test_model_with_encoding(data_i, 'author_group', text_var=text_var, post_var=post_var)
-        model_scores.loc['author_group'] = group_var_i
-        # tmp debugging
-        print(f'model scores:\n{model_scores}')
-        # save model!
-        model_out_file = os.path.join(out_dir, f'MLP_prediction_group={group_var_i}_class1={class_var_1_i}.pkl')
-        with open(model_out_file, 'wb') as model_output:
-            pickle.dump(full_model_i, model_output)
-        # author_group_scores = pd.concat(author_group_scores, axis=1).transpose()
-        # write scores
-        author_group_score_out_file = os.path.join(out_dir, f'MLP_prediction_group={group_var_i}_class1={class_var_1_i}_scores.tsv')
-        model_scores.to_csv(author_group_score_out_file, sep='\t', index=False)
+        ## model with question only
+        for post_var_j, out_dir_j in zip(post_vars, out_dirs):
+            if(not os.path.exists(out_dir_j)):
+                os.mkdir(out_dir_j)
+            full_model_i, class_var_1_i, model_scores = train_test_model_with_encoding(data_i, 'author_group', out_dir_j, text_var=text_var, post_var=post_var_j)
+            model_scores.loc['author_group'] = group_var_i
+            # write scores
+            author_group_score_out_file = os.path.join(out_dir_j, f'MLP_prediction_group={group_var_i}_class1={class_var_1_i}_scores.tsv')
+            model_scores.to_csv(author_group_score_out_file, sep='\t', index=False)
 
 def train_test_transformer_classification(group_categories, group_var,
                                           max_length, n_gpu, num_labels,
@@ -585,7 +596,7 @@ def main():
     parser.add_argument('--out_dir', default='../../data/reddit_data/group_classification_model/')
     args = vars(parser.parse_args())
     #sample_size = 0 # no-replacement sampling
-    sample_size = 20000 # sampling with replacement
+    sample_size = 10000 # sampling with replacement
     # n_gpu = 1
     # tmp debugging
     ## set up model etc.
