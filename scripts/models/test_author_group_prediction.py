@@ -498,7 +498,7 @@ def train_test_basic_classifier(group_categories, sample_size, out_dir):
             model_scores.loc['author_group'] = group_var_i
             # write scores
             author_group_score_out_file = os.path.join(out_dir_j, f'MLP_prediction_group={group_var_i}_class1={class_var_1_i}_scores.tsv')
-            model_scores.to_csv(author_group_score_out_file, sep='\t', index=False)
+            model_scores.to_csv(author_group_score_out_file, sep='\t', index=True)
 
 def train_test_transformer_classification(group_categories, group_var,
                                           max_length, n_gpu, num_labels,
