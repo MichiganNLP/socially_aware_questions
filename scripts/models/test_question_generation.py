@@ -64,14 +64,22 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
         redundancy_score = pd.DataFrame([redundancy_score, 0.], index=['mean', 'sd'], columns=['redundancy'])
         generation_score_data = pd.concat([generation_score_data, redundancy_score], axis=1)
     # compute perplexity!
+    perplexity_data = compute_perplexity(model, model_type, sample_size, test_data)
+    generation_score_data = pd.concat([generation_score_data, perplexity_data], axis=1)
+    # fix score format
+    generation_score_data = generation_score_data.reset_index().rename(columns={'index': 'stat'})
+    return generation_score_data
+
+
+def compute_perplexity(model, model_type, sample_size, test_data, return_log_likelihoods=False):
     log_likelihoods = []
     model_tensor_data_cols = ['source_ids', 'attention_mask', 'target_ids']
     model_float_data_cols = []
     model_extra_data_cols = []
-    model_data_col_lookup = {'source_ids' : 'input_ids', 'target_ids' : 'labels'}
-    if(model_type == 'bart_author_attention'):
+    model_data_col_lookup = {'source_ids': 'input_ids', 'target_ids': 'labels'}
+    if (model_type == 'bart_author_attention'):
         model_extra_data_cols.append('reader_token')
-    elif(model_type == 'bart_author_embed'):
+    elif (model_type == 'bart_author_embed'):
         model_float_data_cols.append('author_embed')
     # tmp debugging
     # print(f'model type = {model_type}')
@@ -80,28 +88,38 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
     # if(model_type == 'bart_author_attention'):
     #     test_data = test_data.filter(lambda x: 'reader_token' in x.keys())
     # sample data to save time on perplexity
-    sample_size = min(sample_size, len(test_data))
-    sample_test_data = test_data.select(np.random.choice(list(range(len(test_data))), sample_size, replace=False))
+    # sample_size = min(sample_size, len(test_data))
+    if(sample_size < len(test_data)):
+        sample_test_data = test_data.select(
+            np.random.choice(list(range(len(test_data))), sample_size,
+                             replace=False))
+    else:
+        sample_test_data = test_data.copy()
     device = torch.cuda.current_device()
     for data_i in tqdm(sample_test_data):
         # remove padding tokens from output => don't care about PPL for pad tokens
         # print(f'data before filtering target IDs ({non_pad_target_ids_i})')
         # print(f'pad ID = {model.config.pad_token_id}')
-        data_i['target_ids'] = list(filter(lambda x: x!=model.config.pad_token_id, data_i['target_ids']))
+        data_i['target_ids'] = list(
+            filter(lambda x: x != model.config.pad_token_id,
+                   data_i['target_ids']))
 
         # tmp debugging
         # print(f'data after filtering target IDs: ({data_i["target_ids"]})')
         # tmp debugging
         # print(f'raw data before converting to dict {data_i}')
         # reshape tensors for model
-        data_dict_i = {data_col : torch.LongTensor(data_i.get(data_col)).unsqueeze(0).to(device) for data_col in model_tensor_data_cols}
+        data_dict_i = {
+            data_col: torch.LongTensor(data_i.get(data_col)).unsqueeze(0).to(
+                device) for data_col in model_tensor_data_cols}
         for data_col in model_float_data_cols:
-            data_dict_i[data_col] = torch.Tensor(data_i.get(data_col).unsqueeze(0).to(device))
+            data_dict_i[data_col] = torch.Tensor(
+                data_i.get(data_col).unsqueeze(0).to(device))
         for data_col in model_extra_data_cols:
-            data_dict_i[data_col] = [data_i.get(data_col)] 
-        # data_dict_i = {data_col: torch.LongTensor(data_i.get(data_col)).unsqueeze(0).cpu() for data_col in model_data_cols}
+            data_dict_i[data_col] = [data_i.get(data_col)]
+            # data_dict_i = {data_col: torch.LongTensor(data_i.get(data_col)).unsqueeze(0).cpu() for data_col in model_data_cols}
         # rename column to match model input FML
-        for k,v in model_data_col_lookup.items():
+        for k, v in model_data_col_lookup.items():
             data_dict_i[v] = data_dict_i[k]
             data_dict_i.pop(k)
         # tmp debugging
@@ -110,28 +128,34 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
         # try:
         with torch.no_grad():
             model.eval()
-            data_dict_i.update({k: v.to(device) for k, v in data_dict_i.items() if type(v) is Tensor})
+            data_dict_i.update(
+                {k: v.to(device) for k, v in data_dict_i.items() if
+                 type(v) is Tensor})
             # tmp debugging
             # print(f'data dict before passing to model =\n{data_dict_i}')
             # output_i = model(input_ids=data_dict_i['input_ids'], attention_mask=data_dict_i['attention_mask'], labels=data_dict_i['labels'])
             output_i = model(**data_dict_i)
-            data_dict_i.update({k: v.to('cpu') for k, v in data_dict_i.items() if type(v) is Tensor})
+            data_dict_i.update(
+                {k: v.to('cpu') for k, v in data_dict_i.items() if
+                 type(v) is Tensor})
             ll = output_i[0].cpu()
             # print(f'log likelihood = {ll}')
             log_likelihoods.append(ll)
             # clear cache??
-            del(output_i)
-                # torch.cuda.empty_cache()
+            del (output_i)
+            # torch.cuda.empty_cache()
         # except Exception as e:
         #     print(f'could not process batch {data_dict_i} because of error {e}')
     log_likelihoods = torch.stack(log_likelihoods)
     perplexity = torch.exp(log_likelihoods).mean()
     perplexity_std = torch.exp(log_likelihoods).std()
-    perplexity_data = pd.DataFrame([perplexity, perplexity_std], columns=['PPL'], index=['mean', 'sd'])
-    generation_score_data = pd.concat([generation_score_data, perplexity_data], axis=1)
-    # fix score format
-    generation_score_data = generation_score_data.reset_index().rename(columns={'index': 'stat'})
-    return generation_score_data
+    perplexity_data = pd.DataFrame([perplexity, perplexity_std],
+                                   columns=['PPL'], index=['mean', 'sd'])
+    if(return_log_likelihoods):
+        return log_likelihoods, perplexity_data
+    else:
+        return perplexity_data
+
 
 def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words=[], tokenizer=None):
     text_overlap_scores = []
