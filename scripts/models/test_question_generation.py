@@ -94,7 +94,7 @@ def compute_perplexity(model, model_type, sample_size, test_data, return_log_lik
             np.random.choice(list(range(len(test_data))), sample_size,
                              replace=False))
     else:
-        sample_test_data = test_data.copy()
+        sample_test_data = test_data
     device = torch.cuda.current_device()
     for data_i in tqdm(sample_test_data):
         # remove padding tokens from output => don't care about PPL for pad tokens
@@ -263,6 +263,9 @@ def load_model(model_cache_dir, model_file, model_type, data_dir):
         if(model_weights['lm_head.weight'].shape[0] != generation_model.config.vocab_size):
             generation_model.resize_token_embeddings(model_weights['lm_head.weight'].shape[0])
         generation_model.load_state_dict(model_weights)
+    # fix model device
+    device = torch.cuda.current_device()
+    generation_model.to(device)
     return generation_model, model_tokenizer
 
 def main():

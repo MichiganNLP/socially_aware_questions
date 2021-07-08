@@ -543,15 +543,21 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # split by articles! to avoid bleeding between train/test
     article_ids = list(sorted(clean_data.loc[:, 'article_id'].unique()))
     N_train = int(len(article_ids) * train_pct)
-    train_article_ids = np.random.choice(article_ids, N_train, replace=False)
-    test_article_ids = list(set(article_ids) - set(train_article_ids))
+    np.random.shuffle(article_ids)
+    train_article_ids = article_ids[:N_train]
+    test_article_ids = article_ids[N_train:]
+    # train_article_ids = np.random.choice(article_ids, N_train, replace=False)
+    # test_article_ids = list(set(article_ids) - set(train_article_ids))
     clean_data_train = clean_data[clean_data.loc[:, 'article_id'].isin(train_article_ids)]
     clean_data_test = clean_data[clean_data.loc[:, 'article_id'].isin(test_article_ids)]
+    # tmp debugging: debug reader group distribution in train/test data
+    # if(author_data is not None):
+    #     print(f'early test data has reader group distribution:\n{clean_data_test.iloc[:5000, :].loc[:, "reader_token_str"].value_counts()}')
+    #     print(f'late test data has reader group distribution:\n{clean_data_test.iloc[5000:, :].loc[:, "reader_token_str"].value_counts()}')
     dataset_columns = ['source_text', 'target_text', 'article_id']
     # if(author_data_type == 'embeds'):
     if(author_data is not None):
         dataset_columns.extend(['subreddit_embed', 'text_embed', 'author_has_subreddit_embed', 'author_has_text_embed'])
-        # elif(author_data_type == 'tokens'):
         dataset_columns.extend(['reader_token', 'reader_token_str', 'source_text_reader_token'])
     train_data_set = convert_dataframe_to_data_set(clean_data_train, dataset_columns)
     test_data_set = convert_dataframe_to_data_set(clean_data_test, dataset_columns)
