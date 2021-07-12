@@ -13,7 +13,7 @@ import torch
 torch.manual_seed(123)
 from scipy.stats import wilcoxon
 from statsmodels.stats.descriptivestats import sign_test
-from test_question_generation import test_question_overlap, STOP_WORDS, load_model, compute_perplexity
+from test_question_generation import test_question_overlap, STOP_WORDS, load_model, compute_perplexity, prepare_test_data_for_generation
 
 
 def main():
@@ -86,7 +86,10 @@ def main():
         model_weight_file_i = os.path.join(most_recent_checkpoint_dir_i, 'pytorch_model.bin')
         model_type_i = model_type_lookup[model_name_i]
         model_i, tokenizer_i = load_model(model_cache_dir, model_weight_file_i, model_type_i, test_data_dir)
-        log_likelihoods_i, _ = compute_perplexity(model_i, model_type_i, perplexity_sample_size, test_data_sample, return_log_likelihoods=True)
+        # copy test data for new model requirements etc.
+        test_data_sample_i = test_data_sample.select(list(range(len(test_data_sample))), keep_in_memory=True, load_from_cache_file=False)
+        prepare_test_data_for_generation(model_i.config, model_type_i, test_data_sample_i)
+        log_likelihoods_i, _ = compute_perplexity(model_i, model_type_i, perplexity_sample_size, test_data_sample_i, return_log_likelihoods=True)
         perplexity_i = pd.DataFrame(log_likelihoods_i, columns=['perplexity']).assign(**{'model_name' : model_name_i})
         perplexity_data.append(perplexity_i)
     redundancy_data = pd.concat(redundancy_data, axis=0)

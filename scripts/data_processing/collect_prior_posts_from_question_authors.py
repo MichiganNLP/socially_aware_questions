@@ -34,7 +34,7 @@ def sample_authors_to_collect(comment_data, sample_authors_per_group):
 
 def collect_prior_comments(out_dir, reddit_auth_data_file, rewrite_author_files, sample_author_start_dates, sample_posts_per_author):
     reddit_api, pushshift_reddit_api = load_reddit_api(reddit_auth_data_file)
-    data_cols = ['author', 'subreddit', 'body', 'created_utc', 'edited', 'id', 'author_flair_text', 'parent_id']
+    data_cols = ['author', 'subreddit', 'body', 'created_utc', 'edited', 'id', 'author_flair_text', 'parent_id', 'reply_delay']
     for idx_i, data_i in tqdm(sample_author_start_dates.iterrows()):
         author_i = data_i.loc['author']
         min_date_i = data_i.loc['post_date']
