@@ -550,10 +550,6 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # test_article_ids = list(set(article_ids) - set(train_article_ids))
     clean_data_train = clean_data[clean_data.loc[:, 'article_id'].isin(train_article_ids)]
     clean_data_test = clean_data[clean_data.loc[:, 'article_id'].isin(test_article_ids)]
-    # tmp debugging: debug reader group distribution in train/test data
-    if(author_data is not None):
-        print(f'early test data has reader group distribution:\n{clean_data_test.iloc[:5000, :].loc[:, "reader_token_str"].value_counts()}')
-        print(f'late test data has reader group distribution:\n{clean_data_test.iloc[5000:, :].loc[:, "reader_token_str"].value_counts()}')
     dataset_columns = ['source_text', 'target_text', 'article_id']
     # if(author_data_type == 'embeds'):
     if(author_data is not None):
