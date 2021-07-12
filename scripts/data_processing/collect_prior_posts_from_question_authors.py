@@ -5,11 +5,13 @@ Collect prior posts from question authors.
 """
 import os
 from argparse import ArgumentParser
+from math import ceil
+
 import pandas as pd
 from datetime import datetime
 import numpy as np
 from tqdm import tqdm
-from data_helpers import load_reddit_api
+from data_helpers import load_reddit_api, load_all_author_data
 
 np.random.seed(123)
 
@@ -32,7 +34,7 @@ def sample_authors_to_collect(comment_data, sample_authors_per_group):
 
 def collect_prior_comments(out_dir, reddit_auth_data_file, rewrite_author_files, sample_author_start_dates, sample_posts_per_author):
     reddit_api, pushshift_reddit_api = load_reddit_api(reddit_auth_data_file)
-    data_cols = ['author', 'subreddit', 'body', 'created_utc', 'edited', 'id', 'author_flair_text']
+    data_cols = ['author', 'subreddit', 'body', 'created_utc', 'edited', 'id', 'author_flair_text', 'parent_id', 'reply_delay']
     for idx_i, data_i in tqdm(sample_author_start_dates.iterrows()):
         author_i = data_i.loc['author']
         min_date_i = data_i.loc['post_date']
@@ -79,9 +81,39 @@ def main():
     sample_author_start_dates = sample_authors_to_collect(comment_data, sample_authors_per_group)
 
     ## collect prior posts
-    ## TODO: collect from files on disk rather than API queries? annoying to set up but less download/rate-limiting errors
     ## TODO: save to database for easier retrieval
     collect_prior_comments(out_dir, reddit_auth_data_file, rewrite_author_files, sample_author_start_dates, sample_posts_per_author)
+
+    ## TODO: collect parent post data ("slow" vs. "fast" response) => parent_id | author | created_utc | post_title
+    # get parent IDs from non-edited comments
+    author_comment_data = load_all_author_data(out_dir, usecols=['created_utc', 'parent_id', 'author', 'edited'])
+    author_comment_data = author_comment_data[~author_comment_data.loc[:, 'edited']]
+    # fix parent IDs
+    author_comment_data = author_comment_data.assign(**{
+        'parent_id' : author_comment_data.loc[:, 'parent_id'].apply(lambda x: x.split('_')[1])
+    })
+    comment_parent_post_ids = author_comment_data.loc[:, 'parent_id'].unique()
+    reddit_api, pushshift_reddit_api = load_reddit_api(reddit_auth_data_file)
+    parent_post_data_file = os.path.join(out_dir, f'comment_parent_post_data.gz')
+    old_parent_post_data = []
+    if(os.path.exists(parent_post_data_file)):
+        old_parent_post_data = pd.read_csv(parent_post_data_file, sep='\t', compression='gzip', index_col=False)
+        comment_parent_post_ids = list(filter(lambda x: x not in old_parent_post_data.loc[:, 'id'].unique(), comment_parent_post_ids))
+    chunk_size = 500
+    chunk_count = int(ceil(comment_parent_post_ids / chunk_size))
+    parent_post_data = []
+    for i in range(chunk_count):
+        post_ids_i = comment_parent_post_ids[(i*chunk_size):((i+1)*chunk_size)]
+        posts_i = pushshift_reddit_api.search_submissions(ids=post_ids_i, fields=['author', 'edited', 'created_utc', 'subreddit', 'title', 'id'])
+        post_data_i = pd.DataFrame(list(map(lambda x: x.__dict__, posts_i)))
+        parent_post_data.append(post_data_i)
+    parent_post_data = pd.concat(parent_post_data, axis=0)
+    if(len(old_parent_post_data) > 0):
+        parent_post_data = pd.concat([old_parent_post_data, parent_post_data], axis=0)
+    parent_post_data.drop_duplicates('id', inplace=True)
+    # write out
+    parent_post_data.to_csv(parent_post_data, sep='\t', index=False, compression='gzip')
+    ## TODO: add parent post time to comment data; rewrite comment data
 
 if __name__ == '__main__':
     main()

@@ -64,14 +64,22 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
         redundancy_score = pd.DataFrame([redundancy_score, 0.], index=['mean', 'sd'], columns=['redundancy'])
         generation_score_data = pd.concat([generation_score_data, redundancy_score], axis=1)
     # compute perplexity!
+    perplexity_data = compute_perplexity(model, model_type, sample_size, test_data)
+    generation_score_data = pd.concat([generation_score_data, perplexity_data], axis=1)
+    # fix score format
+    generation_score_data = generation_score_data.reset_index().rename(columns={'index': 'stat'})
+    return generation_score_data
+
+
+def compute_perplexity(model, model_type, sample_size, test_data, return_log_likelihoods=False):
     log_likelihoods = []
     model_tensor_data_cols = ['source_ids', 'attention_mask', 'target_ids']
     model_float_data_cols = []
     model_extra_data_cols = []
-    model_data_col_lookup = {'source_ids' : 'input_ids', 'target_ids' : 'labels'}
-    if(model_type == 'bart_author_attention'):
+    model_data_col_lookup = {'source_ids': 'input_ids', 'target_ids': 'labels'}
+    if (model_type == 'bart_author_attention'):
         model_extra_data_cols.append('reader_token')
-    elif(model_type == 'bart_author_embed'):
+    elif (model_type == 'bart_author_embed'):
         model_float_data_cols.append('author_embed')
     # tmp debugging
     # print(f'model type = {model_type}')
@@ -80,58 +88,85 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
     # if(model_type == 'bart_author_attention'):
     #     test_data = test_data.filter(lambda x: 'reader_token' in x.keys())
     # sample data to save time on perplexity
-    sample_size = min(sample_size, len(test_data))
-    sample_test_data = test_data.select(np.random.choice(list(range(len(test_data))), sample_size, replace=False))
+    # sample_size = min(sample_size, len(test_data))
+    if(sample_size < len(test_data)):
+        sample_test_data = test_data.select(
+            np.random.choice(list(range(len(test_data))), sample_size,
+                             replace=False))
+    else:
+        sample_test_data = test_data
     device = torch.cuda.current_device()
     for data_i in tqdm(sample_test_data):
-        # remove padding tokens from output => don't care about PPL for pad tokens
-        # print(f'data before filtering target IDs ({non_pad_target_ids_i})')
-        # print(f'pad ID = {model.config.pad_token_id}')
-        data_i['target_ids'] = list(filter(lambda x: x!=model.config.pad_token_id, data_i['target_ids']))
-
-        # tmp debugging
-        # print(f'data after filtering target IDs: ({data_i["target_ids"]})')
-        # tmp debugging
-        # print(f'raw data before converting to dict {data_i}')
-        # reshape tensors for model
-        data_dict_i = {data_col : torch.LongTensor(data_i.get(data_col)).unsqueeze(0).to(device) for data_col in model_tensor_data_cols}
-        for data_col in model_float_data_cols:
-            data_dict_i[data_col] = torch.Tensor(data_i.get(data_col).unsqueeze(0).to(device))
-        for data_col in model_extra_data_cols:
-            data_dict_i[data_col] = [data_i.get(data_col)] 
-        # data_dict_i = {data_col: torch.LongTensor(data_i.get(data_col)).unsqueeze(0).cpu() for data_col in model_data_cols}
-        # rename column to match model input FML
-        for k,v in model_data_col_lookup.items():
-            data_dict_i[v] = data_dict_i[k]
-            data_dict_i.pop(k)
+        data_dict_i = prepare_data_for_model_forward_pass(data_i, device, model.config,
+                                                          model_data_col_lookup,
+                                                          model_extra_data_cols,
+                                                          model_float_data_cols,
+                                                          model_tensor_data_cols)
         # tmp debugging
         # print(f'data dict {data_dict_i}')
         # output_i = model(**data_dict_i)
         # try:
         with torch.no_grad():
             model.eval()
-            data_dict_i.update({k: v.to(device) for k, v in data_dict_i.items() if type(v) is Tensor})
+            data_dict_i.update(
+                {k: v.to(device) for k, v in data_dict_i.items() if
+                 type(v) is Tensor})
             # tmp debugging
             # print(f'data dict before passing to model =\n{data_dict_i}')
             # output_i = model(input_ids=data_dict_i['input_ids'], attention_mask=data_dict_i['attention_mask'], labels=data_dict_i['labels'])
             output_i = model(**data_dict_i)
-            data_dict_i.update({k: v.to('cpu') for k, v in data_dict_i.items() if type(v) is Tensor})
+            data_dict_i.update(
+                {k: v.to('cpu') for k, v in data_dict_i.items() if
+                 type(v) is Tensor})
             ll = output_i[0].cpu()
             # print(f'log likelihood = {ll}')
             log_likelihoods.append(ll)
             # clear cache??
-            del(output_i)
-                # torch.cuda.empty_cache()
+            del (output_i)
+            # torch.cuda.empty_cache()
         # except Exception as e:
         #     print(f'could not process batch {data_dict_i} because of error {e}')
     log_likelihoods = torch.stack(log_likelihoods)
     perplexity = torch.exp(log_likelihoods).mean()
     perplexity_std = torch.exp(log_likelihoods).std()
-    perplexity_data = pd.DataFrame([perplexity, perplexity_std], columns=['PPL'], index=['mean', 'sd'])
-    generation_score_data = pd.concat([generation_score_data, perplexity_data], axis=1)
-    # fix score format
-    generation_score_data = generation_score_data.reset_index().rename(columns={'index': 'stat'})
-    return generation_score_data
+    perplexity_data = pd.DataFrame([perplexity, perplexity_std],
+                                   columns=['PPL'], index=['mean', 'sd'])
+    if(return_log_likelihoods):
+        return log_likelihoods, perplexity_data
+    else:
+        return perplexity_data
+
+
+def prepare_data_for_model_forward_pass(data, device, model_config, model_data_col_lookup,
+                                        model_extra_data_cols,
+                                        model_float_data_cols,
+                                        model_tensor_data_cols):
+    # remove padding tokens from output => don't care about PPL for pad tokens
+    # print(f'data before filtering target IDs ({non_pad_target_ids_i})')
+    # print(f'pad ID = {model.config.pad_token_id}')
+    data['target_ids'] = list(
+        filter(lambda x: x != model_config.pad_token_id,
+               data['target_ids']))
+    # tmp debugging
+    # print(f'data after filtering target IDs: ({data_i["target_ids"]})')
+    # tmp debugging
+    # print(f'raw data before converting to dict {data_i}')
+    # reshape tensors for model
+    data_dict = {
+        data_col: torch.LongTensor(data.get(data_col)).unsqueeze(0).to(
+            device) for data_col in model_tensor_data_cols}
+    for data_col in model_float_data_cols:
+        data_dict[data_col] = torch.Tensor(
+            data.get(data_col).unsqueeze(0).to(device))
+    for data_col in model_extra_data_cols:
+        data_dict[data_col] = [data.get(data_col)]
+        # data_dict_i = {data_col: torch.LongTensor(data_i.get(data_col)).unsqueeze(0).cpu() for data_col in model_data_cols}
+    # rename column to match model input FML
+    for k, v in model_data_col_lookup.items():
+        data_dict[v] = data_dict[k]
+        data_dict.pop(k)
+    return data_dict
+
 
 def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words=[], tokenizer=None):
     text_overlap_scores = []
@@ -239,7 +274,37 @@ def load_model(model_cache_dir, model_file, model_type, data_dir):
         if(model_weights['lm_head.weight'].shape[0] != generation_model.config.vocab_size):
             generation_model.resize_token_embeddings(model_weights['lm_head.weight'].shape[0])
         generation_model.load_state_dict(model_weights)
+    # fix model device
+    device = torch.cuda.current_device()
+    generation_model.to(device)
     return generation_model, model_tokenizer
+
+def prepare_test_data_for_generation(model_config, model_type, test_data):
+    ## fix metadata for reader-aware models
+    if (model_type == 'bart_author_token'):
+        test_data.remove_column_('source_ids')
+        test_data.rename_column_('source_ids_reader_token', 'source_ids')
+        test_data.remove_column_('reader_token')
+    if(model_type in {'bart_author_token', 'bart_author_attention'}):
+        # copy data => need both columns later
+        test_data.rename_column_('reader_token_str', 'reader_token')
+    data_cols = ['source_ids', 'target_ids', 'attention_mask']
+    if (model_type == 'bart_author_embeds'):
+        # choose appropriate column for embeds
+        test_data.rename_column_(
+            model_config.__dict__['author_embed_type'],
+            'author_embeds')
+        data_cols.append('author_embeds')
+    ## get extra args
+    model_kwargs = []
+    if (model_type == 'bart_author_embeds'):
+        model_kwargs.append('author_embeds')
+        # tmp debugging
+        # print(f'data has cols {test_data.column_names}')
+    elif (model_type == 'bart_author_attention'):
+        model_kwargs.append('reader_token')
+    test_data.set_format('torch', columns=data_cols, output_all_columns=True)
+    return model_kwargs
 
 def main():
     parser = ArgumentParser()
@@ -268,41 +333,13 @@ def main():
     ## load model, data
     data_dir = os.path.dirname(test_data)
     generation_model, model_tokenizer = load_model(model_cache_dir, model_file, model_type, data_dir)
-    # tmp debugging
     generation_model.to(torch.cuda.current_device())
-    test_data = torch.load(test_data)#['train']
+    test_data = torch.load(test_data)
     if('train' in test_data):
         test_data = test_data['train']
-    # fix source IDs for author-token model
-    if(model_type == 'bart_author_token'):
-        test_data.remove_column_('source_ids')
-        test_data.rename_column_('source_ids_reader_token', 'source_ids')
-    data_cols = ['source_ids', 'target_ids', 'attention_mask']
-    if(model_type == 'bart_author_embeds'):
-        # choose appropriate column for embeds
-        test_data.rename_column_(generation_model.config.__dict__['author_embed_type'], 'author_embeds')
-        data_cols.append('author_embeds')
-    test_data.set_format('torch', columns=data_cols, output_all_columns=True)
+    model_kwargs = prepare_test_data_for_generation(generation_model.config, model_type, test_data)
     if(train_data is not None):
         train_data = torch.load(train_data)
-    ## get extra args
-    model_kwargs = []
-    if(model_type == 'bart_author_embeds'):
-        model_kwargs.append('author_embeds')
-        # tmp debugging
-        # print(f'data has cols {test_data.column_names}')
-    elif(model_type == 'bart_author_attention'):
-        model_kwargs.append('reader_token')
-    # fix reader token => string
-    if('reader_token_str' in test_data.column_names):
-        test_data.remove_column_('reader_token')
-        # copy data => need both columns later
-        test_data.rename_column_('reader_token_str', 'reader_token')
-        # tmp debugging
-        # for data_i in test_data:
-        #     if(data_i['reader_token'] is None):
-        #         print(f'bad test data with no reader token {data_i}')
-        #         sys.exit(0)
     # get data name: based on model generation parameters
     generation_params = json.load(open(generation_param_file))
     generation_method = generation_params['generation_method']
@@ -391,7 +428,6 @@ def main():
         community_scores = pd.concat(community_scores, axis=0)
         community_score_out_file = os.path.join(out_dir, f'{output_name}_scores_communities.tsv')
         community_scores.to_csv(community_score_out_file, sep='\t', index=False)
-
 
 if __name__ == '__main__':
     main()
