@@ -60,7 +60,7 @@ def main():
     model_cache_dir = '../../data/model_cache/'
     model_type_lookup = {
         'text' : 'bart',
-        'reader_token' : 'bart',
+        'reader_token' : 'bart_author_token',
         'reader_attention' : 'bart_author_attention',
         'reader_subreddit_embed' : 'bart_author_embeds',
         'reader_text_embed': 'bart_author_embeds',
