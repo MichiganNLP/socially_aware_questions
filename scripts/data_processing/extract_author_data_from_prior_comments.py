@@ -17,12 +17,10 @@ import geocoder as geocoder
 from nltk import PunktSentenceTokenizer
 from requests import Session
 from tqdm import tqdm
-from data_helpers import extract_age, full_location_pipeline, load_all_author_data, split_name_string, try_convert_date
+from data_helpers import extract_age, full_location_pipeline, load_all_author_data, split_name_string, try_convert_date, write_flush_data, assign_date_bin, collect_subreddit_embed_neighbors
 import numpy as np
 import pandas as pd
 import stanza
-from data_helpers import assign_date_bin
-from data_helpers import collect_subreddit_embed_neighbors
 
 
 def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynamic_data_file, question_data):
@@ -267,28 +265,6 @@ def add_subreddit_location_data(author_data_dir, author_static_data_file):
     # rewrite data
     location_author_data.to_csv(author_static_data_file, sep='\t', compression='gzip', index=False)
 
-
-def write_flush_data(data_cols, out_file, new_data):
-    """
-    Combine old data with new data, and clean new data list.
-    :param data_cols:
-    :param out_file:
-    :param new_data:
-    :return:
-    """
-    try:
-        new_data_df = pd.DataFrame(new_data, columns=data_cols)
-        if (os.path.exists(out_file)):
-            old_data_df = pd.read_csv(out_file, sep='\t', compression='gzip', index_col=False)
-            old_data_df = pd.concat([old_data_df, new_data_df], axis=0)
-        else:
-            old_data_df = new_data_df.copy()
-        old_data_df.to_csv(out_file, sep='\t', compression='gzip', index=False)
-    except Exception as e:
-        print(f'bad new data example {new_data[0]}; needs data cols {data_cols}')
-        print(f'could not combine old/new data because error {e}')
-    new_data = []
-    return new_data
 
 def main():
     parser = ArgumentParser()

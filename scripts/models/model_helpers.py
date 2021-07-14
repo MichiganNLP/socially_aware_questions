@@ -60,7 +60,8 @@ def load_vectors(embed_file):
 
 def generate_predictions(model, data, tokenizer,
                          generation_params=[],
-                         model_kwargs=[]):
+                         model_kwargs=[],
+                         output_classifier_model=None):
     """
     Generate predicted text from transformer model.
 
@@ -125,6 +126,7 @@ def generate_predictions(model, data, tokenizer,
                 do_sample=True,
                 **model_kwargs_i
             )
+            ## TODO: for classification model, rerank sampled text based on P(class | text)
         prediction = [tokenizer.decode(ids, skip_special_tokens=True) for ids in output_i]
         pred_text.extend(prediction)
     return pred_text

@@ -977,9 +977,19 @@ def load_zipped_json_data(data_file):
 
 ## load author data
 def load_all_author_data(data_dir, usecols=None, valid_authors={}):
+    """
+    Load author data from saved files.
+
+    :param data_dir:
+    :param usecols:
+    :param valid_authors:
+    :return:
+    """
     author_file_matcher = re.compile('.+_comments.gz')
     author_files = list(filter(lambda x: author_file_matcher.match(x) is not None, os.listdir(data_dir)))
     author_files = list(map(lambda x: os.path.join(data_dir, x), author_files))
+    # tmp debugging
+    # author_files = author_files[:100]
     author_data = []
     # filter author files
     if(len(valid_authors) > 0):
@@ -995,6 +1005,12 @@ def load_all_author_data(data_dir, usecols=None, valid_authors={}):
     # get rid of bad authors for some reason
     num_matcher = re.compile('^(\d+|\d+\.\d+)$')
     author_data = author_data[author_data.loc[:, 'author'].apply(lambda x: type(x) is str and num_matcher.match(x) is None)]
+    # fix edited data
+    if('edited' in author_data.columns):
+        float_matcher = re.compile('\d\.\d')
+        author_data = author_data.assign(**{
+            'edited' : author_data.loc[:, 'edited'].apply(lambda x: float_matcher.search(str(x)) is not None)
+        })
     return author_data
 
 ## text overlap
@@ -1144,3 +1160,29 @@ def sample_by_subreddit_author_group(data, group_var):
     sample_data = pd.concat(sample_data, axis=0)
     return sample_data
 
+
+def write_flush_data(data_cols, out_file, new_data):
+    """
+    Combine old data with new data, and clean new data list.
+    :param data_cols:
+    :param out_file:
+    :param new_data:
+    :return:
+    """
+    # print(f'about to write new data {new_data}')
+    try:
+        if(type(new_data[0]) is pd.DataFrame):
+            new_data_df = pd.concat(new_data, axis=0)
+        else:
+            new_data_df = pd.DataFrame(new_data, columns=data_cols)
+        if (os.path.exists(out_file)):
+            old_data_df = pd.read_csv(out_file, sep='\t', compression='gzip', index_col=False)
+            old_data_df = pd.concat([old_data_df, new_data_df], axis=0)
+        else:
+            old_data_df = new_data_df.copy()
+        old_data_df.to_csv(out_file, sep='\t', compression='gzip', index=False)
+    except Exception as e:
+        print(f'bad new data example {new_data[0]}; needs data cols {data_cols}')
+        print(f'could not combine old/new data because error {e}')
+    new_data = []
+    return new_data
