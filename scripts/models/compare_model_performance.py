@@ -89,9 +89,6 @@ def main():
         # copy test data for new model requirements etc.
         test_data_sample_i = test_data_sample.select(list(range(len(test_data_sample))), keep_in_memory=True, load_from_cache_file=False)
         prepare_test_data_for_generation(model_i.config, model_type_i, test_data_sample_i)
-        # tmp debugging
-        if(model_type_i == 'bart_author_attention'):
-            print()
         log_likelihoods_i, _ = compute_perplexity(model_i, model_type_i, perplexity_sample_size, test_data_sample_i, return_log_likelihoods=True)
         perplexity_i = pd.DataFrame(log_likelihoods_i, columns=['perplexity']).assign(**{'model_name' : model_name_i})
         perplexity_data.append(perplexity_i)
