@@ -123,6 +123,7 @@ def generate_predictions(model, data, tokenizer,
                 max_length=max_decoding_length,
                 length_penalty=length_penalty,
                 num_return_sequences=1,
+                num_beams=1,
                 do_sample=True,
                 **model_kwargs_i
             )
