@@ -454,27 +454,35 @@ def train_test_basic_classifier(group_categories, sample_size, out_dir):
     ## get sentence encodings for all posts/questions
     post_question_data = load_sample_data(sample_size=sample_size)
     sample_post_question_data_file = os.path.join(out_dir, 'sample_post_question_data.gz')
-    embed_vars = ['question_encoded', 'post_encoded']
+    embed_vars = ['question', 'post']
     if(not os.path.exists(sample_post_question_data_file)):
         sentence_model = SentenceTransformer('paraphrase-distilroberta-base-v1')
-        post_question_data = post_question_data.assign(**{
-            'question_encoded': post_question_data.loc[:, 'question'].progress_apply(lambda x: sentence_model.encode(x))
-        })
-        post_question_data = post_question_data.assign(**{
-            'post_encoded': post_question_data.loc[:, 'post'].progress_apply(lambda x: sentence_model.encode(x)),
-        })
+        # tmp debugging
+        # post_question_data = post_question_data.iloc[:1000, :]
+        # question_encoding = sentence_model.encode(post_question_data.loc[:, 'question'], batch_size=8, device=torch.cuda.current_device(), show_progress_bar=True)
+        # post_question_data = post_question_data.assign(**{
+        #     'question_encoded': [question_encoding[i, :] for i in range(question_encoding.shape[0])],
+        #     # 'question_encoded': post_question_data.loc[:, 'question'].progress_apply(lambda x: sentence_model.encode(x))
+        # })
+        for embed_var_i in embed_vars:
+            encode_var_i = f'{embed_var_i}_encoded'
+            encoding_i = sentence_model.encode(post_question_data.loc[:, embed_var_i], batch_size=16, device=torch.cuda.current_device(), show_progress_bar=True)
+            post_question_data = post_question_data.assign(**{
+                encode_var_i : [encoding_i[i, :] for i in range(encoding_i.shape[0])],
+            })
         ## compress via PCA => prevent overfitting
         embed_dim = 100
         for embed_var_i in embed_vars:
-            mat_i = np.vstack(post_question_data.loc[:, embed_var_i])
+            encode_var_i = f'{embed_var_i}_encoded'
+            mat_i = np.vstack(post_question_data.loc[:, encode_var_i])
             pca_model_i = PCA(n_components=embed_dim, random_state=123)
             reduce_mat_i = pca_model_i.fit_transform(mat_i)
             post_question_data = post_question_data.assign(**{
-                f'PCA_{embed_var_i}': [reduce_mat_i[i, :] for i in range(reduce_mat_i.shape[0])]
+                f'PCA_{encode_var_i}': [reduce_mat_i[i, :] for i in range(reduce_mat_i.shape[0])]
             })
             # save PCA model file for later data transformation FML
-            pca_model_file_i = os.path.join(out_dir, f'PCA_model_{embed_var_i}.pkl')
-            pickle.dump(pca_model_i, pca_model_file_i)
+            pca_model_file_i = os.path.join(out_dir, f'PCA_model_embed={encode_var_i}.pkl')
+            pickle.dump(pca_model_i, open(pca_model_file_i, 'wb'))
         post_question_data.to_csv(sample_post_question_data_file, sep='\t', compression='gzip', index=False)
     else:
         import re
