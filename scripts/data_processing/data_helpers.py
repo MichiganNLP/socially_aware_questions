@@ -989,7 +989,7 @@ def load_all_author_data(data_dir, usecols=None, valid_authors={}):
     author_files = list(filter(lambda x: author_file_matcher.match(x) is not None, os.listdir(data_dir)))
     author_files = list(map(lambda x: os.path.join(data_dir, x), author_files))
     # tmp debugging
-    author_files = author_files[:100]
+    # author_files = author_files[:100]
     author_data = []
     # filter author files
     if(len(valid_authors) > 0):

@@ -35,7 +35,7 @@ def sample_authors_to_collect(comment_data, sample_authors_per_group):
 
 def collect_prior_comments(out_dir, reddit_auth_data_file, rewrite_author_files, sample_author_start_dates, sample_posts_per_author):
     reddit_api, pushshift_reddit_api = load_reddit_api(reddit_auth_data_file)
-    data_cols = ['author', 'subreddit', 'body', 'created_utc', 'edited', 'id', 'author_flair_text', 'parent_id', 'reply_delay']
+    data_cols = ['author', 'subreddit', 'body', 'created_utc', 'edited', 'id', 'author_flair_text', 'parent_id']
     for idx_i, data_i in tqdm(sample_author_start_dates.iterrows()):
         author_i = data_i.loc['author']
         min_date_i = data_i.loc['post_date']
@@ -94,10 +94,15 @@ def main():
     # print(author_comment_data.loc[:, 'edited'].value_counts())
     author_comment_data = author_comment_data[~author_comment_data.loc[:, 'edited']]
     # fix parent IDs
+    author_comment_data.dropna(subset=['parent_id'], inplace=True)
     author_comment_data = author_comment_data.assign(**{
         'parent_id' : author_comment_data.loc[:, 'parent_id'].apply(lambda x: x.split('_')[1] if '_' in x else x)
     })
-    comment_parent_post_ids = author_comment_data.loc[:, 'parent_id'].unique()
+    parent_ids_per_author = 25
+    sample_author_comment_parent_ids = np.hstack(author_comment_data.groupby('author').apply(lambda x: np.random.choice(x.loc[:, 'parent_id'], min(parent_ids_per_author, x.shape[0]), replace=False)))
+    print(f'{len(sample_author_comment_parent_ids)} sample parent author IDs')
+    # comment_parent_post_ids = author_comment_data.loc[:, 'parent_id'].unique()
+    comment_parent_post_ids = list(set(sample_author_comment_parent_ids))
     reddit_api, pushshift_reddit_api = load_reddit_api(reddit_auth_data_file)
     parent_post_data_file = os.path.join(out_dir, f'comment_parent_post_data.gz')
     old_parent_post_data = []
