@@ -1,4 +1,6 @@
 import gzip
+
+import numpy as np
 import pandas as pd
 import torch
 from nltk.translate.bleu_score import sentence_bleu
@@ -60,7 +62,8 @@ def load_vectors(embed_file):
 
 def generate_predictions(model, data, tokenizer,
                          generation_params=[],
-                         model_kwargs=[]):
+                         model_kwargs=[],
+                         generate_classify_tools=None):
     """
     Generate predicted text from transformer model.
 
@@ -77,6 +80,16 @@ def generate_predictions(model, data, tokenizer,
     model.to(device)
     pred_text = []
     generation_method = generation_params['generation_method']
+    if(generate_classify_tools is not None):
+        model_classifiers, sentence_encoder, pca_question_model, pca_post_model = generate_classify_tools
+        reader_group_class_lookup = {
+            '<EXPERT_PCT_0_BIN>' : 0,
+            '<EXPERT_PCT_1_BIN>': 1,
+            '<RELATIVE_TIME_0_BIN>' : 1,
+            '<RELATIVE_TIME_1_BIN>': 0,
+            '<US_AUTHOR>': 0,
+            '<NONUS_AUTHOR>': 1,
+        }
     for batch_i in tqdm(data):
         source_i = batch_i['source_ids']
         attention_i = batch_i['attention_mask']
@@ -114,6 +127,11 @@ def generate_predictions(model, data, tokenizer,
                 print(f'author embed data = {model_kwargs_i["author_embeds"].shape}')
                 print(f'input ids = {source_i.shape}')
                 print(f'input ids  {source_i}')
+            num_return_sequences = 1
+            num_beams = None
+            if(generate_classify_tools is not None and batch_i['reader_token_str'] is not 'UNK'):
+                num_return_sequences = 10
+                num_beams = 1
             output_i = model.generate(
                 input_ids=source_i,
                 attention_mask=attention_i,
@@ -121,10 +139,33 @@ def generate_predictions(model, data, tokenizer,
                 top_p=generation_params['top_p'],
                 max_length=max_decoding_length,
                 length_penalty=length_penalty,
-                num_return_sequences=1,
+                num_return_sequences=num_return_sequences,
+                num_beams=num_beams,
                 do_sample=True,
                 **model_kwargs_i
             )
+            ## for generate-classify model, rerank generated text based on P(class | text)
+            if(generate_classify_tools is not None and batch_i['reader_token'] is not 'UNK'):
+                # encode post, question
+                source_txt_i = batch_i['source_text']
+                output_txt_i = tokenizer.convert_tokens_to_str(tokenizer.convert_ids_to_tokens(output_i, skip_special_tokens=True))
+                output_txt_i = pd.DataFrame([output_txt_i, output_i], index=['output_txt', 'output_ids']).transpose()
+                output_txt_i.drop_duplicates('output_txt', inplace=True)
+                source_txt_embed_i = sentence_encoder.encode(source_txt_i, device=torch.cuda.current_device())
+                output_txt_embed_i = sentence_encoder.encode(output_txt_i.loc[:, 'output_txt'], device=torch.cuda.current_device())
+                source_txt_embed_i = np.repeat(source_txt_embed_i, len(output_txt_i), axis=0)
+                source_txt_embed_i = pca_post_model.transform(source_txt_embed_i)
+                output_txt_embed_i = pca_question_model.transform(output_txt_embed_i)
+                txt_embed_i = np.hstack([source_txt_embed_i, output_txt_embed_i])
+                # classify according to the reader group
+                reader_group_i = batch_i['reader_token']
+                reader_group_class_i = reader_group_class_lookup[reader_group_i]
+                model_classifier_i = model_classifiers[reader_group_i]
+                group_probs_i = model_classifier_i.predict_proba(txt_embed_i)
+                group_probs_i = pd.DataFrame(group_probs_i, columns=[0,1]).assign(**{'output_ids' : output_txt_i.loc[:, 'output_ids']})
+                # get output IDs with highest score for reader group
+                group_probs_i.sort_values(reader_group_class_i, ascending=False, inplace=True)
+                output_i = [group_probs_i.iloc[0, :].loc['output_ids']]
         prediction = [tokenizer.decode(ids, skip_special_tokens=True) for ids in output_i]
         pred_text.extend(prediction)
     return pred_text

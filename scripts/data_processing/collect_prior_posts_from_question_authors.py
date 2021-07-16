@@ -94,17 +94,25 @@ def main():
     # print(author_comment_data.loc[:, 'edited'].value_counts())
     author_comment_data = author_comment_data[~author_comment_data.loc[:, 'edited']]
     # fix parent IDs
+    author_comment_data.dropna(subset=['parent_id'], inplace=True)
     author_comment_data = author_comment_data.assign(**{
         'parent_id' : author_comment_data.loc[:, 'parent_id'].apply(lambda x: x.split('_')[1] if '_' in x else x)
     })
-    comment_parent_post_ids = author_comment_data.loc[:, 'parent_id'].unique()
+    parent_ids_per_author = 25
+    sample_author_comment_parent_ids = np.hstack(author_comment_data.groupby('author').apply(lambda x: np.random.choice(x.loc[:, 'parent_id'], min(parent_ids_per_author, x.shape[0]), replace=False)))
+    print(f'{len(sample_author_comment_parent_ids)} sample parent author IDs')
+    # comment_parent_post_ids = author_comment_data.loc[:, 'parent_id'].unique()
+    comment_parent_post_ids = list(set(sample_author_comment_parent_ids))
     reddit_api, pushshift_reddit_api = load_reddit_api(reddit_auth_data_file)
     parent_post_data_file = os.path.join(out_dir, f'comment_parent_post_data.gz')
     old_parent_post_data = []
     if(os.path.exists(parent_post_data_file)):
         old_parent_post_data = pd.read_csv(parent_post_data_file, sep='\t', compression='gzip', index_col=False)
         comment_parent_post_ids = list(filter(lambda x: x not in old_parent_post_data.loc[:, 'id'].unique(), comment_parent_post_ids))
-    chunk_size = 500
+    # serial chunk size
+    # chunk_size = 500
+    # parallel chunk size
+    chunk_size = 5000
     chunk_count = int(ceil(len(comment_parent_post_ids) / chunk_size))
     parent_post_data = []
     comment_parent_cols = ['author', 'edited', 'created_utc', 'subreddit', 'title', 'id']
@@ -112,15 +120,19 @@ def main():
     print(f'mining {len(comment_parent_post_ids)} parent post IDs')
     for i in tqdm(range(chunk_count)):
         post_ids_i = comment_parent_post_ids[(i*chunk_size):((i+1)*chunk_size)]
-        posts_i = pushshift_reddit_api.search_submissions(ids=post_ids_i, fields=comment_parent_cols, metadata=True, limit=chunk_size)
-        post_data_i = pd.DataFrame(list(map(lambda x: [x.__dict__.get(y) for y in comment_parent_cols], posts_i)), columns=comment_parent_cols)
+        # serial API calls
+        # posts_i = pushshift_reddit_api.search_submissions(ids=post_ids_i, fields=comment_parent_cols, metadata=True, limit=chunk_size)
+        # post_data_i = pd.DataFrame(list(map(lambda x: [x.__dict__.get(y) for y in comment_parent_cols], posts_i)), columns=comment_parent_cols)
+        # fix "author" and "subreddit" fields
+        # post_data_i = post_data_i.assign(**{'author': post_data_i.loc[:, 'author'].apply(lambda x: x.name if x is not None else x)})
+        # post_data_i = post_data_i.assign(**{'subreddit': post_data_i.loc[:, 'subreddit'].apply(lambda x: x.name if x is not None else x)})
+        # parallel API calls
+        posts_i = pushshift_reddit_api.search_submissions(ids=post_ids_i, fields=comment_parent_cols, max_ids_per_request=1000)
+        post_data_i = pd.DataFrame(list(posts_i))
         # tmp debugging
         # print(f'post data {post_data_i}')
-        # fix "author" and "subreddit" fields
-        post_data_i = post_data_i.assign(**{'author' : post_data_i.loc[:, 'author'].apply(lambda x: x.name if x is not None else x)})
-        post_data_i = post_data_i.assign(**{'subreddit' : post_data_i.loc[:, 'subreddit'].apply(lambda x: x.name if x is not None else x)})
         # post_data_i = list(map(lambda x: [x.__dict__.get(y) for y in comment_parent_cols], posts_i))
-        if(len(post_data_i) > 0):
+        if(post_data_i.shape[0] > 0):
         # tmp debugging
         # print(f'post data sample = {post_data_i.head(10)}')
         #     post_data_i = post_data_i.loc[:, comment_parent_cols]
