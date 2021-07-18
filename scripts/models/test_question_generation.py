@@ -6,6 +6,7 @@ aggregate scores (BLEU, ROUGE).
 import gzip
 import json
 import os
+import pickle
 from argparse import ArgumentParser
 from rouge_score.rouge_scorer import RougeScorer
 from sklearn.metrics.pairwise import cosine_distances
@@ -319,6 +320,7 @@ def main():
     parser.add_argument('--post_metadata', default=None)
     parser.add_argument('--word_embed_file', default='../../data/embeddings/wiki-news-300d-1M.vec.gz')
     parser.add_argument('--generation_params', default='../../data/model_cache/beam_search_generation_params.json')
+    parser.add_argument('--generate_classify', dest='generate_classify', action='store_true')
     args = vars(parser.parse_args())
     model_file = args['model_file']
     model_cache_dir = args['model_cache_dir']
@@ -329,6 +331,7 @@ def main():
     post_metadata = args.get('post_metadata')
     word_embed_file = args.get('word_embed_file')
     generation_param_file = args.get('generation_params')
+    generate_classify = args.get('generate_classify')
     if(not os.path.exists(out_dir)):
         os.mkdir(out_dir)
 
@@ -342,11 +345,30 @@ def main():
     model_kwargs = prepare_test_data_for_generation(generation_model.config, model_type, test_data)
     if(train_data is not None):
         train_data = torch.load(train_data)
+    # tmp debugging: shuffle test data
+    test_data = test_data.shuffle(seed=123, keep_in_memory=True, cache_file_name=None)
     # get data name: based on model generation parameters
     generation_params = json.load(open(generation_param_file))
     generation_method = generation_params['generation_method']
     generation_str = f'{generation_method}_{"_".join(k+"="+str(v) for k,v in generation_params.items() if k!= "generation_method")}'
     output_name = f'test_data_{generation_str}_output'
+    if(generate_classify):
+        model_classifier_dir = '../../data/reddit_data/group_classification_model/'
+        reader_groups = ['location_region', 'expert_pct_bin', 'relative_time_bin']
+        reader_group_class_defaults = {
+            'location_region' : 'US', 'expert_pct_bin' : 1.0, 'relative_time_bin' : 1.0,
+        }
+        model_classifiers = {
+            reader_group : pickle.load(open(os.path.join(model_classifier_dir, f'question_post_data/MLP_prediction_group=author_group_class1={reader_group}={reader_group_class_defaults[reader_group]}.pkl'), 'rb'))
+            for reader_group in reader_groups
+        }
+        sentence_encoder = SentenceTransformer('paraphrase-distilroberta-base-v1')
+        pca_question_model = pickle.load(open(os.path.join(model_classifier_dir, 'PCA_model_embed=question_encoded.pkl'), 'rb'))
+        pca_post_model = pickle.load(open(os.path.join(model_classifier_dir, 'PCA_model_embed=post_encoded.pkl'), 'rb'))
+        generate_classify_tools = (model_classifiers, sentence_encoder, pca_question_model, pca_post_model)
+        print(f'loaded generate-classify tools {generate_classify_tools}')
+    else:
+        generate_classify_tools = None
 
     ## generate lol
     # tmp debugging
@@ -356,7 +378,8 @@ def main():
     if(not os.path.exists(generated_text_out_file)):
         pred_data = generate_predictions(generation_model, test_data, model_tokenizer,
                                          generation_params=generation_params,
-                                         model_kwargs=model_kwargs)
+                                         model_kwargs=model_kwargs,
+                                         generate_classify_tools=generate_classify_tools)
         pred_data = np.array(pred_data)
         with gzip.open(generated_text_out_file, 'wt') as generated_text_out:
             generated_text_out.write('\n'.join(pred_data))

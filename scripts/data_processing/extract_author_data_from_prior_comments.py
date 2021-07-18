@@ -49,6 +49,7 @@ def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynam
     subreddits_to_query = question_data.loc[:, 'subreddit'].unique()
     subreddit_combined_neighbors = collect_subreddit_embed_neighbors(author_data_dir, subreddits_to_query)
     subreddit_neighbor_lookup = dict(zip(subreddit_combined_neighbors.loc[:, 'subreddit'].values, subreddit_combined_neighbors.loc[:, 'neighbors'].values))
+    min_parent_comment_count = 5
 
     for i, author_file_i in enumerate(tqdm(new_author_data_files)):
         author_i = author_file_i.replace('_comments.gz', '')
@@ -71,9 +72,15 @@ def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynam
                         expertise_pct_j = relevant_prior_comment_data_j.shape[0] / author_prior_comment_data_j.shape[0]
                     else:
                         expertise_pct_j = 0.
-                    # relative time
-                    post_date_j = data_j.loc['parent_date']
-                    relative_time_j = (post_date_j - date_j).seconds
+                    # relative time: post
+                    # post_date_j = data_j.loc['parent_date']
+                    # relative_time_j = (post_date_j - date_j).seconds
+                    # relative time: prior comments
+                    author_prior_comment_parent_data_j = author_prior_comment_data_j[~np.isnan(author_prior_comment_data_j.loc[:, 'reply_delay'])]
+                    if(author_prior_comment_parent_data_j.shape[0] > min_parent_comment_count):
+                        relative_time_j = np.log(author_prior_comment_parent_data_j.loc[:, 'reply_delay']).mean()
+                    else:
+                        relative_time_j = None
                     combined_author_data_j = [author_i, date_day_j, subreddit_j, expertise_pct_j, relative_time_j]
                     dynamic_author_data.append(combined_author_data_j)
                     # combined_author_data_str_j = '\t'.join(list(map(str, combined_author_data_j)))

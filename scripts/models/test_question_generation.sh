@@ -28,13 +28,14 @@ TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
 #TEST_DATA=../../data/reddit_data/combined_data_valid_authors_test_data.pt
 ## models
 # CNN text only
-MODEL_FILE=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
-MODEL_TYPE='bart'
-OUT_DIR=../../data/CNN_articles/cnn/
-# text only
-#MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-273500/pytorch_model.bin
+#MODEL_FILE=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
 #MODEL_TYPE='bart'
-#OUT_DIR=../../data/reddit_data/text_only_model/
+#OUT_DIR=../../data/CNN_articles/cnn/
+# text only
+MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-273500/pytorch_model.bin
+MODEL_TYPE='bart'
+#OUT_DIR=../../data/reddit_data/text_only_model/ # generate
+OUT_DIR=../../data/reddit_data/text_only_model/generate_classify_output/ # generate and classify
 # text+author token
 #MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-273500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/
@@ -92,8 +93,8 @@ GENERATION_PARAMS=../../data/model_cache/sample_generation_params.json
 # trained model
 #python test_question_generation.py $TEST_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR
 # trained model + test on post subsets (e.g. community)
-python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA --generation_params $GENERATION_PARAMS
-#(python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA)&
-#PID=$!
-#MAX_MEMORY=60000000000 # 50G
-#prlimit --pid $PID --as=$MAX_MEMORY
+#python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA --generation_params $GENERATION_PARAMS
+(python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA --generation_params $GENERATION_PARAMS --generate_classify)&
+PID=$!
+MAX_MEMORY=60000000000 # 50G
+prlimit --pid $PID --as=$MAX_MEMORY
