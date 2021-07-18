@@ -151,9 +151,10 @@ def generate_predictions(model, data, tokenizer,
                 **model_kwargs_i
             )
             ## for generate-classify model, rerank generated text based on P(class | text)
-            print(f'reader token = {batch_i["reader_token_str"]}')
+            # print(f'reader token = {batch_i["reader_token_str"]}')
             if(generate_classify_tools is not None and batch_i['reader_token_str'] != 'UNK'):
-                print(f'classify generation results')
+                # print(f'output before sorting = {output_i}')
+                # print(f'classify generation results')
                 # encode post, question
                 source_txt_i = batch_i['source_text']
                 output_txt_i = [tokenizer.convert_tokens_to_string(tokenizer.convert_ids_to_tokens(x.squeeze(0), skip_special_tokens=True)) for x in output_i]
@@ -174,11 +175,12 @@ def generate_predictions(model, data, tokenizer,
                 reader_group_class_i = reader_group_class_lookup[reader_group_i]
                 model_classifier_i = model_classifiers[reader_group_category_i]
                 group_probs_i = model_classifier_i.predict_proba(txt_embed_i)
-                group_probs_i = pd.DataFrame(group_probs_i, columns=[0,1]).assign(**{'output_ids' : output_txt_i.loc[:, 'output_ids']})
+                group_probs_i = pd.DataFrame(group_probs_i, columns=[0,1]).assign(**{'output_ids' : output_txt_i.loc[:, 'output_ids'].values})
                 # get output IDs with highest score for reader group
                 group_probs_i.sort_values(reader_group_class_i, ascending=False, inplace=True)
-                print(f'group probs = {group_probs_i.head()}')
+                # print(f'group probs = {group_probs_i.head()}')
                 output_i = [group_probs_i.iloc[0, :].loc['output_ids']]
+                # print(f'output after sorting = {output_i}')
         prediction = [tokenizer.decode(ids, skip_special_tokens=True) for ids in output_i]
         pred_text.extend(prediction)
     return pred_text
