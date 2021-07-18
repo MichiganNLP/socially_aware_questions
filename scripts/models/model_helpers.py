@@ -81,15 +81,21 @@ def generate_predictions(model, data, tokenizer,
     pred_text = []
     generation_method = generation_params['generation_method']
     if(generate_classify_tools is not None):
-        model_classifiers, sentence_encoder, pca_question_model, pca_post_model = generate_classify_tools
+        (model_classifiers, sentence_encoder, pca_question_model, pca_post_model) = generate_classify_tools
         reader_group_class_lookup = {
-            '<EXPERT_PCT_0_BIN>' : 0,
-            '<EXPERT_PCT_1_BIN>': 1,
-            '<RELATIVE_TIME_0_BIN>' : 1,
-            '<RELATIVE_TIME_1_BIN>': 0,
-            '<US_AUTHOR>': 0,
-            '<NONUS_AUTHOR>': 1,
+            '<EXPERT_PCT_0_AUTHOR>' : 0,
+            '<EXPERT_PCT_1_AUTHOR>': 1,
+            '<RESPONSE_TIME_0_AUTHOR>' : 0,
+            '<RESPONSE_TIME_1_AUTHOR>': 1,
+            '<US_AUTHOR>': 1,
+            '<NONUS_AUTHOR>': 0,
         }
+        reader_group_category_lookup = {
+            'location_region' : ['<US_AUTHOR>', '<NONUS_AUTHOR>'],
+            'expert_pct_bin' : ['<EXPERT_PCT_0_AUTHOR>', '<EXPERT_PCT_1_AUTHOR>'],
+            'relative_time_bin' : ['<RESPONSE_TIME_0_AUTHOR>', '<RESPONSE_TIME_1_AUTHOR>'],
+        }
+        reader_group_category_lookup = {v : k for k,vs in reader_group_category_lookup.items() for v in vs}
     for batch_i in tqdm(data):
         source_i = batch_i['source_ids']
         attention_i = batch_i['attention_mask']
@@ -129,7 +135,7 @@ def generate_predictions(model, data, tokenizer,
                 print(f'input ids  {source_i}')
             num_return_sequences = 1
             num_beams = None
-            if(generate_classify_tools is not None and batch_i['reader_token_str'] is not 'UNK'):
+            if(generate_classify_tools is not None and batch_i['reader_token_str'] != 'UNK'):
                 num_return_sequences = 10
                 num_beams = 1
             output_i = model.generate(
@@ -145,26 +151,33 @@ def generate_predictions(model, data, tokenizer,
                 **model_kwargs_i
             )
             ## for generate-classify model, rerank generated text based on P(class | text)
-            if(generate_classify_tools is not None and batch_i['reader_token'] is not 'UNK'):
+            print(f'reader token = {batch_i["reader_token_str"]}')
+            if(generate_classify_tools is not None and batch_i['reader_token_str'] != 'UNK'):
+                print(f'classify generation results')
                 # encode post, question
                 source_txt_i = batch_i['source_text']
-                output_txt_i = tokenizer.convert_tokens_to_str(tokenizer.convert_ids_to_tokens(output_i, skip_special_tokens=True))
+                output_txt_i = [tokenizer.convert_tokens_to_string(tokenizer.convert_ids_to_tokens(x.squeeze(0), skip_special_tokens=True)) for x in output_i]
+                # output_txt_i = tokenizer.convert_tokens_to_string(tokenizer.convert_ids_to_tokens(output_i, skip_special_tokens=True))
                 output_txt_i = pd.DataFrame([output_txt_i, output_i], index=['output_txt', 'output_ids']).transpose()
                 output_txt_i.drop_duplicates('output_txt', inplace=True)
                 source_txt_embed_i = sentence_encoder.encode(source_txt_i, device=torch.cuda.current_device())
-                output_txt_embed_i = sentence_encoder.encode(output_txt_i.loc[:, 'output_txt'], device=torch.cuda.current_device())
-                source_txt_embed_i = np.repeat(source_txt_embed_i, len(output_txt_i), axis=0)
+                output_txt_embed_i = sentence_encoder.encode(output_txt_i.loc[:, 'output_txt'].values.tolist(), device=torch.cuda.current_device())
+                # print(f'source text embed has shape {source_txt_embed_i.shape[0]}')
+                source_txt_embed_i = np.repeat(source_txt_embed_i.reshape(1,-1), output_txt_i.shape[0], axis=0)
+                # print(f'source text embed repeat has shape {source_txt_embed_i.shape[0]}')
                 source_txt_embed_i = pca_post_model.transform(source_txt_embed_i)
                 output_txt_embed_i = pca_question_model.transform(output_txt_embed_i)
                 txt_embed_i = np.hstack([source_txt_embed_i, output_txt_embed_i])
                 # classify according to the reader group
-                reader_group_i = batch_i['reader_token']
+                reader_group_i = batch_i['reader_token_str']
+                reader_group_category_i = reader_group_category_lookup[reader_group_i]
                 reader_group_class_i = reader_group_class_lookup[reader_group_i]
-                model_classifier_i = model_classifiers[reader_group_i]
+                model_classifier_i = model_classifiers[reader_group_category_i]
                 group_probs_i = model_classifier_i.predict_proba(txt_embed_i)
                 group_probs_i = pd.DataFrame(group_probs_i, columns=[0,1]).assign(**{'output_ids' : output_txt_i.loc[:, 'output_ids']})
                 # get output IDs with highest score for reader group
                 group_probs_i.sort_values(reader_group_class_i, ascending=False, inplace=True)
+                print(f'group probs = {group_probs_i.head()}')
                 output_i = [group_probs_i.iloc[0, :].loc['output_ids']]
         prediction = [tokenizer.decode(ids, skip_special_tokens=True) for ids in output_i]
         pred_text.extend(prediction)
