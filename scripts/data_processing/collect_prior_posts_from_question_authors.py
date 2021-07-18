@@ -11,6 +11,7 @@ from math import ceil
 import pandas as pd
 from datetime import datetime
 import numpy as np
+import pmaw
 from tqdm import tqdm
 from data_helpers import load_reddit_api, load_all_author_data, write_flush_data
 
@@ -35,7 +36,7 @@ def sample_authors_to_collect(comment_data, sample_authors_per_group):
 
 def collect_prior_comments(out_dir, reddit_auth_data_file, rewrite_author_files, sample_author_start_dates, sample_posts_per_author):
     reddit_api, pushshift_reddit_api = load_reddit_api(reddit_auth_data_file)
-    data_cols = ['author', 'subreddit', 'body', 'created_utc', 'edited', 'id', 'author_flair_text', 'parent_id']
+    data_cols = ['author', 'subreddit', 'body', 'created_utc', 'edited', 'id', 'author_flair_text', 'parent_id', 'reply_delay']
     for idx_i, data_i in tqdm(sample_author_start_dates.iterrows()):
         author_i = data_i.loc['author']
         min_date_i = data_i.loc['post_date']
@@ -84,11 +85,11 @@ def main():
     sample_author_start_dates = sample_authors_to_collect(comment_data, sample_authors_per_group)
 
     ## collect prior posts
-    ## TODO: save to database for easier retrieval
+    ## TODO: use database for easier retrieval
     # print(f'mining author comments')
     # collect_prior_comments(out_dir, reddit_auth_data_file, rewrite_author_files, sample_author_start_dates, sample_posts_per_author)
 
-    ## TODO: collect parent post data ("slow" vs. "fast" response) => parent_id | author | created_utc | post_title
+    ## collect parent post data ("slow" vs. "fast" response) => parent_id | author | created_utc | post_title
     # get parent IDs from non-edited comments
     author_comment_data = load_all_author_data(out_dir, usecols=['created_utc', 'parent_id', 'author', 'edited'])
     # print(author_comment_data.loc[:, 'edited'].value_counts())
@@ -103,7 +104,8 @@ def main():
     print(f'{len(sample_author_comment_parent_ids)} sample parent author IDs')
     # comment_parent_post_ids = author_comment_data.loc[:, 'parent_id'].unique()
     comment_parent_post_ids = list(set(sample_author_comment_parent_ids))
-    reddit_api, pushshift_reddit_api = load_reddit_api(reddit_auth_data_file)
+    # reddit_api, pushshift_reddit_api = load_reddit_api(reddit_auth_data_file)
+    pushshift_reddit_api = pmaw.PushshiftAPI()
     parent_post_data_file = os.path.join(out_dir, f'comment_parent_post_data.gz')
     old_parent_post_data = []
     if(os.path.exists(parent_post_data_file)):
