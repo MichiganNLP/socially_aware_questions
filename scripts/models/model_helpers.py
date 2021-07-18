@@ -81,14 +81,14 @@ def generate_predictions(model, data, tokenizer,
     pred_text = []
     generation_method = generation_params['generation_method']
     if(generate_classify_tools is not None):
-        model_classifiers, sentence_encoder, pca_question_model, pca_post_model = generate_classify_tools
+        (model_classifiers, sentence_encoder, pca_question_model, pca_post_model) = generate_classify_tools
         reader_group_class_lookup = {
             '<EXPERT_PCT_0_BIN>' : 0,
             '<EXPERT_PCT_1_BIN>': 1,
-            '<RELATIVE_TIME_0_BIN>' : 1,
-            '<RELATIVE_TIME_1_BIN>': 0,
-            '<US_AUTHOR>': 0,
-            '<NONUS_AUTHOR>': 1,
+            '<RELATIVE_TIME_0_BIN>' : 0,
+            '<RELATIVE_TIME_1_BIN>': 1,
+            '<US_AUTHOR>': 1,
+            '<NONUS_AUTHOR>': 0,
         }
     for batch_i in tqdm(data):
         source_i = batch_i['source_ids']
@@ -166,7 +166,6 @@ def generate_predictions(model, data, tokenizer,
                 # get output IDs with highest score for reader group
                 group_probs_i.sort_values(reader_group_class_i, ascending=False, inplace=True)
                 output_i = [group_probs_i.iloc[0, :].loc['output_ids']]
->>>>>>> 9bfaffad6109ecb12be11b8f9295d23718e840a5
         prediction = [tokenizer.decode(ids, skip_special_tokens=True) for ids in output_i]
         pred_text.extend(prediction)
     return pred_text
