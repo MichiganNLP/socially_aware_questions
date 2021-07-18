@@ -29,6 +29,13 @@ TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
 ## models
 # CNN text only
 #MODEL_FILE=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
+<<<<<<< HEAD
+=======
+#MODEL_TYPE='bart'
+#OUT_DIR=../../data/CNN_articles/cnn/
+# text only
+#MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-273500/pytorch_model.bin
+>>>>>>> d8d41bf53a5787d91dfd4a126f1f0fa502a5dcab
 #MODEL_TYPE='bart'
 #OUT_DIR=../../data/CNN_articles/cnn/
 # text only
@@ -70,12 +77,12 @@ OUT_DIR=../../data/reddit_data/text_only_model/generate_classify_output/ # gener
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_decoder_data/
 #MODEL_TYPE='bart_author_embeds'
 # reddit + text embed (+ encoder)
-#MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_data/question_generation_model/checkpoint-273500/pytorch_model.bin
-#OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
+MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_data/question_generation_model/checkpoint-273500/pytorch_model.bin
+OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
 # reddit + text embed (+ decoder)
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_decoder_data/question_generation_model/checkpoint-229000/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_decoder_data/
-#MODEL_TYPE='bart_author_embeds'
+MODEL_TYPE='bart_author_embeds'
 
 # metadata to test sub-sets of data
 POST_METADATA=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
@@ -94,6 +101,7 @@ GENERATION_PARAMS=../../data/model_cache/sample_generation_params.json
 #python test_question_generation.py $TEST_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR
 # trained model + test on post subsets (e.g. community)
 #python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA --generation_params $GENERATION_PARAMS
+# generate + classify
 (python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA --generation_params $GENERATION_PARAMS --generate_classify)&
 PID=$!
 MAX_MEMORY=60000000000 # 50G

@@ -366,7 +366,6 @@ def main():
         pca_question_model = pickle.load(open(os.path.join(model_classifier_dir, 'PCA_model_embed=question_encoded.pkl'), 'rb'))
         pca_post_model = pickle.load(open(os.path.join(model_classifier_dir, 'PCA_model_embed=post_encoded.pkl'), 'rb'))
         generate_classify_tools = (model_classifiers, sentence_encoder, pca_question_model, pca_post_model)
-        print(f'loaded generate-classify tools {generate_classify_tools}')
     else:
         generate_classify_tools = None
 
