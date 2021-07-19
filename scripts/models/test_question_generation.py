@@ -346,7 +346,7 @@ def main():
     if(train_data is not None):
         train_data = torch.load(train_data)
     # tmp debugging: shuffle test data
-    test_data = test_data.shuffle(seed=123, keep_in_memory=True, cache_file_name=None)
+    # test_data = test_data.shuffle(seed=123, keep_in_memory=True, cache_file_name=None)
     # get data name: based on model generation parameters
     generation_params = json.load(open(generation_param_file))
     generation_method = generation_params['generation_method']
@@ -386,8 +386,7 @@ def main():
         pred_data = np.array(list(map(lambda x: x.strip(), gzip.open(generated_text_out_file, 'rt'))))
 
     ## get aggregate scores
-    generated_text_score_out_file = os.path.join(out_dir,
-                                                 f'{output_name}_scores.tsv')
+    generated_text_score_out_file = os.path.join(out_dir, f'{output_name}_scores.tsv')
     # print(f'generated score file {generated_text_score_out_file}')
     if(not os.path.exists(generated_text_score_out_file)):
         # tmp debugging

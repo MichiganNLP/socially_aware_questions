@@ -24,6 +24,16 @@ import stanza
 
 
 def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynamic_data_file, question_data):
+    """
+    Collect dynamic author data, i.e. expert status and response time
+    relative to original subreddit/post.
+
+    :param author_data_dir:
+    :param author_data_files:
+    :param author_dynamic_data_file:
+    :param question_data:
+    :return:
+    """
     dynamic_author_data_cols = ['author', 'date_day', 'subreddit', 'expert_pct', 'relative_time']
     # tmp debugging
     # author_data_files = author_data_files[:1000]
@@ -56,14 +66,13 @@ def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynam
         author_comment_file_i = os.path.join(author_data_dir, author_file_i)
         if (author_i not in existing_dynamic_authors):
             try:
-                author_comment_data_i = pd.read_csv(author_comment_file_i, sep='\t', compression='gzip', usecols=['author', 'subreddit', 'created_utc'])
+                author_comment_data_i = pd.read_csv(author_comment_file_i, sep='\t', compression='gzip')
                 author_comment_data_i = author_comment_data_i.assign(**{'date': author_comment_data_i.loc[:, 'created_utc'].apply(lambda x: datetime.fromtimestamp((x)))})
                 question_data_i = question_data[question_data.loc[:, 'author'] == author_i].drop_duplicates(['author', 'subreddit', 'date_day'])
                 # dynamic data
                 for idx_j, data_j in question_data_i.iterrows():
-                    # expertise
+                    # expert status
                     date_day_j = data_j.loc['date_day']
-                    date_j = data_j.loc['date']
                     subreddit_j = data_j.loc['subreddit']
                     subreddit_neighbors_j = subreddit_neighbor_lookup[subreddit_j]
                     author_prior_comment_data_j = author_comment_data_i[author_comment_data_i.loc[:, 'date'].apply(lambda x: x <= date_day_j)]
@@ -73,14 +82,15 @@ def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynam
                     else:
                         expertise_pct_j = 0.
                     # relative time: post
+                    # date_j = data_j.loc['date']
                     # post_date_j = data_j.loc['parent_date']
                     # relative_time_j = (post_date_j - date_j).seconds
                     # relative time: prior comments
-                    author_prior_comment_parent_data_j = author_prior_comment_data_j[~np.isnan(author_prior_comment_data_j.loc[:, 'reply_delay'])]
-                    if(author_prior_comment_parent_data_j.shape[0] > min_parent_comment_count):
-                        relative_time_j = np.log(author_prior_comment_parent_data_j.loc[:, 'reply_delay']).mean()
-                    else:
-                        relative_time_j = None
+                    relative_time_j = None
+                    if('reply_delay' in author_prior_comment_parent_data_j.columns):
+                        author_prior_comment_parent_data_j = author_prior_comment_data_j[~np.isnan(author_prior_comment_data_j.loc[:, 'reply_delay'])]
+                        if(author_prior_comment_parent_data_j.shape[0] > min_parent_comment_count):
+                            relative_time_j = np.log(author_prior_comment_parent_data_j.loc[:, 'reply_delay']).mean()
                     combined_author_data_j = [author_i, date_day_j, subreddit_j, expertise_pct_j, relative_time_j]
                     dynamic_author_data.append(combined_author_data_j)
                     # combined_author_data_str_j = '\t'.join(list(map(str, combined_author_data_j)))
@@ -314,12 +324,12 @@ def main():
     author_file_matcher = re.compile('.+_comments.gz')
     author_data_files = list(filter(lambda x: author_file_matcher.match(x) is not None, os.listdir(author_data_dir)))
     author_dynamic_data_file = os.path.join(author_data_dir, 'author_prior_comment_data.gz')
-    # collect_dynamic_author_data(author_data_dir, author_data_files, author_dynamic_data_file, question_data)
+    collect_dynamic_author_data(author_data_dir, author_data_files, author_dynamic_data_file, question_data)
     # author_data = pd.DataFrame(author_data, columns=author_data_cols)
 
     ## collect static data: location, age
     author_static_data_file = os.path.join(author_data_dir, 'author_static_prior_comment_data.gz')
-    collect_static_author_data(author_static_data_file, author_data_dir, author_data_files, question_authors)
+    # collect_static_author_data(author_static_data_file, author_data_dir, author_data_files, question_authors)
     # import sys
     # sys.exit(0)
 
