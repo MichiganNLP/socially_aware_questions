@@ -87,7 +87,7 @@ def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynam
                     # relative_time_j = (post_date_j - date_j).seconds
                     # relative time: prior comments
                     relative_time_j = None
-                    if('reply_delay' in author_prior_comment_parent_data_j.columns):
+                    if('reply_delay' in author_prior_comment_data_j.columns):
                         author_prior_comment_parent_data_j = author_prior_comment_data_j[~np.isnan(author_prior_comment_data_j.loc[:, 'reply_delay'])]
                         if(author_prior_comment_parent_data_j.shape[0] > min_parent_comment_count):
                             relative_time_j = np.log(author_prior_comment_parent_data_j.loc[:, 'reply_delay']).mean()
@@ -282,6 +282,44 @@ def add_subreddit_location_data(author_data_dir, author_static_data_file):
     # rewrite data
     location_author_data.to_csv(author_static_data_file, sep='\t', compression='gzip', index=False)
 
+def add_embeddings_to_author_data(author_embeddings_data_files, combined_author_data):
+    date_formats = ['%Y-%m-%d', '%Y-%m-%d %H:%M:%S']
+    combined_author_data = combined_author_data.assign(**{
+        'date_day': combined_author_data.loc[:, 'date_day'].apply(
+            lambda x: try_convert_date(x, date_formats))})
+    # tmp debugging: where are we losing embeddings?
+    # combined_author_data.to_csv('../../data/reddit_data/author_data/combined_author_data_tmp.gz', sep='\t', compression='gzip', index=False)
+    for author_embeddings_data_file in author_embeddings_data_files:
+        ## TODO: shift date bin to avoid reading the future??
+        author_embeddings_data = pd.read_csv(author_embeddings_data_file,
+                                             sep='\t', compression='gzip',
+                                             index_col=False)
+        embed_var = list(filter(lambda x: x.endswith('_embed'),
+                                author_embeddings_data.columns))[0]
+        author_embeddings_data = author_embeddings_data.assign(**{
+            embed_var: author_embeddings_data.loc[:, embed_var].apply(
+                lambda x: literal_eval(x))})
+        author_embeddings_data = author_embeddings_data.assign(**{
+            'date_day_bin': author_embeddings_data.loc[:, 'date_day_bin'].apply(
+                lambda x: datetime.strptime(x, '%Y-%m-%d'))})
+        # compute binned dates
+        if ('date_day_bin' not in combined_author_data.columns):
+            embedding_date_bins = author_embeddings_data.loc[:,
+                                  'date_day_bin'].apply(
+                lambda x: x.timestamp()).unique()
+            combined_author_data = combined_author_data.assign(**{
+                'date_day_bin': combined_author_data.loc[:, 'date_day'].apply(
+                    lambda x: assign_date_bin(x.timestamp(),
+                                              embedding_date_bins))
+            })
+        ## join via date
+        combined_author_data = pd.merge(combined_author_data,
+                                        author_embeddings_data.loc[:,
+                                        ['author', 'date_day_bin', embed_var]],
+                                        on=['author', 'date_day_bin'],
+                                        how='outer')
+        # combined_author_data.dropna('date_day_bin', axis=1, inplace=True)
+    return combined_author_data
 
 def main():
     parser = ArgumentParser()
@@ -328,6 +366,7 @@ def main():
     # author_data = pd.DataFrame(author_data, columns=author_data_cols)
 
     ## collect static data: location, age
+    ## NOTE skip if limited for time because location-parsing takes long time
     author_static_data_file = os.path.join(author_data_dir, 'author_static_prior_comment_data.gz')
     # collect_static_author_data(author_static_data_file, author_data_dir, author_data_files, question_authors)
     # import sys
@@ -370,25 +409,8 @@ def main():
     author_embeddings_data_files = args.get('author_embeddings_data')
     if(author_embeddings_data_files is not None):
         # combined_author_data = combined_author_data.assign(**{'date_day': combined_author_data.loc[:, 'date_day'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))})
-        date_formats = ['%Y-%m-%d', '%Y-%m-%d %H:%M:%S']
-        combined_author_data = combined_author_data.assign(**{'date_day': combined_author_data.loc[:, 'date_day'].apply(lambda x: try_convert_date(x, date_formats))})
-        # tmp debugging: where are we losing embeddings?
-        # combined_author_data.to_csv('../../data/reddit_data/author_data/combined_author_data_tmp.gz', sep='\t', compression='gzip', index=False)
-        for author_embeddings_data_file in author_embeddings_data_files:
-            ## TODO: shift date bin to avoid reading the future??
-            author_embeddings_data = pd.read_csv(author_embeddings_data_file, sep='\t', compression='gzip', index_col=False)
-            embed_var = list(filter(lambda x: x.endswith('_embed'), author_embeddings_data.columns))[0]
-            author_embeddings_data = author_embeddings_data.assign(**{embed_var : author_embeddings_data.loc[:, embed_var].apply(lambda x: literal_eval(x))})
-            author_embeddings_data = author_embeddings_data.assign(**{'date_day_bin' : author_embeddings_data.loc[:, 'date_day_bin'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d'))})
-            # compute binned dates
-            if('date_day_bin' not in combined_author_data.columns):
-                embedding_date_bins = author_embeddings_data.loc[:, 'date_day_bin'].apply(lambda x: x.timestamp()).unique()
-                combined_author_data = combined_author_data.assign(**{
-                    'date_day_bin' : combined_author_data.loc[:, 'date_day'].apply(lambda x: assign_date_bin(x.timestamp(), embedding_date_bins))
-                })
-            ## join via date
-            combined_author_data = pd.merge(combined_author_data, author_embeddings_data.loc[:, ['author', 'date_day_bin', embed_var]], on=['author', 'date_day_bin'], how='outer')
-            # combined_author_data.dropna('date_day_bin', axis=1, inplace=True)
+        combined_author_data = add_embeddings_to_author_data(
+            author_embeddings_data_files, combined_author_data)
 
     # save to single file
     combined_author_data_file = os.path.join(author_data_dir, 'combined_author_prior_comment_data.gz')
