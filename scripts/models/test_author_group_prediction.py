@@ -37,14 +37,10 @@ def sample_by_subreddit_author_group(data, group_var, sample_size=0):
     sample_data = pd.concat(sample_data, axis=0)
     return sample_data
 
-def load_sample_data(sample_size=0):
-    question_data = pd.read_csv(
-        '../../data/reddit_data/advice_subreddit_filter_comment_question_data.gz',
-        sep='\t', compression='gzip', index_col=False)
+def load_sample_data(sample_type='all', sample_size=0):
+    question_data = pd.read_csv('../../data/reddit_data/advice_subreddit_filter_comment_question_data.gz', sep='\t', compression='gzip', index_col=False)
     ## load author data
-    author_data = pd.read_csv(
-        '../../data/reddit_data/author_data/combined_author_prior_comment_data.gz',
-        sep='\t', compression='gzip', index_col=False)
+    author_data = pd.read_csv('../../data/reddit_data/author_data/combined_author_prior_comment_data.gz', sep='\t', compression='gzip', index_col=False)
     ## add date info
     from datetime import datetime
     question_data = question_data.assign(**{
@@ -64,10 +60,7 @@ def load_sample_data(sample_size=0):
     dynamic_author_vars = ['expert_pct_bin', 'relative_time_bin']
     static_author_vars = ['location_region']
     question_author_data = question_data.copy()
-    question_author_data = pd.merge(
-        question_author_data,
-        clean_author_data.dropna(subset=dynamic_author_vars, how='all').loc[:,
-        ['date_day', 'author', ] + dynamic_author_vars],
+    question_author_data = pd.merge(question_author_data, clean_author_data.dropna(subset=dynamic_author_vars, how='all').loc[:, ['date_day', 'author', ] + dynamic_author_vars],
         on=['date_day', 'author'], how='left',
     )
     question_author_data = pd.merge(
@@ -83,45 +76,65 @@ def load_sample_data(sample_size=0):
         question_author_data.drop_duplicates(
             ['author', 'date_day', dynamic_author_var], inplace=True)
     ## load post data
-    post_data = pd.read_csv(
-        '../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz',
-        sep='\t', compression='gzip', index_col=False,
-        usecols=['id', 'selftext', 'title'])
-    post_data.rename(
-        columns={'id': 'parent_id', 'selftext': 'post', 'title': 'post_title'},
-        inplace=True)
-    # sample data
-    group_vars = ['location_region', 'expert_pct_bin', 'relative_time_bin']
-    sample_question_data = []
-    for group_var in group_vars:
-        # drop UNK vals FML
-        if (group_var == 'location_region'):
-            data_to_sample = question_author_data[
-                question_author_data.loc[:, group_var] != 'UNK']
-        else:
-            data_to_sample = question_author_data.copy()
-        sample_question_data_i = sample_by_subreddit_author_group(
-            data_to_sample, group_var, sample_size=sample_size)
-        # reformat to prevent overlap!!
-        # text | author group
-        sample_question_data_i = sample_question_data_i.loc[:,
-                                 [group_var, 'question', 'subreddit',
-                                  'parent_id']]
-        sample_question_data_i.rename(columns={group_var: 'author_group'},
-                                      inplace=True)
-        sample_question_data_i = sample_question_data_i.assign(**{
-            'author_group': sample_question_data_i.loc[:, 'author_group'].apply(
-                lambda x: f'{group_var}={x}'),
-            'group_category': group_var,
-        })
-        sample_question_data.append(sample_question_data_i)
-    sample_question_data = pd.concat(sample_question_data, axis=0)
+    post_data = pd.read_csv('../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz', sep='\t', compression='gzip', index_col=False, usecols=['id', 'selftext', 'title'])
+    post_data.rename(columns={'id': 'parent_id', 'selftext': 'post', 'title': 'post_title'}, inplace=True)
+    ## sample data
+    if(sample_type=='paired'):
+        # sample N pair of questions per reader group per post
+        author_vars = ['expert_pct_bin', 'relative_time_bin', 'location_region']
+        flat_question_data = pd.melt(question_author_data, id_vars=['author', 'parent_id', 'question_id', 'question', 'created_utc'],
+                                     value_vars=author_vars, var_name='author_category',
+                                     value_name='author_group')
+        flat_question_data.dropna(subset=['author_group'], inplace=True)
+        flat_question_data = flat_question_data[flat_question_data.loc[:, 'author_group'] != 'UNK']
+        ## get paired data
+        paired_group_question_data = []
+        num_groups_per_category = 2
+        for category_i, data_i in flat_question_data.groupby('author_category'):
+            author_groups_i = data_i.loc[:, 'author_group'].unique()
+            for id_j, data_j in tqdm(data_i.groupby('parent_id')):
+                np.random.shuffle(data_j.values)
+                ## get min(group_count) questions for each group
+                if (data_j.loc[:, 'author_group'].nunique() == num_groups_per_category):
+                    min_group_count_j = data_j.loc[:, 'author_group'].value_counts().min()
+                    data_j_1 = data_j[data_j.loc[:, 'author_group'] == author_groups_i[0]]
+                    data_j_2 = data_j[data_j.loc[:, 'author_group'] == author_groups_i[1]]
+                    paired_group_question_data.append(data_j_1.iloc[:min_group_count_j, :])
+                    paired_group_question_data.append(data_j_2.iloc[:min_group_count_j, :])
+        question_author_data = pd.concat(paired_group_question_data,axis=0)
+    elif(sample_type=='all'):
+        group_vars = ['location_region', 'expert_pct_bin', 'relative_time_bin']
+        sample_question_data = []
+        for group_var in group_vars:
+            # drop UNK vals FML
+            if (group_var == 'location_region'):
+                data_to_sample = question_author_data[
+                    question_author_data.loc[:, group_var] != 'UNK']
+            else:
+                data_to_sample = question_author_data.copy()
+            sample_question_data_i = sample_by_subreddit_author_group(
+                data_to_sample, group_var, sample_size=sample_size)
+            # reformat to prevent overlap!!
+            # text | author group
+            sample_question_data_i = sample_question_data_i.loc[:,
+                                     [group_var, 'question', 'subreddit',
+                                      'parent_id']]
+            sample_question_data_i.rename(columns={group_var: 'author_group'},
+                                          inplace=True)
+            sample_question_data_i = sample_question_data_i.assign(**{
+                'author_group': sample_question_data_i.loc[:, 'author_group'].apply(
+                    lambda x: f'{group_var}={x}'),
+                'group_category': group_var,
+            })
+            sample_question_data.append(sample_question_data_i)
+        question_author_data = pd.concat(sample_question_data, axis=0)
+
     # tmp debugging
-    print(f'sample question data has label distribution = {sample_question_data.loc[:, "author_group"].value_counts()}')
-    sample_post_question_data = pd.merge(post_data, sample_question_data,
+    print(f'question data has label distribution = {question_author_data.loc[:, "author_group"].value_counts()}')
+    post_question_data = pd.merge(post_data, question_author_data,
                                          on='parent_id', how='inner')
-    print(f'sample post/question data has label distribution = {sample_post_question_data.loc[:, "author_group"].value_counts()}')
-    return sample_post_question_data
+    print(f'post/question data has label distribution = {post_question_data.loc[:, "author_group"].value_counts()}')
+    return post_question_data
 
 ## tokenize data
 def combine_post_question_text(data, tokenizer, max_length=1024):
@@ -450,10 +463,10 @@ def train_test_model_with_encoding(data, group_var, out_dir, text_var='question_
         full_model = pickle.load(open(model_out_file, 'rb'))
     return full_model, class_1, model_agg_scores
 
-def train_test_basic_classifier(group_categories, sample_size, out_dir):
+def train_test_basic_classifier(group_categories, sample_size, out_dir, sample_type='sample'):
     ## get sentence encodings for all posts/questions
-    post_question_data = load_sample_data(sample_size=sample_size)
-    sample_post_question_data_file = os.path.join(out_dir, 'sample_post_question_data.gz')
+    post_question_data = load_sample_data(sample_type=sample_type, sample_size=sample_size)
+    sample_post_question_data_file = os.path.join(out_dir, f'sample_type={sample_type}_post_question_data.gz')
     embed_vars = ['question', 'post']
     if(not os.path.exists(sample_post_question_data_file)):
         sentence_model = SentenceTransformer('paraphrase-distilroberta-base-v1')
@@ -627,7 +640,9 @@ def main():
     # post_question_data = post_question_data[post_question_data.loc[:, 'group_category'].isin(group_categories)]
     ## simple neural network approach
     out_dir = args['out_dir']
-    train_test_basic_classifier(group_categories, sample_size, out_dir)
+    sample_type = 'paired'
+    # sample_type = 'sample'
+    train_test_basic_classifier(group_categories, sample_size, out_dir, sample_type=sample_type)
 
     ## transformer code: doesn't learn anything? same P(Y|X) regardless of input
     # for group_var_i in group_categories:
