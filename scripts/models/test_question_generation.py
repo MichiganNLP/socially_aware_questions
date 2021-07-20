@@ -352,7 +352,9 @@ def main():
     generation_method = generation_params['generation_method']
     generation_str = f'{generation_method}_{"_".join(k+"="+str(v) for k,v in generation_params.items() if k!= "generation_method")}'
     output_name = f'test_data_{generation_str}_output'
-    if(generate_classify):
+    generated_text_out_file = os.path.join(out_dir, f'{output_name}_text.gz')
+    # get classifiers etc. for generate + classify
+    if(generate_classify and not os.path.exists(generated_text_out_file)):
         model_classifier_dir = '../../data/reddit_data/group_classification_model/'
         reader_groups = ['location_region', 'expert_pct_bin', 'relative_time_bin']
         reader_group_class_defaults = {
@@ -373,7 +375,6 @@ def main():
     # tmp debugging
     #if(model_type == 'bart_author_embeds'):
     #    print(f'model has input for embeds = {generation_model.model.author_embed_module}')
-    generated_text_out_file = os.path.join(out_dir, f'{output_name}_text.gz')
     if(not os.path.exists(generated_text_out_file)):
         pred_data = generate_predictions(generation_model, test_data, model_tokenizer,
                                          generation_params=generation_params,

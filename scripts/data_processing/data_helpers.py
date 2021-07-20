@@ -705,6 +705,8 @@ def add_author_tokens(author_vars, clean_data, max_source_length, tokenizer):
             source_text_tokens_j = list(source_text_tokens_i)
             author_val_i = data_i.loc[author_var]
             if (author_var == 'location_region'):
+                # tmp debugging
+                print(f'author val = {author_val_i}')
                 author_token_val_i = author_location_token_lookup[author_val_i]
             else:
                 # convert bin value to token e.g. "0" + "prior_comment_count_bin" = <COMMENT_COUNT_0_AUTHOR>
