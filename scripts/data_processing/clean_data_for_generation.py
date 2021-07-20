@@ -265,31 +265,32 @@ def main():
         # else:
         #     data_name_base = data_name
         tokenizer = tokenizer_class.from_pretrained(tokenizer_name)
-        prepare_question_data(article_data, out_dir, data_name,
-                              tokenizer=tokenizer, train_pct=train_pct,
-                              author_data=author_data,
-                              # author_data_type=author_data_type,
-                              max_source_length=max_source_length,
-                              max_target_length=max_target_length)
+        clean_question_data = prepare_question_data(article_data, out_dir, data_name,
+                                                    tokenizer=tokenizer, train_pct=train_pct,
+                                                    author_data=author_data,# author_data_type=author_data_type,
+                                                    max_source_length=max_source_length,
+                                                    max_target_length=max_target_length)
+        clean_question_out_file = os.path.join(out_dir, f'{data_name}_clean_question_data.gz')
+        clean_question_data.to_csv(clean_question_out_file, sep='\t', compression='gzip', index=False)
 
     ## save author-only data as separate file for fine-tuning
-    author_data_name = f'{data_name}_valid_authors'
-    author_only_data_file = os.path.join(out_dir, f'{author_data_name}_train_data.pt')
-    if(author_data is not None and not os.path.exists(author_only_data_file)):
-        # restrict full data to data w/ author info
-        valid_authors = author_data.loc[:, 'author'].unique()
-        author_article_data = article_data[article_data.loc[:, 'author'].isin(valid_authors)]
-        print(f'about to process {author_article_data.shape[0]} data with author metadata')
-        tokenizer = tokenizer_class.from_pretrained(tokenizer_name)
-        prepare_question_data(author_article_data, out_dir, author_data_name,
-                              tokenizer=tokenizer, train_pct=train_pct,
-                              author_data=author_data,
-                              max_source_length=max_source_length,
-                              max_target_length=max_target_length)
+    # author_data_name = f'{data_name}_valid_authors'
+    # author_only_data_file = os.path.join(out_dir, f'{author_data_name}_train_data.pt')
+    # if(author_data is not None and not os.path.exists(author_only_data_file)):
+    #     # restrict full data to data w/ author info
+    #     valid_authors = author_data.loc[:, 'author'].unique()
+    #     author_article_data = article_data[article_data.loc[:, 'author'].isin(valid_authors)]
+    #     print(f'about to process {author_article_data.shape[0]} data with author metadata')
+    #     tokenizer = tokenizer_class.from_pretrained(tokenizer_name)
+    #     prepare_question_data(author_article_data, out_dir, author_data_name,
+    #                                                       tokenizer=tokenizer, train_pct=train_pct,
+    #                                                       author_data=author_data,
+    #                                                       max_source_length=max_source_length,
+    #                                                       max_target_length=max_target_length)
 
     ## save raw data to file
-    out_file_name = os.path.join(out_dir, f'{data_name}_question_data.gz')
-    article_data.to_csv(out_file_name, sep='\t', index=False, compression='gzip')
+    # out_file_name = os.path.join(out_dir, f'{data_name}_question_data.gz')
+    # article_data.to_csv(out_file_name, sep='\t', index=False, compression='gzip')
 
 
 

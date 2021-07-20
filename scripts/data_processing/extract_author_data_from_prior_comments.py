@@ -366,7 +366,7 @@ def main():
     # author_data = pd.DataFrame(author_data, columns=author_data_cols)
 
     ## collect static data: location, age
-    ## NOTE skip if limited for time because location-parsing takes long time
+    ## NOTE skip if limited time because location-parsing takes long time
     author_static_data_file = os.path.join(author_data_dir, 'author_static_prior_comment_data.gz')
     collect_static_author_data(author_static_data_file, author_data_dir, author_data_files, question_authors)
     # import sys

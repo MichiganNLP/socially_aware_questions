@@ -611,6 +611,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     train_val_data_out_file = os.path.join(out_dir, f'{data_name}_train_val_data.pt')
     torch.save(train_train_data, train_train_data_out_file)
     torch.save(train_val_data, train_val_data_out_file)
+    return clean_data
 
 def convert_dataframe_to_data_set(data_frame, dataset_columns):
     data_dict = {
@@ -706,7 +707,7 @@ def add_author_tokens(author_vars, clean_data, max_source_length, tokenizer):
             author_val_i = data_i.loc[author_var]
             if (author_var == 'location_region'):
                 # tmp debugging
-                print(f'author val = {author_val_i}')
+                # print(f'author val = {author_val_i}')
                 author_token_val_i = author_location_token_lookup[author_val_i]
             else:
                 # convert bin value to token e.g. "0" + "prior_comment_count_bin" = <COMMENT_COUNT_0_AUTHOR>
