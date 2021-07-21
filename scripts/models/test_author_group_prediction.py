@@ -83,14 +83,14 @@ def load_sample_data(sample_type='all', sample_size=0):
         # sample N pair of questions per reader group per post
         author_vars = ['expert_pct_bin', 'relative_time_bin', 'location_region']
         flat_question_data = pd.melt(question_author_data, id_vars=['author', 'parent_id', 'question_id', 'question', 'created_utc'],
-                                     value_vars=author_vars, var_name='author_category',
+                                     value_vars=author_vars, var_name='group_category',
                                      value_name='author_group')
         flat_question_data.dropna(subset=['author_group'], inplace=True)
         flat_question_data = flat_question_data[flat_question_data.loc[:, 'author_group'] != 'UNK']
         ## get paired data
         paired_group_question_data = []
         num_groups_per_category = 2
-        for category_i, data_i in flat_question_data.groupby('author_category'):
+        for category_i, data_i in flat_question_data.groupby('group_category'):
             author_groups_i = data_i.loc[:, 'author_group'].unique()
             for id_j, data_j in tqdm(data_i.groupby('parent_id')):
                 np.random.shuffle(data_j.values)
