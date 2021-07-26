@@ -4,8 +4,10 @@ was written by a member of group 1 or 2.
 """
 import os
 import pickle
+import re
 from argparse import ArgumentParser
 from ast import literal_eval
+from itertools import cycle
 from math import ceil
 
 import pandas as pd
@@ -82,38 +84,44 @@ def load_sample_data(sample_type='all', sample_size=0):
     if(sample_type=='paired'):
         # sample N pair of questions per reader group per post
         author_vars = ['expert_pct_bin', 'relative_time_bin', 'location_region']
-        flat_question_data = pd.melt(question_author_data, id_vars=['author', 'parent_id', 'question_id', 'question', 'created_utc'],
-                                     value_vars=author_vars, var_name='author_category',
+        flat_question_data = pd.melt(question_author_data, id_vars=['author', 'parent_id', 'question_id', 'question', 'created_utc', 'subreddit'],
+                                     value_vars=author_vars, var_name='group_category',
                                      value_name='author_group')
         flat_question_data.dropna(subset=['author_group'], inplace=True)
         flat_question_data = flat_question_data[flat_question_data.loc[:, 'author_group'] != 'UNK']
         ## get paired data
         paired_group_question_data = []
         num_groups_per_category = 2
-        for category_i, data_i in flat_question_data.groupby('author_category'):
+        for category_i, data_i in flat_question_data.groupby('group_category'):
             author_groups_i = data_i.loc[:, 'author_group'].unique()
             for id_j, data_j in tqdm(data_i.groupby('parent_id')):
                 np.random.shuffle(data_j.values)
-                ## get min(group_count) questions for each group
+                ## get max(group_count) questions for each group, and oversample
                 if (data_j.loc[:, 'author_group'].nunique() == num_groups_per_category):
-                    min_group_count_j = data_j.loc[:, 'author_group'].value_counts().min()
                     data_j_1 = data_j[data_j.loc[:, 'author_group'] == author_groups_i[0]]
                     data_j_2 = data_j[data_j.loc[:, 'author_group'] == author_groups_i[1]]
-                    paired_group_question_data.append(data_j_1.iloc[:min_group_count_j, :])
-                    paired_group_question_data.append(data_j_2.iloc[:min_group_count_j, :])
+                    max_group_count_j = data_j.loc[:, 'author_group'].value_counts().max()
+                    data_j_1 = data_j_1.loc[np.random.choice(data_j_1.index, max_group_count_j, replace=(data_j_1.shape[0] < max_group_count_j))]
+                    data_j_2 = data_j_2.loc[np.random.choice(data_j_2.index, max_group_count_j, replace=(data_j_2.shape[0] < max_group_count_j))]
+                    paired_group_question_data.extend([data_j_1, data_j_2])
+                    # min-sample => too few data!!
+                    # min_group_count_j = data_j.loc[:, 'author_group'].value_counts().min()
+                    # paired_group_question_data.append(data_j_1.iloc[:min_group_count_j, :])
+                    # paired_group_question_data.append(data_j_2.iloc[:min_group_count_j, :])
         question_author_data = pd.concat(paired_group_question_data,axis=0)
+        print(f'after paired sampling: question data has label distribution = {question_author_data.loc[:, "author_group"].value_counts()}')
+        print(f'after paired sampling: question data has subreddit distribution = {question_author_data.loc[:, "subreddit"].value_counts()}')
+        # print(f'question author data sample = {question_author_data.head()}')
     elif(sample_type=='all'):
         group_vars = ['location_region', 'expert_pct_bin', 'relative_time_bin']
         sample_question_data = []
         for group_var in group_vars:
             # drop UNK vals FML
             if (group_var == 'location_region'):
-                data_to_sample = question_author_data[
-                    question_author_data.loc[:, group_var] != 'UNK']
+                data_to_sample = question_author_data[question_author_data.loc[:, group_var] != 'UNK']
             else:
                 data_to_sample = question_author_data.copy()
-            sample_question_data_i = sample_by_subreddit_author_group(
-                data_to_sample, group_var, sample_size=sample_size)
+            sample_question_data_i = sample_by_subreddit_author_group(data_to_sample, group_var, sample_size=sample_size)
             # reformat to prevent overlap!!
             # text | author group
             sample_question_data_i = sample_question_data_i.loc[:,
@@ -128,11 +136,29 @@ def load_sample_data(sample_type='all', sample_size=0):
             })
             sample_question_data.append(sample_question_data_i)
         question_author_data = pd.concat(sample_question_data, axis=0)
+    # sample by subreddit, article ID
+    # remove this because it downsamples rare author groups
+    # subreddit_sample_count = 10000
+    # subreddit_sample_data = []
+    # for subreddit_i, data_i in question_author_data.groupby('subreddit'):
+    #     sample_data_i = []
+    #     sample_data_ctr_i = 0
+    #     np.random.shuffle(data_i.values)
+    #     # article_ids_i = np.random.choice(data_i.loc[:, 'article_id'].values, subreddit_sample_count, replace=(data_i.shape[0] < subreddit_sample_count))
+    #     # keep collecting data from each post/question group until we hit sample size
+    #     for id_j in cycle(data_i.loc[:, 'parent_id'].unique()):
+    #         data_j = data_i[data_i.loc[:, 'parent_id']==id_j]
+    #         sample_data_i.append(data_j)
+    #         sample_data_ctr_i += data_j.shape[0]
+    #         if(sample_data_ctr_i >= subreddit_sample_count):
+    #             break
+    #     subreddit_sample_data += sample_data_i
+    # question_author_data = pd.concat(subreddit_sample_data, axis=0)
 
     # tmp debugging
-    print(f'question data has label distribution = {question_author_data.loc[:, "author_group"].value_counts()}')
+    print(f'question data has subreddit distribution = {question_author_data.loc[:, "subreddit"].value_counts()}')
     post_question_data = pd.merge(post_data, question_author_data,
-                                         on='parent_id', how='inner')
+                                  on='parent_id', how='right')
     print(f'post/question data has label distribution = {post_question_data.loc[:, "author_group"].value_counts()}')
     return post_question_data
 
@@ -423,14 +449,19 @@ def train_test_model_with_encoding(data, group_var, out_dir, text_var='question_
         X = np.vstack(data.loc[:, text_var].values)
     layer_size = X.shape[1]
     Y = data.loc[:, group_var].values
+    group_category = data.loc[:, 'group_category'].unique()[0]
     Y_vals = list(set(Y))
     # convert to binary
     class_1 = Y_vals[0]
     Y = (Y==class_1).astype(int)
+    # tmp debugging
+    # print(f'X = {X}')
+    # print(f'Y = {Y}')
     # fit models across all folds
     model_scores = []
     k_folds = StratifiedKFold(n_splits=n_folds, random_state=123, shuffle=True)
-    score_vars = ['model_acc', f'F1_{Y_vals[0]}', f'F1_{Y_vals[1]}']
+    # score_vars = ['model_acc', f'F1_{Y_vals[0]}', f'F1_{Y_vals[1]}']
+    subreddits = data.loc[:, 'subreddit']
     for i, (train_idx, test_idx) in tqdm(enumerate(k_folds.split(X, Y))):
         X_train, X_test = X[train_idx, :], X[test_idx, :]
         Y_train, Y_test = Y[train_idx], Y[test_idx]
@@ -443,15 +474,28 @@ def train_test_model_with_encoding(data, group_var, out_dir, text_var='question_
         # get F1 for both classes...there must be a better way to do this
         model_f1_class_1 = f1_score(Y_pred, Y_test)
         model_f1_class_0 = f1_score((1-Y_pred), (1-Y_test))
-        model_scores.append([model_acc, model_f1_class_1, model_f1_class_0, i])
-    model_scores = pd.DataFrame(model_scores, columns=score_vars+['fold'])
+        model_scores_i = {'model_acc' : model_acc, f'F1_{Y_vals[0]}' : model_f1_class_1, f'F1_{Y_vals[1]}' : model_f1_class_0, 'fold' : i}
+        ## get scores per subreddit!!
+        # test_idx_lookup = {idx_i : i for idx_i in enumerate(test_idx)}
+        for subreddit_j in subreddits:
+            idx_j = list(set(np.where(data.loc[:, 'subreddit']==subreddit_j)[0]) & set(test_idx))
+            if(len(idx_j) > 0):
+                # test_idx_j = list(map(lambda x: test_idx_lookup[x], idx_j))
+                Y_pred_j = model.predict(X[idx_j, :])
+                model_acc_j = (Y[idx_j]==Y_pred_j).sum() / len(Y_pred_j)
+                model_scores_i[f'model_acc_{subreddit_j}'] = model_acc_j
+        model_scores.append(model_scores_i)
+    # model_scores = pd.DataFrame(model_scores, columns=score_vars+['fold'])
+    model_scores = pd.DataFrame(model_scores)
     # compute mean, sd for all scores
     model_agg_scores = {}
-    for score_var in score_vars:
-        model_agg_scores[f'{score_var}_mean'] = model_scores.loc[:, score_var].mean()
-        model_agg_scores[f'{score_var}_SD'] = model_scores.loc[:, score_var].std()
+    score_vars = ['model_acc', f'F1_{Y_vals[0]}', f'F1_{Y_vals[1]}'] + [f'model_acc_{x}' for x in subreddits]
+    for score_var_i in score_vars:
+        scores_i = model_scores.loc[:, score_var_i].dropna()
+        model_agg_scores[f'{score_var_i}_mean'] = scores_i.mean()
+        model_agg_scores[f'{score_var_i}_SD'] = scores_i.std()
     model_agg_scores = pd.Series(model_agg_scores)
-    model_out_file = os.path.join(out_dir, f'MLP_prediction_group={group_var}_class1={class_1}.pkl')
+    model_out_file = os.path.join(out_dir, f'MLP_prediction_group={group_category}_class1={class_1}.pkl')
     if (not os.path.exists(model_out_file)):
         # fit model on full data for later use
         full_model = MLPClassifier(hidden_layer_sizes=[layer_size, ], activation='relu', max_iter=1000, random_state=123)
@@ -465,10 +509,10 @@ def train_test_model_with_encoding(data, group_var, out_dir, text_var='question_
 
 def train_test_basic_classifier(group_categories, sample_size, out_dir, sample_type='sample'):
     ## get sentence encodings for all posts/questions
-    post_question_data = load_sample_data(sample_type=sample_type, sample_size=sample_size)
-    sample_post_question_data_file = os.path.join(out_dir, f'sample_type={sample_type}_post_question_data.gz')
+    post_question_data_file = os.path.join(out_dir, f'sample_type={sample_type}_post_question_data.gz')
     embed_vars = ['question', 'post']
-    if(not os.path.exists(sample_post_question_data_file)):
+    if(not os.path.exists(post_question_data_file)):
+        post_question_data = load_sample_data(sample_type=sample_type, sample_size=sample_size)
         sentence_model = SentenceTransformer('paraphrase-distilroberta-base-v1')
         # tmp debugging
         # post_question_data = post_question_data.iloc[:1000, :]
@@ -496,12 +540,17 @@ def train_test_basic_classifier(group_categories, sample_size, out_dir, sample_t
             # save PCA model file for later data transformation FML
             pca_model_file_i = os.path.join(out_dir, f'PCA_model_embed={encode_var_i}.pkl')
             pickle.dump(pca_model_i, open(pca_model_file_i, 'wb'))
-        post_question_data.to_csv(sample_post_question_data_file, sep='\t', compression='gzip', index=False)
+        post_question_data.to_csv(post_question_data_file, sep='\t', compression='gzip', index=False)
     else:
-        import re
-        bracket_matcher = re.compile('[\[\]]')
-        post_question_data = pd.read_csv(sample_post_question_data_file, sep='\t', compression='gzip', index_col=False,
-                                         converters={f'PCA_{embed_var}' : lambda x: np.fromstring(bracket_matcher.sub('', x).strip(), sep=' ', dtype=float) for embed_var in embed_vars})
+        arr_matcher = re.compile('[\[\]\n]')
+        embed_var_converters = {
+            f'PCA_{embed_var}_encoded': lambda x: np.fromstring(arr_matcher.sub('', x).strip(), sep=' ', dtype=float)
+            for embed_var in embed_vars
+        }
+        post_question_data = pd.read_csv(post_question_data_file, sep='\t', compression='gzip', index_col=False,
+                                         converters=embed_var_converters)
+        # tmp debugging
+        # print(f'post ')
 
     # author_group_scores = []
     text_var = 'PCA_question_encoded'
