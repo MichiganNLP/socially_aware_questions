@@ -60,12 +60,11 @@ VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 #OUT_DIR=../../data/nyt_comments/no_author_data/NE_overlap/longformer_model/
 # debug model
 #OUT_DIR=../../data/nyt_comments/debug_model/
-## NOTE: for author models modify data/model_cache/BART_author_model_config.json before starting
-# reddit model
-#OUT_DIR=../../data/reddit_data/text_only_model/
+# text-only model (reddit)
+OUT_DIR=../../data/reddit_data/text_only_model/
 #OUT_DIR=../../data/reddit_data/text_only_model/text_only_fine_tune/ # fine-tune
-#MODEL_TYPE='bart'
-#MODEL_CONFIG_FILE=../../data/model_cache/BART_config.json
+MODEL_TYPE='bart'
+MODEL_CONFIG_FILE=../../data/model_cache/BART_config.json
 # reddit author model
 # author token
 #OUT_DIR=../../data/reddit_data/author_text_data/
@@ -83,10 +82,10 @@ VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 #MODEL_TYPE="bart_author_embeds"
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_subreddit_embed_model_config.json
 # text embed
-OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/ # encoder
+#OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/ # encoder
 #OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_decoder_data/ # decoder
-MODEL_TYPE="bart_author_embeds"
-MODEL_CONFIG_FILE=../../data/model_cache/BART_author_text_embed_model_config.json
+#MODEL_TYPE="bart_author_embeds"
+#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_text_embed_model_config.json
 # author (decoder) embed
 #OUT_DIR=../../data/reddit_data/author_text_data/author_decoder_embed_data/
 # author attention
