@@ -362,10 +362,12 @@ def main():
         model_classifier_dir = '../../data/reddit_data/group_classification_model/'
         reader_groups = ['location_region', 'expert_pct_bin', 'relative_time_bin']
         reader_group_class_defaults = {
-            'location_region' : 'US', 'expert_pct_bin' : 1.0, 'relative_time_bin' : 1.0,
+            'location_region' : 'NONUS', 'expert_pct_bin' : 0.0, 'relative_time_bin' : 0.0,
         }
         model_classifiers = {
-            reader_group : pickle.load(open(os.path.join(model_classifier_dir, f'question_post_data/MLP_prediction_group=author_group_class1={reader_group}={reader_group_class_defaults[reader_group]}.pkl'), 'rb'))
+            #reader_group : pickle.load(open(os.path.join(model_classifier_dir, f'question_post_data/MLP_prediction_group=author_group_class1={reader_group}={reader_group_class_defaults[reader_group]}.pkl'), 'rb'))
+            reader_group: pickle.load(open(os.path.join(model_classifier_dir, f'question_post_data/MLP_prediction_group={reader_group}_class1={reader_group_class_defaults[reader_group]}.pkl'),
+                                           'rb'))
             for reader_group in reader_groups
         }
         sentence_encoder = SentenceTransformer('paraphrase-distilroberta-base-v1')
