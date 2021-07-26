@@ -287,7 +287,7 @@ def prepare_test_data_for_generation(model_config, model_type, test_data):
         test_data.rename_column_('source_ids_reader_token', 'source_ids')
         test_data.remove_column_('reader_token')
     if(model_type in {'bart_author_token', 'bart_author_attention'}):
-        if('reader_token' in test_data.columns_):
+        if('reader_token' in test_data.column_names):
             test_data.remove_column_('reader_token')
         # fix reader token data
         test_data.rename_column_('reader_token_str', 'reader_token')
