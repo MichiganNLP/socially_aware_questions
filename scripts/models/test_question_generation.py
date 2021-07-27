@@ -320,11 +320,12 @@ def main():
     parser.add_argument('--model_file', default=None)
     parser.add_argument('--model_cache_dir', default='../../data/model_cache/')
     parser.add_argument('--model_type', default='bart')
-    parser.add_argument('--out_dir', default='../../data/model_cache/')
+    parser.add_argument('--out_dir', default='../../data/reddit_data/')
     parser.add_argument('--post_metadata', default=None)
     parser.add_argument('--word_embed_file', default='../../data/embeddings/wiki-news-300d-1M.vec.gz')
     parser.add_argument('--generation_params', default='../../data/model_cache/beam_search_generation_params.json')
     parser.add_argument('--generate_classify', dest='generate_classify', action='store_true')
+    parser.add_argument('--post_subgroup_file', default=None)
     args = vars(parser.parse_args())
     model_file = args['model_file']
     model_cache_dir = args['model_cache_dir']
@@ -336,6 +337,7 @@ def main():
     word_embed_file = args.get('word_embed_file')
     generation_param_file = args.get('generation_params')
     generate_classify = args.get('generate_classify')
+    post_subgroup_file = args.get('post_subgroup_file')
     if(not os.path.exists(out_dir)):
         os.mkdir(out_dir)
 
@@ -458,6 +460,12 @@ def main():
         community_scores = pd.concat(community_scores, axis=0)
         community_score_out_file = os.path.join(out_dir, f'{output_name}_scores_communities.tsv')
         community_scores.to_csv(community_score_out_file, sep='\t', index=False)
+    # post sub-group
+    if(post_subgroup_file is not None):
+        post_subgroup_data = pd.read_csv(post_subgroup_file, sep='\t', index_col=False, compression='gzip')
+        post_article_ids = test_data['article_id']
+
+        article_idx = [i for i, x in enumerate(post_article_ids) if x in article_ids_i]
 
 if __name__ == '__main__':
     main()

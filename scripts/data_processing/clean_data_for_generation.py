@@ -169,7 +169,7 @@ def main():
         question_data = pd.read_csv(args['comment_data'], sep='\t', compression='gzip', index_col=False)
         # fix ID var
         question_data.rename(columns={'parent_id' : 'article_id'}, inplace=True)
-        question_data = question_data.loc[:, ['article_id', 'id', 'question', 'author']]
+        question_data = question_data.loc[:, ['article_id', 'id', 'question', 'author', 'question_id']]
         article_data = pd.merge(article_data, question_data, on='article_id', how='inner')
         # print(f'article data cols {article_data.columns}')
     elif(args.get('comment_dir') is not None):
