@@ -390,7 +390,7 @@ def extract_questions_all_data(data, min_question_len=5):
     return questions
 
 def prepare_question_data(data, out_dir, data_name, tokenizer,
-                          data_vars=['article_text', 'question', 'article_id', 'subreddit'],
+                          data_vars=['article_text', 'question', 'article_id', 'subreddit', 'author', 'question_id', 'id'],
                           author_data=None,
                           # author_data_type='tokens', # {'tokens', 'embeddings'}
                           train_pct=0.8,
@@ -550,7 +550,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # test_article_ids = list(set(article_ids) - set(train_article_ids))
     clean_data_train = clean_data[clean_data.loc[:, 'article_id'].isin(train_article_ids)]
     clean_data_test = clean_data[clean_data.loc[:, 'article_id'].isin(test_article_ids)]
-    dataset_columns = ['source_text', 'target_text', 'article_id']
+    dataset_columns = ['source_text', 'target_text', 'article_id', 'id', 'author', 'question_id']
     # if(author_data_type == 'embeds'):
     if(author_data is not None):
         dataset_columns.extend(['subreddit_embed', 'text_embed', 'author_has_subreddit_embed', 'author_has_text_embed'])
