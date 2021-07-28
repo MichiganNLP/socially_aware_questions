@@ -18,7 +18,7 @@ from model_helpers import generate_predictions, compute_text_bleu, load_vectors
 import torch
 from author_group_attention_model import AuthorGroupAttentionModelConditionalGeneration
 from sentence_transformers import SentenceTransformer
-
+from nlp import Dataset
 CPU_COUNT=10
 torch.set_num_threads(CPU_COUNT)
 from transformers import AutoModelForSeq2SeqLM, BartTokenizer, BartConfig
@@ -460,12 +460,20 @@ def main():
         community_scores = pd.concat(community_scores, axis=0)
         community_score_out_file = os.path.join(out_dir, f'{output_name}_scores_communities.tsv')
         community_scores.to_csv(community_score_out_file, sep='\t', index=False)
-    # post sub-group
+    ## post sub-group
     if(post_subgroup_file is not None):
         post_subgroup_data = pd.read_csv(post_subgroup_file, sep='\t', index_col=False, compression='gzip')
-        post_article_ids = test_data['article_id']
-
-        article_idx = [i for i, x in enumerate(post_article_ids) if x in article_ids_i]
+        ## merge data?
+        test_data_df = test_data.data.to_pandas()
+        test_data_df = test_data_df.assign(**{'pred_data': pred_data})
+        subgroup_test_data_df = pd.merge(test_data_df, post_subgroup_data, on=['article_id', 'id', 'author', 'question_id'], how='inner')
+        subgroup_pred_data = subgroup_test_data_df.loc[:, 'pred_data'].values
+        subgroup_test_data_df.drop('pred_data', axis=1, inplace=True)
+        subgroup_test_data = Dataset.from_pandas(subgroup_test_data_df)
+        subgroup_generation_score_data = get_generation_scores(subgroup_pred_data, subgroup_test_data, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
+        subgroup_name = os.path.basename(post_subgroup_file).replace('_data.gz', '')
+        subgroup_score_out_file = os.path.join(out_dir, f'{output_name}_scores_subgroup={subgroup_name}.tsv')
+        subgroup_generation_score_data.to_csv(subgroup_score_out_file, sep='\t', index=False)
 
 if __name__ == '__main__':
     main()
