@@ -61,10 +61,10 @@ VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 # debug model
 #OUT_DIR=../../data/nyt_comments/debug_model/
 # text-only model (reddit)
-OUT_DIR=../../data/reddit_data/text_only_model/
+#OUT_DIR=../../data/reddit_data/text_only_model/
 #OUT_DIR=../../data/reddit_data/text_only_model/text_only_fine_tune/ # fine-tune
-MODEL_TYPE='bart'
-MODEL_CONFIG_FILE=../../data/model_cache/BART_config.json
+#MODEL_TYPE='bart'
+#MODEL_CONFIG_FILE=../../data/model_cache/BART_config.json
 # reddit author model
 # author token
 #OUT_DIR=../../data/reddit_data/author_text_data/
@@ -72,9 +72,9 @@ MODEL_CONFIG_FILE=../../data/model_cache/BART_config.json
 #MODEL_TYPE="bart_author"
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
 # author attention
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
-#MODEL_TYPE="bart_author_attention"
-#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
+MODEL_TYPE="bart_author_attention"
+MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 # author embed
 # subreddit embed 
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/ # encoder
