@@ -352,7 +352,9 @@ def main():
     if(train_data is not None):
         train_data = torch.load(train_data)
     # tmp debugging: shuffle test data
-    # test_data = test_data.shuffle(seed=123, keep_in_memory=True, cache_file_name=None)
+    test_data = test_data.shuffle(seed=123, keep_in_memory=True, cache_file_name=None)
+    # tmp debugging: less test data
+    test_data = test_data.select(list(range(5000)), keep_in_memory=True, cache_file_name=None)
     # get data name: based on model generation parameters
     generation_params = json.load(open(generation_param_file))
     generation_method = generation_params['generation_method']
@@ -369,8 +371,7 @@ def main():
         }
         model_classifiers = {
             #reader_group : pickle.load(open(os.path.join(model_classifier_dir, f'question_post_data/MLP_prediction_group=author_group_class1={reader_group}={reader_group_class_defaults[reader_group]}.pkl'), 'rb'))
-            reader_group: pickle.load(open(os.path.join(model_classifier_dir, f'question_post_data/MLP_prediction_group={reader_group}_class1={reader_group_class_defaults[reader_group]}.pkl'),
-                                           'rb'))
+            reader_group: pickle.load(open(os.path.join(model_classifier_dir, f'question_post_data/MLP_prediction_group={reader_group}_class1={reader_group_class_defaults[reader_group]}.pkl'), 'rb'))
             for reader_group in reader_groups
         }
         sentence_encoder = SentenceTransformer('paraphrase-distilroberta-base-v1')

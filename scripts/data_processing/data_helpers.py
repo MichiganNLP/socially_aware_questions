@@ -409,6 +409,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     :param train_pct:
     :return:
     """
+    # tmp debugging
+    # print(f'before adding author data, data has columns = {data.columns}')
     # optional: add author data
     if (author_data is not None):
         # author_var = 'userID'
@@ -507,6 +509,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # change to clean source/target format
     # tmp debugging
     # print(f'after merging author data: data vars = {data_vars}')
+    # print(f'after adding author data, data has columns = {data.columns} with missing vars {set(data_vars) - set(data.columns)}')
     clean_data = data.loc[:, data_vars].rename(
         columns={'article_text': 'source_text', 'question': 'target_text'})
     # deduplicate article/answer pairs
@@ -557,6 +560,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
         dataset_columns.extend(['reader_token', 'reader_token_str', 'source_text_reader_token'])
     train_data_set = convert_dataframe_to_data_set(clean_data_train, dataset_columns)
     test_data_set = convert_dataframe_to_data_set(clean_data_test, dataset_columns)
+    # tmp debugging
+    # print(f'before processing: train data set has columns {train_data_set.column_names}')
     #     tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
     # get max lengths
     # source_text_tokens = clean_data.loc[:, 'source_text'].apply(lambda x: tokenizer.tokenize(x))
@@ -579,6 +584,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # columns = ["source_ids", "target_ids", "attention_mask", "source_text", "target_text"]
     train_data.set_format(type='torch', columns=tensor_data_columns, output_all_columns=True)
     test_data.set_format(type='torch', columns=tensor_data_columns, output_all_columns=True)
+    # tmp debugging
+    # print(f'after processing: train data has columns {train_data.column_names}')
     # tmp debugging
     # for data_i in train_data:
     #     print(f'post-cleaned train data sample: {data_i}')
