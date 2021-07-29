@@ -135,7 +135,7 @@ def generate_predictions(model, data, tokenizer,
                 print(f'input ids  {source_i}')
             num_return_sequences = 1
             num_beams = None
-            if(generate_classify_tools is not None and batch_i['reader_token_str'] != 'UNK'):
+            if(generate_classify_tools is not None and batch_i['reader_token'] != 'UNK'):
                 num_return_sequences = 10
                 num_beams = 1
             output_i = model.generate(
@@ -152,7 +152,7 @@ def generate_predictions(model, data, tokenizer,
             )
             ## for generate-classify model, rerank generated text based on P(class | text)
             # print(f'reader token = {batch_i["reader_token_str"]}')
-            if(generate_classify_tools is not None and batch_i['reader_token_str'] != 'UNK'):
+            if(generate_classify_tools is not None and batch_i['reader_token'] != 'UNK'):
                 # print(f'output before sorting = {output_i}')
                 # print(f'classify generation results')
                 # encode post, question
@@ -170,7 +170,7 @@ def generate_predictions(model, data, tokenizer,
                 output_txt_embed_i = pca_question_model.transform(output_txt_embed_i)
                 txt_embed_i = np.hstack([source_txt_embed_i, output_txt_embed_i])
                 # classify according to the reader group
-                reader_group_i = batch_i['reader_token_str']
+                reader_group_i = batch_i['reader_token']
                 reader_group_category_i = reader_group_category_lookup[reader_group_i]
                 reader_group_class_i = reader_group_class_lookup[reader_group_i]
                 model_classifier_i = model_classifiers[reader_group_category_i]
