@@ -390,7 +390,7 @@ def extract_questions_all_data(data, min_question_len=5):
     return questions
 
 def prepare_question_data(data, out_dir, data_name, tokenizer,
-                          data_vars=['article_text', 'question', 'article_id', 'subreddit'],
+                          data_vars=['article_text', 'question', 'article_id', 'subreddit', 'author', 'question_id', 'id'],
                           author_data=None,
                           # author_data_type='tokens', # {'tokens', 'embeddings'}
                           train_pct=0.8,
@@ -409,6 +409,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     :param train_pct:
     :return:
     """
+    # tmp debugging
+    # print(f'before adding author data, data has columns = {data.columns}')
     # optional: add author data
     if (author_data is not None):
         # author_var = 'userID'
@@ -507,6 +509,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # change to clean source/target format
     # tmp debugging
     # print(f'after merging author data: data vars = {data_vars}')
+    # print(f'after adding author data, data has columns = {data.columns} with missing vars {set(data_vars) - set(data.columns)}')
     clean_data = data.loc[:, data_vars].rename(
         columns={'article_text': 'source_text', 'question': 'target_text'})
     # deduplicate article/answer pairs
@@ -550,13 +553,15 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # test_article_ids = list(set(article_ids) - set(train_article_ids))
     clean_data_train = clean_data[clean_data.loc[:, 'article_id'].isin(train_article_ids)]
     clean_data_test = clean_data[clean_data.loc[:, 'article_id'].isin(test_article_ids)]
-    dataset_columns = ['source_text', 'target_text', 'article_id']
+    dataset_columns = ['source_text', 'target_text', 'article_id', 'id', 'author', 'question_id']
     # if(author_data_type == 'embeds'):
     if(author_data is not None):
         dataset_columns.extend(['subreddit_embed', 'text_embed', 'author_has_subreddit_embed', 'author_has_text_embed'])
         dataset_columns.extend(['reader_token', 'reader_token_str', 'source_text_reader_token'])
     train_data_set = convert_dataframe_to_data_set(clean_data_train, dataset_columns)
     test_data_set = convert_dataframe_to_data_set(clean_data_test, dataset_columns)
+    # tmp debugging
+    # print(f'before processing: train data set has columns {train_data_set.column_names}')
     #     tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
     # get max lengths
     # source_text_tokens = clean_data.loc[:, 'source_text'].apply(lambda x: tokenizer.tokenize(x))
@@ -579,6 +584,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # columns = ["source_ids", "target_ids", "attention_mask", "source_text", "target_text"]
     train_data.set_format(type='torch', columns=tensor_data_columns, output_all_columns=True)
     test_data.set_format(type='torch', columns=tensor_data_columns, output_all_columns=True)
+    # tmp debugging
+    # print(f'after processing: train data has columns {train_data.column_names}')
     # tmp debugging
     # for data_i in train_data:
     #     print(f'post-cleaned train data sample: {data_i}')
