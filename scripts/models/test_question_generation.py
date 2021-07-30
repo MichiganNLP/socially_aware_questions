@@ -353,12 +353,16 @@ def main():
         train_data = torch.load(train_data)
     # tmp debugging: shuffle test data
     # test_data = test_data.shuffle(seed=123, keep_in_memory=True, cache_file_name=None)
+    # tmp debugging: less test data
+    # test_data = test_data.select(list(range(5000)), keep_in_memory=True, cache_file_name=None)
     # get data name: based on model generation parameters
     generation_params = json.load(open(generation_param_file))
-    generation_method = generation_params['generation_method']
+    # generation_method = generation_params['generation_method']
     generate_classify = generation_params['generate_classify']
-    generation_str = f'{generation_method}_{"_".join(k+"="+str(v) for k,v in generation_params.items() if k!= "generation_method")}'
-    output_name = f'test_data_{generation_str}_output'
+    # note: get rid of generation string on output name because it makes file names annoying
+    # generation_str = f'{generation_method}_{"_".join(k+"="+str(v) for k,v in generation_params.items() if k!= "generation_method")}'
+    # output_name = f'test_data_{generation_str}_output'
+    output_name = 'test_data_output'
     generated_text_out_file = os.path.join(out_dir, f'{output_name}_text.gz')
     # get classifiers etc. for generate + classify
     if(generate_classify and not os.path.exists(generated_text_out_file)):
@@ -369,8 +373,7 @@ def main():
         }
         model_classifiers = {
             #reader_group : pickle.load(open(os.path.join(model_classifier_dir, f'question_post_data/MLP_prediction_group=author_group_class1={reader_group}={reader_group_class_defaults[reader_group]}.pkl'), 'rb'))
-            reader_group: pickle.load(open(os.path.join(model_classifier_dir, f'question_post_data/MLP_prediction_group={reader_group}_class1={reader_group_class_defaults[reader_group]}.pkl'),
-                                           'rb'))
+            reader_group: pickle.load(open(os.path.join(model_classifier_dir, f'question_post_data/MLP_prediction_group={reader_group}_class1={reader_group_class_defaults[reader_group]}.pkl'), 'rb'))
             for reader_group in reader_groups
         }
         sentence_encoder = SentenceTransformer('paraphrase-distilroberta-base-v1')
@@ -408,6 +411,7 @@ def main():
     ## optional: same thing but for different subsets of post data
     ## reader groups
     reader_group_score_out_file = os.path.join(out_dir, f'{output_name}_scores_reader_groups.tsv')
+    # print(f'reader group file = {reader_group_score_out_file}')
     if(not os.path.exists(reader_group_score_out_file)):
         # if(model_type == 'bart_author_attention'):
         #     reader_groups = list(set(test_data['reader_token']))
@@ -438,7 +442,8 @@ def main():
         reader_group_scores = pd.concat(reader_group_scores, axis=0)
         reader_group_scores.to_csv(reader_group_score_out_file, sep='\t', index=False)
     ## per-community
-    if(post_metadata is not None):
+    community_score_out_file = os.path.join(out_dir, f'{output_name}_scores_communities.tsv')
+    if(post_metadata is not None and not os.path.exists(community_score_out_file)):
         post_metadata = pd.read_csv(post_metadata, sep='\t',
                                     compression='gzip', index_col=False,
                                     usecols=['id', 'subreddit'])
@@ -459,24 +464,27 @@ def main():
             generation_score_data_i = generation_score_data_i.assign(**{'community' : community_i})
             community_scores.append(generation_score_data_i)
         community_scores = pd.concat(community_scores, axis=0)
-        community_score_out_file = os.path.join(out_dir, f'{output_name}_scores_communities.tsv')
         community_scores.to_csv(community_score_out_file, sep='\t', index=False)
     ## post sub-group
-    if(post_subgroup_file is not None):
+    post_subgroup_name = os.path.basename(post_subgroup_file).replace('_data.gz', '')
+    post_subgroup_score_out_file = os.path.join(out_dir, f'{output_name}_scores_subgroup={post_subgroup_name}.tsv')
+    if(post_subgroup_file is not None and not os.path.exists(post_subgroup_score_out_file)):
         post_subgroup_data = pd.read_csv(post_subgroup_file, sep='\t', index_col=False, compression='gzip')
         post_subgroup_data.rename(columns={'parent_id' : 'article_id', 'author_id' : 'author'}, inplace=True)
         ## merge data?
         test_data_df = test_data.data.to_pandas()
+        # tmp debugging
+        # pred_data = pred_data[:len(test_data)]
         test_data_df = test_data_df.assign(**{'pred_data': pred_data})
         subgroup_test_data_df = pd.merge(test_data_df, post_subgroup_data, on=['article_id', 'id', 'author', 'question_id'], how='inner')
         subgroup_pred_data = subgroup_test_data_df.loc[:, 'pred_data'].values
         subgroup_test_data_df.drop('pred_data', axis=1, inplace=True)
         subgroup_test_data = Dataset.from_pandas(subgroup_test_data_df)
+        # tmp debugging
+        # print(f'subgroup test data = {len(subgroup_test_data)}')
         ## TODO: fix data format e.g. tensors
         subgroup_generation_score_data = get_generation_scores(subgroup_pred_data, subgroup_test_data, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
-        subgroup_name = os.path.basename(post_subgroup_file).replace('_data.gz', '')
-        subgroup_score_out_file = os.path.join(out_dir, f'{output_name}_scores_subgroup={subgroup_name}.tsv')
-        subgroup_generation_score_data.to_csv(subgroup_score_out_file, sep='\t', index=False)
+        subgroup_generation_score_data.to_csv(post_subgroup_score_out_file, sep='\t', index=False)
 
 if __name__ == '__main__':
     main()

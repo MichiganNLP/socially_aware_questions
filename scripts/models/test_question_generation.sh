@@ -85,15 +85,18 @@ GENERATION_PARAMS=../../data/model_cache/sample_generation_params.json
 # extra post sub-group (e.g. divisive posts) to test on
 POST_SUBGROUP_FILE=../../data/reddit_data/paired_question_low_sim_data.gz
 
-# set GPU
-#export CUDA_VISIBLE_DEVICES=3
+## queue server
+#python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA --generation_params $GENERATION_PARAMS --post_subgroup_file $POST_SUBGROUP_FILE
 
+## regular server
+# set GPU
+export CUDA_VISIBLE_DEVICES=3
 # no model (i.e. zero-shot)
 #(python test_question_generation.py $TEST_DATA --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA)&
 # trained model
 #python test_question_generation.py $TEST_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR
 # regular generation
-python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA --generation_params $GENERATION_PARAMS --post_subgroup_file $POST_SUBGROUP_FILE
-#PID=$!
-#MAX_MEMORY=60000000000 # 50G
-#prlimit --pid $PID --as=$MAX_MEMORY
+(python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA --generation_params $GENERATION_PARAMS --post_subgroup_file $POST_SUBGROUP_FILE)&
+PID=$!
+MAX_MEMORY=60000000000 # 50G
+prlimit --pid $PID --as=$MAX_MEMORY
