@@ -471,6 +471,7 @@ def main():
     if(post_subgroup_file is not None and not os.path.exists(post_subgroup_score_out_file)):
         post_subgroup_data = pd.read_csv(post_subgroup_file, sep='\t', index_col=False, compression='gzip')
         post_subgroup_data.rename(columns={'parent_id' : 'article_id', 'author_id' : 'author'}, inplace=True)
+        print(f'post subgroup data and test data have shared columns {set(post_subgroup_data.columns) & set(test_data.column_names)}')
         ## merge data?
         test_data_df = test_data.data.to_pandas()
         # tmp debugging

@@ -32,17 +32,17 @@ TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
 #MODEL_TYPE='bart'
 #OUT_DIR=../../data/CNN_articles/cnn/
 # text only
-MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-275500/pytorch_model.bin
-MODEL_TYPE='bart'
-OUT_DIR=../../data/reddit_data/text_only_model/ # generate
+#MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-275500/pytorch_model.bin
+#MODEL_TYPE='bart'
+#OUT_DIR=../../data/reddit_data/text_only_model/ # generate
 #OUT_DIR=../../data/reddit_data/text_only_model/generate_classify_output/ # generate and classify
 # text+author token
-#MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-275500/pytorch_model.bin
-#OUT_DIR=../../data/reddit_data/author_text_data/
+MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-275500/pytorch_model.bin
+OUT_DIR=../../data/reddit_data/author_text_data/
 # text+author token: fine-tuning author data
 #MODEL_FILE=../../data/reddit_data/author_text_data/text_only_fine_tune/question_generation_model/checkpoint-213500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/text_only_fine_tune/no_author_data/
-#MODEL_TYPE='bart_author_token' # test w/ author data
+MODEL_TYPE='bart_author_token' # test w/ author data
 #MODEL_TYPE='bart' # test w/out author data
 # reddit + author group attention
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/question_generation_model/checkpoint-275500/pytorch_model.bin
@@ -86,17 +86,17 @@ GENERATION_PARAMS=../../data/model_cache/sample_generation_params.json
 POST_SUBGROUP_FILE=../../data/reddit_data/paired_question_low_sim_data.gz
 
 ## queue server
-#python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA --generation_params $GENERATION_PARAMS --post_subgroup_file $POST_SUBGROUP_FILE
+python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA --generation_params $GENERATION_PARAMS --post_subgroup_file $POST_SUBGROUP_FILE
 
 ## regular server
 # set GPU
-export CUDA_VISIBLE_DEVICES=3
+#export CUDA_VISIBLE_DEVICES=3
 # no model (i.e. zero-shot)
 #(python test_question_generation.py $TEST_DATA --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA)&
 # trained model
 #python test_question_generation.py $TEST_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR
 # regular generation
-(python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA --generation_params $GENERATION_PARAMS --post_subgroup_file $POST_SUBGROUP_FILE)&
-PID=$!
-MAX_MEMORY=60000000000 # 50G
-prlimit --pid $PID --as=$MAX_MEMORY
+#(python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA --generation_params $GENERATION_PARAMS --post_subgroup_file $POST_SUBGROUP_FILE)&
+#PID=$!
+#MAX_MEMORY=60000000000 # 50G
+#prlimit --pid $PID --as=$MAX_MEMORY
