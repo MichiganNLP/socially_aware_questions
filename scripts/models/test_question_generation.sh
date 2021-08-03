@@ -37,12 +37,12 @@ TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
 #OUT_DIR=../../data/reddit_data/text_only_model/ # generate
 #OUT_DIR=../../data/reddit_data/text_only_model/generate_classify_output/ # generate and classify
 # text+author token
-MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-275500/pytorch_model.bin
-OUT_DIR=../../data/reddit_data/author_text_data/
+#MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-275500/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/
 # text+author token: fine-tuning author data
 #MODEL_FILE=../../data/reddit_data/author_text_data/text_only_fine_tune/question_generation_model/checkpoint-213500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/text_only_fine_tune/no_author_data/
-MODEL_TYPE='bart_author_token' # test w/ author data
+#MODEL_TYPE='bart_author_token' # test w/ author data
 #MODEL_TYPE='bart' # test w/out author data
 # reddit + author group attention
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/question_generation_model/checkpoint-275500/pytorch_model.bin
@@ -60,9 +60,9 @@ MODEL_TYPE='bart_author_token' # test w/ author data
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5/
 #MODEL_TYPE='bart_author_attention'
 # reddit + subreddit embed (+ encoder)
-#MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_data/question_generation_model/checkpoint-275500/pytorch_model.bin
-#OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
-#MODEL_TYPE='bart_author_embeds'
+MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_data/question_generation_model/checkpoint-275500/pytorch_model.bin
+OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
+MODEL_TYPE='bart_author_embeds'
 # reddit + subreddit embed (+ decoder)
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_decoder_data/question_generation_model/checkpoint-275500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_decoder_data/
