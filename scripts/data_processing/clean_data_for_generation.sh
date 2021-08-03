@@ -42,8 +42,8 @@ MODEL_TYPE=bart
 #MODEL_TYPE=longformer
 # enforce named entity overlap between article and question (>=1 NE overlap per question/article)
 #NE_overlap=False
-#SAMPLE_PCT=1.0
-SAMPLE_PCT=0.25
+SAMPLE_PCT=1.0
+#SAMPLE_PCT=0.25
 # NYT
 #python clean_data_for_generation.py $OUT_DIR --data_dir $DATA_DIR --data_name $DATA_NAME --comment_dir $COMMENT_DIR --comment_month_year_pairs "${COMMENT_MONTH_YEAR_PAIRS[@]}" --author_data $AUTHOR_DATA --model_type $MODEL_TYPE --sample_pct $SAMPLE_PCT --NE_overlap $NE_overlap
 # CNN
@@ -53,5 +53,5 @@ SAMPLE_PCT=0.25
 # reddit + author
 (python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT)&
 PID=$!
-MAX_MEMORY=80000000000 # 100G
+MAX_MEMORY=120000000000 # 100G
 prlimit --pid $PID --as=$MAX_MEMORY

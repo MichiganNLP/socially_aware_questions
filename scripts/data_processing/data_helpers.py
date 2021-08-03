@@ -151,23 +151,33 @@ class DataProcessor:
             self.sep_token = "[SEP]"
         self.extra_source_text_vars = extra_source_text_vars
 
-    def process(self, dataset):
+    def process(self, dataset, batch_size=100):
         if self.model_type == "t5":
             dataset = dataset.map(self._add_eos_examples)
 
-        dataset = dataset.map(self._add_special_tokens)
-        dataset = dataset.map(self._convert_to_features, batched=True)
+        dataset = dataset.map(self._add_special_tokens, batched=True, writer_batch_size=batch_size)
+        dataset = dataset.map(self._convert_to_features, batched=True, writer_batch_size=batch_size)
 
         return dataset
 
     def _add_eos_examples(self, example):
-        example['source_text'] = example['source_text'] + " </s>"
-        example['target_text'] = example['target_text'] + " </s>"
+        # batch
+        if(type(example['source_text']) is list):
+            example['source_text'] = list(map(lambda x: x + " </s>", example['source_text']))
+            example['target_text'] = list(map(lambda x: x + " </s>", example['target_text']))
+        else:
+            example['source_text'] = example['source_text'] + " </s>"
+            example['target_text'] = example['target_text'] + " </s>"
         return example
 
     def _add_special_tokens(self, example):
-        example['source_text'] = example['source_text'].replace("{hl_token}", self.hl_token)
-        example['target_text'] = example['target_text'].replace("{sep_token}", self.sep_token)
+        # batch
+        if(type(example['source_text']) is list):
+            example['source_text'] = list(map(lambda x: x.replace("{hl_token}", self.hl_token), example['source_text']))
+            example['target_text'] = list(map(lambda x: x.replace("{sep_token}", self.sep_token), example['target_text']))
+        else:
+            example['source_text'] = example['source_text'].replace("{hl_token}", self.hl_token)
+            example['target_text'] = example['target_text'].replace("{sep_token}", self.sep_token)
         return example
 
     # tokenize the examples
@@ -574,6 +584,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
                                    max_source_length=max_source_length,
                                    max_target_length=max_target_length,
                                    extra_source_text_vars=extra_source_text_vars)
+    # debug: source text data type?
+    print(f'train data sample = {train_data_set[0]}')
     # print(f'{train_data_set} train data')
     # print(f'{len(val_data_set["source_text"])} val data')
     train_data = data_processor.process(train_data_set)
