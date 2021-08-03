@@ -20,6 +20,7 @@ def main():
     out_dir = args['out_dir']
 
     ## load all data
+    ## TODO: expand to all non-train data? test data is very limited
     sample_type = None
     post_question_data = load_sample_data(sample_type=sample_type)
     author_vars = ['expert_pct_bin', 'relative_time_bin', 'location_region']
