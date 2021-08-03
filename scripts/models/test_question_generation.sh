@@ -32,9 +32,9 @@ TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
 #MODEL_TYPE='bart'
 #OUT_DIR=../../data/CNN_articles/cnn/
 # text only
-#MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-275500/pytorch_model.bin
-#MODEL_TYPE='bart'
-#OUT_DIR=../../data/reddit_data/text_only_model/ # generate
+MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-275500/pytorch_model.bin
+MODEL_TYPE='bart'
+OUT_DIR=../../data/reddit_data/text_only_model/ # generate
 #OUT_DIR=../../data/reddit_data/text_only_model/generate_classify_output/ # generate and classify
 # text+author token
 #MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-275500/pytorch_model.bin
@@ -60,9 +60,9 @@ TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5/
 #MODEL_TYPE='bart_author_attention'
 # reddit + subreddit embed (+ encoder)
-MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_data/question_generation_model/checkpoint-275500/pytorch_model.bin
-OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
-MODEL_TYPE='bart_author_embeds'
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_data/question_generation_model/checkpoint-275500/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
+#MODEL_TYPE='bart_author_embeds'
 # reddit + subreddit embed (+ decoder)
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_decoder_data/question_generation_model/checkpoint-275500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_decoder_data/

@@ -7,7 +7,7 @@
 #SBATCH --output=/home/%u/logs/%x-%j.log
 #SBATCH --nodes=1
 #SBATCH --partition=standard
-#SBATCH --mem-per-cpu=20g
+#SBATCH --mem-per-cpu=120g
 
 ## NYT data
 #DATA_DIR=../../data/NYT_scrape/
@@ -45,6 +45,7 @@ SAMPLE_PCT=1.0
 #SAMPLE_PCT=0.25
 
 # queue server
+HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
 python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT
 
 # regular server

@@ -469,7 +469,7 @@ def main():
     post_subgroup_name = os.path.basename(post_subgroup_file).replace('_data.gz', '')
     post_subgroup_score_out_file = os.path.join(out_dir, f'{output_name}_scores_subgroup={post_subgroup_name}.tsv')
     if(post_subgroup_file is not None and not os.path.exists(post_subgroup_score_out_file)):
-        subgroup_test_data_out_file = os.path.join(out_dir, post_subgroup_file.replace('.gz', '_test.pt'))
+        subgroup_test_data_out_file = post_subgroup_file.replace('.gz', '_test.pt')
         if(not os.path.exists(subgroup_test_data_out_file)):
             post_subgroup_data = pd.read_csv(post_subgroup_file, sep='\t', index_col=False, compression='gzip')
             post_subgroup_data.rename(columns={'parent_id' : 'article_id', 'author_id' : 'author'}, inplace=True)

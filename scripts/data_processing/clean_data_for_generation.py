@@ -261,12 +261,14 @@ def main():
         # 'longformer': (4096, 128),  # ONLY for big GPU server
     }
     max_source_length, max_target_length = max_len_lookup[model_type]
+    model_cache_dir = '../../data/model_cache/'
     if (not os.path.exists(train_data_file)):
         # if(author_data is not None):
         #     data_name_base = f'author_type_{data_name}_data={author_data_type}'
         # else:
         #     data_name_base = data_name
-        tokenizer = tokenizer_class.from_pretrained(tokenizer_name)
+        #tokenizer = tokenizer_class.from_pretrained(model_cache_dir)
+        tokenizer = tokenizer_class.from_pretrained(tokenizer_name, cache_dir=model_cache_dir)
         clean_question_data = prepare_question_data(article_data, out_dir, data_name,
                                                     tokenizer=tokenizer, train_pct=train_pct,
                                                     author_data=author_data,# author_data_type=author_data_type,
