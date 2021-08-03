@@ -469,27 +469,26 @@ def main():
     post_subgroup_name = os.path.basename(post_subgroup_file).replace('_data.gz', '')
     post_subgroup_score_out_file = os.path.join(out_dir, f'{output_name}_scores_subgroup={post_subgroup_name}.tsv')
     if(post_subgroup_file is not None and not os.path.exists(post_subgroup_score_out_file)):
-        subgroup_test_data_out_file = os.path.join(out_dir, post_subgroup_file.replace('.gz', '_test.pt'))
-        if(not os.path.exists(subgroup_test_data_out_file)):
-            post_subgroup_data = pd.read_csv(post_subgroup_file, sep='\t', index_col=False, compression='gzip')
-            post_subgroup_data.rename(columns={'parent_id' : 'article_id', 'author_id' : 'author'}, inplace=True)
-            # print(f'post subgroup data and test data have shared columns {set(post_subgroup_data.columns) & set(test_data.column_names)}')
-            ## merge data?
-            test_data_df = test_data.data.to_pandas()
-            # tmp debugging
-            # pred_data = pred_data[:len(test_data)]
-            test_data_df = test_data_df.assign(**{'pred_data': pred_data})
-            subgroup_test_data_df = pd.merge(test_data_df, post_subgroup_data, on=['article_id', 'id', 'author', 'question_id'], how='inner')
-            subgroup_pred_data = subgroup_test_data_df.loc[:, 'pred_data'].values
-            subgroup_test_data_df.drop('pred_data', axis=1, inplace=True)
-            subgroup_test_data = Dataset.from_pandas(subgroup_test_data_df)
-            # save for posterity
-            torch.save(subgroup_test_data, subgroup_test_data_out_file)
-        else:
-            subgroup_test_data = torch.load(subgroup_test_data_out_file)
+        #subgroup_test_data_out_file = post_subgroup_file.replace('.gz', '_test.pt')
+        #if(not os.path.exists(subgroup_test_data_out_file)):
+        post_subgroup_data = pd.read_csv(post_subgroup_file, sep='\t', index_col=False, compression='gzip')
+        post_subgroup_data.rename(columns={'parent_id' : 'article_id', 'author_id' : 'author'}, inplace=True)
+        # print(f'post subgroup data and test data have shared columns {set(post_subgroup_data.columns) & set(test_data.column_names)}')
+        ## merge data
+        test_data_df = test_data.data.to_pandas()
+        # tmp debugging
+        # pred_data = pred_data[:len(test_data)]
+        test_data_df = test_data_df.assign(**{'pred_data': pred_data})
+        subgroup_test_data_df = pd.merge(test_data_df, post_subgroup_data, on=['article_id', 'id', 'author', 'question_id'], how='inner')
+        subgroup_pred_data = subgroup_test_data_df.loc[:, 'pred_data'].values
+        subgroup_test_data_df.drop('pred_data', axis=1, inplace=True)
+        subgroup_test_data = Dataset.from_pandas(subgroup_test_data_df)
+        #    # save for posterity
+        #    torch.save(subgroup_test_data, subgroup_test_data_out_file)
+        #else:
+        #    subgroup_test_data = torch.load(subgroup_test_data_out_file)
         # tmp debugging
         # print(f'subgroup test data = {len(subgroup_test_data)}')
-        ## TODO: fix data format e.g. tensors
         subgroup_generation_score_data = get_generation_scores(subgroup_pred_data, subgroup_test_data, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
         subgroup_generation_score_data.to_csv(post_subgroup_score_out_file, sep='\t', index=False)
 

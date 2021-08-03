@@ -1,5 +1,5 @@
 {
-	"generation_method" : "sample",
+    "generation_method" : "sample",
     "top_p" : 0.90,
     "temperature" : 1.0,
     "generate_classify": false 
