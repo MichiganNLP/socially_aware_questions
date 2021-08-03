@@ -84,7 +84,7 @@ def main():
             x.loc['question_2_embed'].reshape(1, -1))[0][0], axis=1)
     })
     ## compute similarity cutoff (per subreddit)
-    max_sim_pct = 10
+    max_sim_pct = 25
     similarity_cutoff_sample_data = []
     for subreddit_i, data_i in paired_sample_data.groupby('subreddit'):
         similarity_cutoff_i = np.percentile(data_i.loc[:, 'question_sim'], max_sim_pct)
@@ -97,7 +97,7 @@ def main():
     flat_sample_data = pd.melt(flat_sample_data, id_vars=['parent_id', 'id', 'question_id'], value_vars=['author_1', 'author_2'], var_name='author_id_type', value_name='author_id')
     flat_sample_data.drop('author_id_type', axis=1, inplace=True)
     ## save to file
-    out_file = os.path.join(out_dir, 'paired_question_low_sim_data.gz')
+    out_file = os.path.join(out_dir, f'paired_question_low_sim_simpct={max_sim_pct}_data.gz')
     flat_sample_data.to_csv(out_file, sep='\t', index=False, compression='gzip')
 
 if __name__=='__main__':
