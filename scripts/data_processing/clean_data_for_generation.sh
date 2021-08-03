@@ -2,13 +2,12 @@
 #SBATCH --job-name=clean_data
 #SBATCH --mail-user=ianbstew@umich.edu
 #SBATCH --mail-type=BEGIN,END
-#SBATCH --time=1:00:00
+#SBATCH --time=10:00:00
 #SBATCH --account=mihalcea1
 #SBATCH --output=/home/%u/logs/%x-%j.log
 #SBATCH --nodes=1
 #SBATCH --partition=standard
-#SBATCH --mem-per-cpu=1000m
-#echo "starting to clean"
+#SBATCH --mem-per-cpu=20g
 
 ## NYT data
 #DATA_DIR=../../data/NYT_scrape/
@@ -44,14 +43,17 @@ MODEL_TYPE=bart
 #NE_overlap=False
 SAMPLE_PCT=1.0
 #SAMPLE_PCT=0.25
-# NYT
-#python clean_data_for_generation.py $OUT_DIR --data_dir $DATA_DIR --data_name $DATA_NAME --comment_dir $COMMENT_DIR --comment_month_year_pairs "${COMMENT_MONTH_YEAR_PAIRS[@]}" --author_data $AUTHOR_DATA --model_type $MODEL_TYPE --sample_pct $SAMPLE_PCT --NE_overlap $NE_overlap
+
+# queue server
+python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT
+
+# regular server
 # CNN
 #python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --sample_pct $SAMPLE_PCT
 # reddit
 #python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --sample_pct $SAMPLE_PCT
 # reddit + author
-(python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT)&
-PID=$!
-MAX_MEMORY=120000000000 # 100G
-prlimit --pid $PID --as=$MAX_MEMORY
+#(python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT)&
+#PID=$!
+#MAX_MEMORY=120000000000 # 100G
+#prlimit --pid $PID --as=$MAX_MEMORY
