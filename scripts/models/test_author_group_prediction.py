@@ -712,7 +712,7 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
     else:
         post_question_data = pd.read_csv(post_question_data_file, sep='\t', compression='gzip', index_col=False)
     tokenizer = BartTokenizer.from_pretrained('facebook/bart-base', do_lower_case=True)
-    tokenizer.add_special_tokens({'sep_token': '[QUESTION]'})
+    tokenizer.add_special_tokens({'additional_special_tokens': ['[QUESTION]']})
     post_question_data = post_question_data.assign(**{
         'post_question': post_question_data.apply(lambda x: combine_post_question(x, tokenizer), axis=1)
     })
@@ -725,7 +725,7 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
         print(f'about to process data for category={group_category_i}')
         post_question_data_i = post_question_data[post_question_data.loc[:, 'group_category']==group_category_i]
         default_group_val_i = default_group_values[group_category_i]
-        labels_i = (post_question_data_i.loc[:, 'author_group']==default_group_val_i).astype(int)
+        labels_i = (post_question_data_i.loc[:, 'author_group']==default_group_val_i).astype(int).values
         # Tokenize all of the sentences and map the tokens to word IDs.
         # max_length = 1024 # TOO LONG!! NO CAPES
         max_length = 512
@@ -738,6 +738,7 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
         # Convert the lists into tensors.
         input_ids_i = torch.cat(input_ids_i, dim=0)
         attention_masks_i = torch.cat(attention_masks_i, dim=0)
+        labels_i = torch.LongTensor(labels_i)
         dataset = TensorDataset(input_ids_i, attention_masks_i, labels_i)
         # Create a 90-10 train-validation split.
         # Calculate the number of samples to include in each set.
