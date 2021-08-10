@@ -945,14 +945,12 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
                 b_input_ids = b_input_ids.to('cpu')
                 b_input_mask = b_input_mask.to('cpu')
                 b_labels = b_labels.to('cpu')
-            loss = result.loss
+                label_ids = b_labels.numpy()
             logits = result.logits
             logits = logits.detach().cpu().numpy()
-            label_ids = b_labels.to('cpu').numpy()
             preds = list(logits.argmax(axis=1))
             val_preds.extend(preds)
             total_eval_accuracy += flat_accuracy(logits, label_ids)
-        avg_val_accuracy = total_eval_accuracy / len(validation_dataloader)
         # compute mean, std F1
         val_labels = list(map(lambda x: x[2], val_dataset))
         val_f1 = f1_score(val_labels, val_preds)
