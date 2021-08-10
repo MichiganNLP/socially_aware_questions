@@ -724,8 +724,8 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
         'post_question': post_question_data.apply(lambda x: combine_post_question(x, tokenizer), axis=1)
     })
     default_group_values = {
-        'expert_pct_bin' : 1.0,
-        'relative_time_bin' : 1.0,
+        'expert_pct_bin' : 1,
+        'relative_time_bin' : 1,
         'location_region' : 'US',
     }
     for group_category_i in group_categories:
@@ -738,8 +738,14 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
         if(not os.path.exists(train_data_file_i)):
             post_question_data_i = post_question_data[post_question_data.loc[:, 'group_category']==group_category_i]
             default_group_val_i = default_group_values[group_category_i]
-
+            if(type(default_group_val_i) is int):
+                post_question_data_i = post_question_data_i.assign(**{'author_group' : post_question_data_i.loc[:, 'author_group'].apply(lambda x: int(float(x)))})
             labels_i = (post_question_data_i.loc[:, 'author_group']==default_group_val_i).astype(int).values
+            print(f'group category = {group_category_i}; default val = {default_group_val_i}')
+            # tmp debugging: label distribution
+            print(f'author group sample = {post_question_data_i.loc[:, "author_group"].iloc[:10]}')
+            print(f'author group count = {post_question_data_i.loc[:, "author_group"].value_counts()}')
+            print(f'label distribution = {pd.Series(labels_i).value_counts()}')
             # Tokenize all of the sentences and map the tokens to word IDs.
             # max_length = 1024 # TOO LONG!! NO CAPES
             max_length = 512
@@ -939,7 +945,9 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
         )
         model_weights = torch.load(model_out_file_i)
         model.resize_token_embeddings(len(tokenizer))
+        device = torch.cuda.current_device()
         model.load_state_dict(model_weights)
+        model.to(device)
         # get validation accuracy
         model.eval()
         total_eval_accuracy = 0
@@ -950,12 +958,14 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
             sampler=SequentialSampler(val_dataset),
             batch_size=batch_size  # Evaluate with this batch size.
         )
-        device = torch.cuda.current_device()
         for batch in validation_dataloader:
             b_input_ids = batch[0].to(device)
             b_input_mask = batch[1].to(device)
             b_labels = batch[2].to(device)
             with torch.no_grad():
+                # tmp debugging
+                #print(f'model device = {model.device}')
+                #print(f'data device = {b_input_ids.device}; {b_input_mask.device}; {b_labels.device}')
                 result = model(b_input_ids,
                                attention_mask=b_input_mask,
                                labels=b_labels,
@@ -971,6 +981,9 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
             total_eval_accuracy += flat_accuracy(logits, label_ids)
         # compute mean, std F1
         val_labels = list(map(lambda x: x[2], val_dataset))
+        # tmp debugging
+        #print(f'val preds = {val_preds}')
+        #print(f'val_labels = {val_labels}')
         val_f1 = f1_score(val_labels, val_preds)
         val_accuracy = np.sum(val_preds == val_labels) / len(val_labels)
         val_scores = pd.Series([val_f1, val_accuracy], index=['F1', 'acc'])
