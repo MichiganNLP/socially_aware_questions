@@ -9,7 +9,7 @@ import re
 import time
 from argparse import ArgumentParser
 from ast import literal_eval
-from datetime import datetime
+from datetime import datetime, timedelta
 from itertools import cycle
 from math import ceil
 
@@ -695,7 +695,7 @@ def format_time(elapsed):
     Takes a time in seconds and returns a string hh:mm:ss
     '''
     elapsed_rounded = int(round((elapsed)))
-    return str(datetime.timedelta(seconds=elapsed_rounded))
+    return str(timedelta(seconds=elapsed_rounded))
 
 def train_test_full_transformer(group_categories, sample_size, sample_type, out_dir):
     """
