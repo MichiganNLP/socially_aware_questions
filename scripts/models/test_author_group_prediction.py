@@ -698,7 +698,8 @@ def format_time(elapsed):
     elapsed_rounded = int(round((elapsed)))
     return str(timedelta(seconds=elapsed_rounded))
 
-def train_test_full_transformer(group_categories, sample_size, sample_type, out_dir):
+def train_test_full_transformer(group_categories, sample_size, sample_type,
+                                out_dir, text_var='post_question'):
     """
     Train/test model to predict group from question+post text, with full transformer BART model. FUN
 
@@ -719,10 +720,11 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
     else:
         post_question_data = pd.read_csv(post_question_data_file, sep='\t', compression='gzip', index_col=False)
     tokenizer = BartTokenizer.from_pretrained('facebook/bart-base', do_lower_case=True)
-    tokenizer.add_special_tokens({'additional_special_tokens': ['[QUESTION]']})
-    post_question_data = post_question_data.assign(**{
-        'post_question': post_question_data.apply(lambda x: combine_post_question(x, tokenizer), axis=1)
-    })
+    if(text_var == 'post_question'):
+        tokenizer.add_special_tokens({'additional_special_tokens': ['[QUESTION]']})
+        post_question_data = post_question_data.assign(**{
+            'post_question': post_question_data.apply(lambda x: combine_post_question(x, tokenizer), axis=1)
+        })
     default_group_values = {
         'expert_pct_bin' : 1,
         'relative_time_bin' : 1,
@@ -730,7 +732,7 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
     }
     for group_category_i in group_categories:
         print(f'about to process data for category={group_category_i}')
-        model_out_dir_i = os.path.join(out_dir, f'question_post_group={group_category_i}_transformer_model')
+        model_out_dir_i = os.path.join(out_dir, f'text={text_var}_group={group_category_i}_transformer_model')
         if (not os.path.exists(model_out_dir_i)):
             os.mkdir(model_out_dir_i)
         train_data_file_i = os.path.join(model_out_dir_i, f'train_data.gz')
@@ -752,7 +754,7 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
             input_data_i = list(map(lambda x: tokenizer.encode_plus(x, add_special_tokens=True, return_attention_mask=True,
                                                                   return_tensors='pt', max_length=max_length,
                                                                   padding='max_length', truncation=True),
-                                    tqdm(post_question_data_i.loc[:, 'post_question'])))
+                                    tqdm(post_question_data_i.loc[:, text_var])))
             input_ids_i = list(map(lambda x: x['input_ids'], input_data_i))
             attention_masks_i = list(map(lambda x: x['attention_mask'], input_data_i))
             # Convert the lists into tensors.
@@ -962,6 +964,9 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
             b_input_ids = batch[0].to(device)
             b_input_mask = batch[1].to(device)
             b_labels = batch[2].to(device)
+            # tmp debugging
+            # print(f'model device = {model.device}')
+            # print(f'data device = {b_input_ids.device}; {b_input_mask.device}; {b_labels.device}')
             with torch.no_grad():
                 # tmp debugging
                 #print(f'model device = {model.device}')
@@ -982,8 +987,6 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
         # compute mean, std F1
         val_labels = list(map(lambda x: x[2], val_dataset))
         # tmp debugging
-        #print(f'val preds = {val_preds}')
-        #print(f'val_labels = {val_labels}')
         val_f1 = f1_score(val_labels, val_preds)
         val_accuracy = np.sum(val_preds == val_labels) / len(val_labels)
         val_scores = pd.Series([val_f1, val_accuracy], index=['F1', 'acc'])
@@ -996,6 +999,7 @@ def main():
     parser.add_argument('--group_categories', nargs='+', default=['location_region', 'expert_pct_bin', 'relative_time_bin'])
     parser.add_argument('--retrain', dest='feature', action='store_true', default=False)
     parser.add_argument('--out_dir', default='../../data/reddit_data/group_classification_model/')
+    parser.add_argument('--text_var', default='question_post')
     args = vars(parser.parse_args())
     #sample_size = 0 # no-replacement sampling
     sample_size = 10000 # sampling with replacement
@@ -1018,10 +1022,11 @@ def main():
     # post_question_data = post_question_data[post_question_data.loc[:, 'group_category'].isin(group_categories)]
     ## simple neural network approach
     out_dir = args['out_dir']
+    text_var = args['text_var']
     sample_type = 'paired'
     # sample_type = 'sample'
     # train_test_basic_classifier(group_categories, sample_size, out_dir, sample_type=sample_type)
-    train_test_full_transformer(group_categories, sample_size, sample_type, out_dir)
+    train_test_full_transformer(group_categories, sample_size, sample_type, out_dir, text_var=text_var)
 
     ## transformer code: doesn't learn anything? same P(Y|X) regardless of input
     # for group_var_i in group_categories:
