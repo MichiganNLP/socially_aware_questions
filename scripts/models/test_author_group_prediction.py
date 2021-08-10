@@ -729,33 +729,44 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
     }
     for group_category_i in group_categories:
         print(f'about to process data for category={group_category_i}')
-        post_question_data_i = post_question_data[post_question_data.loc[:, 'group_category']==group_category_i]
-        default_group_val_i = default_group_values[group_category_i]
-        labels_i = (post_question_data_i.loc[:, 'author_group']==default_group_val_i).astype(int).values
-        # Tokenize all of the sentences and map the tokens to word IDs.
-        # max_length = 1024 # TOO LONG!! NO CAPES
-        max_length = 512
-        input_data_i = list(map(lambda x: tokenizer.encode_plus(x, add_special_tokens=True, return_attention_mask=True,
-                                                              return_tensors='pt', max_length=max_length,
-                                                              padding='max_length', truncation=True),
-                                tqdm(post_question_data_i.loc[:, 'post_question'])))
-        input_ids_i = list(map(lambda x: x['input_ids'], input_data_i))
-        attention_masks_i = list(map(lambda x: x['attention_mask'], input_data_i))
-        # Convert the lists into tensors.
-        input_ids_i = torch.cat(input_ids_i, dim=0)
-        attention_masks_i = torch.cat(attention_masks_i, dim=0)
-        labels_i = torch.LongTensor(labels_i)
-        dataset = TensorDataset(input_ids_i, attention_masks_i, labels_i)
-        # Create a 90-10 train-validation split.
-        # Calculate the number of samples to include in each set.
-        train_size = int(0.9 * len(dataset))
-        val_size = len(dataset) - train_size
-        train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
-        print('{:d} training samples'.format(train_size))
-        print('{:d} validation samples'.format(val_size))
         model_out_dir_i = os.path.join(out_dir, f'question_post_group={group_category_i}_transformer_model')
         if (not os.path.exists(model_out_dir_i)):
             os.mkdir(model_out_dir_i)
+        train_data_file_i = os.path.join(model_out_dir_i, f'train_data.pt')
+        val_data_file_i = os.path.join(model_out_dir_i, f'val_data.pt')
+        if(not os.path.exists(train_data_file_i)):
+            post_question_data_i = post_question_data[post_question_data.loc[:, 'group_category']==group_category_i]
+            default_group_val_i = default_group_values[group_category_i]
+
+            labels_i = (post_question_data_i.loc[:, 'author_group']==default_group_val_i).astype(int).values
+            # Tokenize all of the sentences and map the tokens to word IDs.
+            # max_length = 1024 # TOO LONG!! NO CAPES
+            max_length = 512
+            input_data_i = list(map(lambda x: tokenizer.encode_plus(x, add_special_tokens=True, return_attention_mask=True,
+                                                                  return_tensors='pt', max_length=max_length,
+                                                                  padding='max_length', truncation=True),
+                                    tqdm(post_question_data_i.loc[:, 'post_question'])))
+            input_ids_i = list(map(lambda x: x['input_ids'], input_data_i))
+            attention_masks_i = list(map(lambda x: x['attention_mask'], input_data_i))
+            # Convert the lists into tensors.
+            input_ids_i = torch.cat(input_ids_i, dim=0)
+            attention_masks_i = torch.cat(attention_masks_i, dim=0)
+            labels_i = torch.LongTensor(labels_i)
+            dataset = TensorDataset(input_ids_i, attention_masks_i, labels_i)
+            # Create a 90-10 train-validation split.
+            # Calculate the number of samples to include in each set.
+            train_size = int(0.9 * len(dataset))
+            val_size = len(dataset) - train_size
+            train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+            torch.save(train_dataset, train_data_file_i)
+            torch.save(val_dataset, val_data_file_i)
+        else:
+            train_dataset = torch.load(train_data_file_i)
+            val_dataset = torch.load(val_data_file_i)
+        train_size = len(train_dataset)
+        val_size = len(val_dataset)
+        print('{:d} training samples'.format(train_size))
+        print('{:d} validation samples'.format(val_size))
         model_out_file_i = os.path.join(model_out_dir_i, 'pytorch_model.bin')
         if(not os.path.exists(model_out_file_i)):
             batch_size = 4
@@ -932,7 +943,12 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
         model.eval()
         total_eval_accuracy = 0
         val_preds = []
-        # Evaluate data for one epoch
+        batch_size = 4
+        validation_dataloader = DataLoader(
+            val_dataset,  # The validation samples.
+            sampler=SequentialSampler(val_dataset),
+            batch_size=batch_size  # Evaluate with this batch size.
+        )
         for batch in validation_dataloader:
             b_input_ids = batch[0].to(device)
             b_input_mask = batch[1].to(device)
