@@ -743,9 +743,9 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
             if(type(default_group_val_i) is int):
                 post_question_data_i = post_question_data_i.assign(**{'author_group' : post_question_data_i.loc[:, 'author_group'].apply(lambda x: int(float(x)))})
             labels_i = (post_question_data_i.loc[:, 'author_group']==default_group_val_i).astype(int).values
-            print(f'group category = {group_category_i}; default val = {default_group_val_i}')
+            #print(f'group category = {group_category_i}; default val = {default_group_val_i}')
             # tmp debugging: label distribution
-            print(f'author group sample = {post_question_data_i.loc[:, "author_group"].iloc[:10]}')
+            #print(f'author group sample = {post_question_data_i.loc[:, "author_group"].iloc[:10]}')
             print(f'author group count = {post_question_data_i.loc[:, "author_group"].value_counts()}')
             print(f'label distribution = {pd.Series(labels_i).value_counts()}')
             # Tokenize all of the sentences and map the tokens to word IDs.
@@ -933,7 +933,8 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
             print("Training complete!")
             print("Total training took {:} (h:mm:ss)".format(format_time(time.time() - total_t0)))
             ## save trained model
-            model.save_model(model_out_dir_i)
+            #model.save_model(model_out_dir_i)
+            model.save_pretrained(model_out_dir_i)
             ## save training stats
             training_stats_data = pd.DataFrame(training_stats)
             training_stats_data_file = os.path.join(model_out_dir_i, f'training_stats.tsv')
@@ -999,7 +1000,7 @@ def main():
     parser.add_argument('--group_categories', nargs='+', default=['location_region', 'expert_pct_bin', 'relative_time_bin'])
     parser.add_argument('--retrain', dest='feature', action='store_true', default=False)
     parser.add_argument('--out_dir', default='../../data/reddit_data/group_classification_model/')
-    parser.add_argument('--text_var', default='question_post')
+    parser.add_argument('--text_var', default='post_question')
     args = vars(parser.parse_args())
     #sample_size = 0 # no-replacement sampling
     sample_size = 10000 # sampling with replacement
