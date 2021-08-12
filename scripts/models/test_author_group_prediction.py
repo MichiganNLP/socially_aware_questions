@@ -719,7 +719,7 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
         post_question_data.to_csv(post_question_data_file, sep='\t', compression='gzip', index=False)
     else:
         post_question_data = pd.read_csv(post_question_data_file, sep='\t', compression='gzip', index_col=False)
-    tokenizer = BartTokenizer.from_pretrained('facebook/bart-base', do_lower_case=False)
+    tokenizer = BartTokenizer.from_pretrained('facebook/bart-base', do_lower_case=True)
     if(text_var == 'post_question'):
         tokenizer.add_special_tokens({'additional_special_tokens': ['[QUESTION]']})
         post_question_data = post_question_data.assign(**{

@@ -14,6 +14,7 @@ TEXT_VAR="question_post"
 #TEXT_VAR="question"
 #GROUP_CATEGORIES=("relative_time_bin")
 # queue server
+# offline model because no internet connection in cluster
 export HF_DATASETS_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1 
 python test_author_group_prediction.py --group_categories "${GROUP_CATEGORIES[@]}" --out_dir ../../data/reddit_data/group_classification_model/ --text_var $TEXT_VAR
