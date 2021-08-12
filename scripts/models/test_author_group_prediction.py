@@ -994,6 +994,10 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
         # save scores
         score_out_file_i = os.path.join(model_out_dir_i, 'acc_scores.tsv')
         val_scores.to_csv(score_out_file_i, sep='\t', index=True)
+        # save preds
+        pred_out_file_i = os.path.join(model_out_dir_i, 'preds.csv')
+        val_preds = pd.Series(val_preds)
+        val_preds.to_csv(pred_out_file_i, sep=',', index=False)
 
 def main():
     parser = ArgumentParser()
