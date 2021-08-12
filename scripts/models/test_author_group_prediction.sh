@@ -10,7 +10,7 @@
 #SBATCH --gpus=1
 
 #GROUP_CATEGORIES=("location_region" "expert_pct_bin" "relative_time_bin")
-GROUP_CATEGORIES=("location_region")
+GROUP_CATEGORIES=("relative_time_bin")
 TEXT_VAR="post_question"
 #TEXT_VAR="question"
 # queue server

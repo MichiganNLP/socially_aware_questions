@@ -800,7 +800,7 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
             model = model.cuda()
             optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)
             # epochs = 4 # NOTE: this leads to ~55% accuracy on validation w/ N=10000 data, which was increasing before it ended
-            epochs = 8
+            epochs = 16
             total_steps = len(train_dataloader) * epochs
             scheduler = get_linear_schedule_with_warmup(optimizer,
                                                         num_warmup_steps=0,
@@ -986,9 +986,11 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
             val_preds.extend(preds)
             total_eval_accuracy += flat_accuracy(logits, label_ids)
         # compute mean, std F1
-        val_labels = list(map(lambda x: x[2], val_dataset))
+        val_labels = np.array(list(map(lambda x: x[2], val_dataset)))
+        val_preds = np.array(val_preds)
         # tmp debugging
-        val_f1 = f1_score(val_labels, val_preds)
+        #print(f'val labels sample {val_labels[:50]}')
+        val_f1 = f1_score(val_labels, val_preds, average='macro')
         val_accuracy = np.sum(val_preds == val_labels) / len(val_labels)
         val_scores = pd.Series([val_f1, val_accuracy], index=['F1', 'acc'])
         # save scores
