@@ -2,6 +2,7 @@
 Test how easily we can predict whether a question
 was written by a member of group 1 or 2.
 """
+import gzip
 import os
 import pickle
 import random
@@ -697,7 +698,8 @@ def format_time(elapsed):
     elapsed_rounded = int(round((elapsed)))
     return str(timedelta(seconds=elapsed_rounded))
 
-def train_test_full_transformer(group_categories, sample_size, sample_type, out_dir):
+def train_test_full_transformer(group_categories, sample_size, sample_type,
+                                out_dir, text_var='post_question'):
     """
     Train/test model to predict group from question+post text, with full transformer BART model. FUN
 
@@ -717,45 +719,63 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
         post_question_data.to_csv(post_question_data_file, sep='\t', compression='gzip', index=False)
     else:
         post_question_data = pd.read_csv(post_question_data_file, sep='\t', compression='gzip', index_col=False)
-    tokenizer = BartTokenizer.from_pretrained('facebook/bart-base', do_lower_case=True)
-    tokenizer.add_special_tokens({'additional_special_tokens': ['[QUESTION]']})
-    post_question_data = post_question_data.assign(**{
-        'post_question': post_question_data.apply(lambda x: combine_post_question(x, tokenizer), axis=1)
-    })
+    tokenizer = BartTokenizer.from_pretrained('facebook/bart-base', do_lower_case=False)
+    if(text_var == 'post_question'):
+        tokenizer.add_special_tokens({'additional_special_tokens': ['[QUESTION]']})
+        post_question_data = post_question_data.assign(**{
+            'post_question': post_question_data.apply(lambda x: combine_post_question(x, tokenizer), axis=1)
+        })
     default_group_values = {
-        'expert_pct_bin' : 1.0,
-        'relative_time_bin' : 1.0,
+        'expert_pct_bin' : 1,
+        'relative_time_bin' : 1,
         'location_region' : 'US',
     }
     for group_category_i in group_categories:
         print(f'about to process data for category={group_category_i}')
-        post_question_data_i = post_question_data[post_question_data.loc[:, 'group_category']==group_category_i]
-        default_group_val_i = default_group_values[group_category_i]
-        labels_i = (post_question_data_i.loc[:, 'author_group']==default_group_val_i).astype(int).values
-        # Tokenize all of the sentences and map the tokens to word IDs.
-        # max_length = 1024 # TOO LONG!! NO CAPES
-        max_length = 512
-        input_data_i = list(map(lambda x: tokenizer.encode_plus(x, add_special_tokens=True, return_attention_mask=True,
-                                                              return_tensors='pt', max_length=max_length,
-                                                              padding='max_length', truncation=True),
-                                tqdm(post_question_data_i.loc[:, 'post_question'])))
-        input_ids_i = list(map(lambda x: x['input_ids'], input_data_i))
-        attention_masks_i = list(map(lambda x: x['attention_mask'], input_data_i))
-        # Convert the lists into tensors.
-        input_ids_i = torch.cat(input_ids_i, dim=0)
-        attention_masks_i = torch.cat(attention_masks_i, dim=0)
-        labels_i = torch.LongTensor(labels_i)
-        dataset = TensorDataset(input_ids_i, attention_masks_i, labels_i)
-        # Create a 90-10 train-validation split.
-        # Calculate the number of samples to include in each set.
-        train_size = int(0.9 * len(dataset))
-        val_size = len(dataset) - train_size
-        train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
-        print('{:d} training samples'.format(train_size))
-        print('{:d} validation samples'.format(val_size))
-        model_out_dir_i = os.path.join(out_dir, f'question_post_group={group_category_i}_transformer_model')
+        model_out_dir_i = os.path.join(out_dir, f'text={text_var}_group={group_category_i}_transformer_model')
         if (not os.path.exists(model_out_dir_i)):
             os.mkdir(model_out_dir_i)
+        train_data_file_i = os.path.join(model_out_dir_i, f'train_data.gz')
+        val_data_file_i = os.path.join(model_out_dir_i, f'val_data.gz')
+        if(not os.path.exists(train_data_file_i)):
+            post_question_data_i = post_question_data[post_question_data.loc[:, 'group_category']==group_category_i]
+            default_group_val_i = default_group_values[group_category_i]
+            if(type(default_group_val_i) is int):
+                post_question_data_i = post_question_data_i.assign(**{'author_group' : post_question_data_i.loc[:, 'author_group'].apply(lambda x: int(float(x)))})
+            labels_i = (post_question_data_i.loc[:, 'author_group']==default_group_val_i).astype(int).values
+            print(f'group category = {group_category_i}; default val = {default_group_val_i}')
+            # tmp debugging: label distribution
+            print(f'author group sample = {post_question_data_i.loc[:, "author_group"].iloc[:10]}')
+            print(f'author group count = {post_question_data_i.loc[:, "author_group"].value_counts()}')
+            print(f'label distribution = {pd.Series(labels_i).value_counts()}')
+            # Tokenize all of the sentences and map the tokens to word IDs.
+            # max_length = 1024 # TOO LONG!! NO CAPES
+            max_length = 512
+            input_data_i = list(map(lambda x: tokenizer.encode_plus(x, add_special_tokens=True, return_attention_mask=True,
+                                                                  return_tensors='pt', max_length=max_length,
+                                                                  padding='max_length', truncation=True),
+                                    tqdm(post_question_data_i.loc[:, text_var])))
+            input_ids_i = list(map(lambda x: x['input_ids'], input_data_i))
+            attention_masks_i = list(map(lambda x: x['attention_mask'], input_data_i))
+            # Convert the lists into tensors.
+            input_ids_i = torch.cat(input_ids_i, dim=0)
+            attention_masks_i = torch.cat(attention_masks_i, dim=0)
+            labels_i = torch.LongTensor(labels_i)
+            dataset = TensorDataset(input_ids_i, attention_masks_i, labels_i)
+            # Create a 90-10 train-validation split.
+            # Calculate the number of samples to include in each set.
+            train_size = int(0.9 * len(dataset))
+            val_size = len(dataset) - train_size
+            train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+            torch.save(train_dataset, gzip.open(train_data_file_i, 'wb'))
+            torch.save(val_dataset, gzip.open(val_data_file_i, 'wb'))
+        else:
+            train_dataset = torch.load(gzip.open(train_data_file_i, 'rb'))
+            val_dataset = torch.load(gzip.open(val_data_file_i, 'rb'))
+        train_size = len(train_dataset)
+        val_size = len(val_dataset)
+        print('{:d} training samples'.format(train_size))
+        print('{:d} validation samples'.format(val_size))
         model_out_file_i = os.path.join(model_out_dir_i, 'pytorch_model.bin')
         if(not os.path.exists(model_out_file_i)):
             batch_size = 4
@@ -780,7 +800,7 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
             model = model.cuda()
             optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)
             # epochs = 4 # NOTE: this leads to ~55% accuracy on validation w/ N=10000 data, which was increasing before it ended
-            epochs = 8
+            epochs = 16
             total_steps = len(train_dataloader) * epochs
             scheduler = get_linear_schedule_with_warmup(optimizer,
                                                         num_warmup_steps=0,
@@ -927,17 +947,30 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
         )
         model_weights = torch.load(model_out_file_i)
         model.resize_token_embeddings(len(tokenizer))
+        device = torch.cuda.current_device()
         model.load_state_dict(model_weights)
+        model.to(device)
         # get validation accuracy
         model.eval()
         total_eval_accuracy = 0
         val_preds = []
-        # Evaluate data for one epoch
+        batch_size = 4
+        validation_dataloader = DataLoader(
+            val_dataset,  # The validation samples.
+            sampler=SequentialSampler(val_dataset),
+            batch_size=batch_size  # Evaluate with this batch size.
+        )
         for batch in validation_dataloader:
             b_input_ids = batch[0].to(device)
             b_input_mask = batch[1].to(device)
             b_labels = batch[2].to(device)
+            # tmp debugging
+            # print(f'model device = {model.device}')
+            # print(f'data device = {b_input_ids.device}; {b_input_mask.device}; {b_labels.device}')
             with torch.no_grad():
+                # tmp debugging
+                #print(f'model device = {model.device}')
+                #print(f'data device = {b_input_ids.device}; {b_input_mask.device}; {b_labels.device}')
                 result = model(b_input_ids,
                                attention_mask=b_input_mask,
                                labels=b_labels,
@@ -945,28 +978,32 @@ def train_test_full_transformer(group_categories, sample_size, sample_type, out_
                 b_input_ids = b_input_ids.to('cpu')
                 b_input_mask = b_input_mask.to('cpu')
                 b_labels = b_labels.to('cpu')
-            loss = result.loss
+                label_ids = b_labels.numpy()
             logits = result.logits
             logits = logits.detach().cpu().numpy()
-            label_ids = b_labels.to('cpu').numpy()
             preds = list(logits.argmax(axis=1))
             val_preds.extend(preds)
             total_eval_accuracy += flat_accuracy(logits, label_ids)
-        avg_val_accuracy = total_eval_accuracy / len(validation_dataloader)
         # compute mean, std F1
-        val_labels = list(map(lambda x: x[2], val_dataset))
+        val_labels = np.array(list(map(lambda x: x[2], val_dataset)))
+        val_preds = np.array(val_preds)
         val_f1 = f1_score(val_labels, val_preds)
         val_accuracy = np.sum(val_preds == val_labels) / len(val_labels)
         val_scores = pd.Series([val_f1, val_accuracy], index=['F1', 'acc'])
         # save scores
         score_out_file_i = os.path.join(model_out_dir_i, 'acc_scores.tsv')
         val_scores.to_csv(score_out_file_i, sep='\t', index=True)
+        # save preds
+        pred_out_file_i = os.path.join(model_out_dir_i, 'preds.csv')
+        val_preds = pd.Series(val_preds)
+        val_preds.to_csv(pred_out_file_i, sep=',', index=False)
 
 def main():
     parser = ArgumentParser()
     parser.add_argument('--group_categories', nargs='+', default=['location_region', 'expert_pct_bin', 'relative_time_bin'])
     parser.add_argument('--retrain', dest='feature', action='store_true', default=False)
     parser.add_argument('--out_dir', default='../../data/reddit_data/group_classification_model/')
+    parser.add_argument('--text_var', default='question_post')
     args = vars(parser.parse_args())
     #sample_size = 0 # no-replacement sampling
     sample_size = 10000 # sampling with replacement
@@ -989,10 +1026,11 @@ def main():
     # post_question_data = post_question_data[post_question_data.loc[:, 'group_category'].isin(group_categories)]
     ## simple neural network approach
     out_dir = args['out_dir']
+    text_var = args['text_var']
     sample_type = 'paired'
     # sample_type = 'sample'
     # train_test_basic_classifier(group_categories, sample_size, out_dir, sample_type=sample_type)
-    train_test_full_transformer(group_categories, sample_size, sample_type, out_dir)
+    train_test_full_transformer(group_categories, sample_size, sample_type, out_dir, text_var=text_var)
 
     ## transformer code: doesn't learn anything? same P(Y|X) regardless of input
     # for group_var_i in group_categories:
