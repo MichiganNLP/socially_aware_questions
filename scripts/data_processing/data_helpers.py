@@ -1237,17 +1237,16 @@ def load_sample_data(sample_type='all', sample_size=0):
         on=['date_day', 'author'], how='left',
     )
     question_author_data = pd.merge(
-        question_author_data,
-        clean_author_data.dropna(subset=static_author_vars, how='all').loc[:,
-        ['author', ] + static_author_vars],
+        question_author_data, clean_author_data.dropna(subset=static_author_vars, how='all').loc[:, ['author', ] + static_author_vars],
         on='author', how='left',
     )
     # drop null rows
     question_author_data.dropna(subset=dynamic_author_vars + static_author_vars,
                                 how='all', inplace=True)
     for dynamic_author_var in dynamic_author_vars:
-        question_author_data.drop_duplicates(
-            ['author', 'date_day', dynamic_author_var], inplace=True)
+        question_author_data.drop_duplicates(['author', 'date_day', dynamic_author_var], inplace=True)
+    # add question ID?
+    # question_author_data = question_author_data.assign(**{'question_id' : question_author_data.loc[:, 'question'].apply(hash)})
     ## load post data
     post_data = pd.read_csv('../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz', sep='\t', compression='gzip', index_col=False, usecols=['id', 'selftext', 'title'])
     post_data.rename(columns={'id': 'parent_id', 'selftext': 'post', 'title': 'post_title'}, inplace=True)
@@ -1293,10 +1292,11 @@ def load_sample_data(sample_type='all', sample_size=0):
                 data_to_sample = question_author_data[question_author_data.loc[:, group_var] != 'UNK']
             else:
                 data_to_sample = question_author_data.copy()
-            sample_question_data_i = sample_by_subreddit_author_group(data_to_sample, group_var, sample_size=sample_size)
+            # sample_question_data_i = sample_by_subreddit_author_group(data_to_sample, group_var, sample_size=sample_size)
+            sample_question_data_i = sample_by_subreddit_author_group(data_to_sample, group_var)
             # reformat to prevent overlap!!
             # text | author group
-            sample_question_data_i = sample_question_data_i.loc[:, [group_var, 'question', 'subreddit', 'parent_id']]
+            sample_question_data_i = sample_question_data_i.loc[:, [group_var, 'question', 'subreddit', 'parent_id', 'question_id']]
             sample_question_data_i.rename(columns={group_var: 'author_group'}, inplace=True)
             sample_question_data_i = sample_question_data_i.assign(**{
                 'author_group': sample_question_data_i.loc[:, 'author_group'].apply(lambda x: f'{group_var}={x}'),

@@ -684,7 +684,6 @@ def combine_post_question(data, tokenizer, max_length=1024):
         post_question_txt = ' '.join([post_txt, QUESTION_TOKEN, question_txt])
     return post_question_txt
 
-
 # Function to calculate the accuracy of our predictions vs labels
 def flat_accuracy(preds, labels):
     pred_flat = np.argmax(preds, axis=1).flatten()
@@ -719,11 +718,13 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
         post_question_data.to_csv(post_question_data_file, sep='\t', compression='gzip', index=False)
     else:
         post_question_data = pd.read_csv(post_question_data_file, sep='\t', compression='gzip', index_col=False)
-    tokenizer = BartTokenizer.from_pretrained('facebook/bart-base', do_lower_case=True)
+    tokenizer = BartTokenizer.from_pretrained('facebook/bart-base', do_lower_case=False)
+    # max_length = 1024 # TOO LONG!! NO CAPES
+    max_length = 512
     if(text_var == 'post_question'):
         tokenizer.add_special_tokens({'additional_special_tokens': ['[QUESTION]']})
         post_question_data = post_question_data.assign(**{
-            'post_question': post_question_data.apply(lambda x: combine_post_question(x, tokenizer), axis=1)
+            'post_question': post_question_data.apply(lambda x: combine_post_question(x, tokenizer, max_length=max_length), axis=1)
         })
     default_group_values = {
         'expert_pct_bin' : 1,
@@ -749,8 +750,6 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
             print(f'author group count = {post_question_data_i.loc[:, "author_group"].value_counts()}')
             print(f'label distribution = {pd.Series(labels_i).value_counts()}')
             # Tokenize all of the sentences and map the tokens to word IDs.
-            # max_length = 1024 # TOO LONG!! NO CAPES
-            max_length = 512
             input_data_i = list(map(lambda x: tokenizer.encode_plus(x, add_special_tokens=True, return_attention_mask=True,
                                                                   return_tensors='pt', max_length=max_length,
                                                                   padding='max_length', truncation=True),
@@ -800,7 +799,7 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
             model = model.cuda()
             optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)
             # epochs = 4 # NOTE: this leads to ~55% accuracy on validation w/ N=10000 data, which was increasing before it ended
-            epochs = 8
+            epochs = 16
             total_steps = len(train_dataloader) * epochs
             scheduler = get_linear_schedule_with_warmup(optimizer,
                                                         num_warmup_steps=0,
@@ -985,8 +984,8 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
             val_preds.extend(preds)
             total_eval_accuracy += flat_accuracy(logits, label_ids)
         # compute mean, std F1
-        val_labels = list(map(lambda x: x[2], val_dataset))
-        # tmp debugging
+        val_labels = np.array(list(map(lambda x: x[2], val_dataset)))
+        val_preds = np.array(val_preds)
         val_f1 = f1_score(val_labels, val_preds)
         val_accuracy = np.sum(val_preds == val_labels) / len(val_labels)
         val_scores = pd.Series([val_f1, val_accuracy], index=['F1', 'acc'])
