@@ -22,7 +22,7 @@ python test_author_group_prediction.py --group_categories "${GROUP_CATEGORIES[@]
 # regular server
 # specify CUDA device (only for LIT machines)
 #export CUDA_VISIBLE_DEVICES=3
-python test_author_group_prediction.py --group_categories "${GROUP_CATEGORIES[@]}" --out_dir ../../data/reddit_data/group_classification_model/
+#python test_author_group_prediction.py --group_categories "${GROUP_CATEGORIES[@]}" --out_dir ../../data/reddit_data/group_classification_model/
 # dumb parallel code that doesn't work fml
 #export LOCAL_RANK=1
 #python -m torch.distributed.launch --nproc_per_node 2 --use_env test_author_group_prediction.py "${GROUP_CATEGORIES[@]}"
