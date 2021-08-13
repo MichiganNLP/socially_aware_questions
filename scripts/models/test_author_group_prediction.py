@@ -684,7 +684,6 @@ def combine_post_question(data, tokenizer, max_length=1024):
         post_question_txt = ' '.join([post_txt, QUESTION_TOKEN, question_txt])
     return post_question_txt
 
-
 # Function to calculate the accuracy of our predictions vs labels
 def flat_accuracy(preds, labels):
     pred_flat = np.argmax(preds, axis=1).flatten()
@@ -719,11 +718,13 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
         post_question_data.to_csv(post_question_data_file, sep='\t', compression='gzip', index=False)
     else:
         post_question_data = pd.read_csv(post_question_data_file, sep='\t', compression='gzip', index_col=False)
-    tokenizer = BartTokenizer.from_pretrained('facebook/bart-base', do_lower_case=True)
+    tokenizer = BartTokenizer.from_pretrained('facebook/bart-base', do_lower_case=False)
+    # max_length = 1024 # TOO LONG!! NO CAPES
+    max_length = 512
     if(text_var == 'post_question'):
         tokenizer.add_special_tokens({'additional_special_tokens': ['[QUESTION]']})
         post_question_data = post_question_data.assign(**{
-            'post_question': post_question_data.apply(lambda x: combine_post_question(x, tokenizer), axis=1)
+            'post_question': post_question_data.apply(lambda x: combine_post_question(x, tokenizer, max_length=max_length), axis=1)
         })
     default_group_values = {
         'expert_pct_bin' : 1,
@@ -743,14 +744,12 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
             if(type(default_group_val_i) is int):
                 post_question_data_i = post_question_data_i.assign(**{'author_group' : post_question_data_i.loc[:, 'author_group'].apply(lambda x: int(float(x)))})
             labels_i = (post_question_data_i.loc[:, 'author_group']==default_group_val_i).astype(int).values
-            print(f'group category = {group_category_i}; default val = {default_group_val_i}')
+            #print(f'group category = {group_category_i}; default val = {default_group_val_i}')
             # tmp debugging: label distribution
-            print(f'author group sample = {post_question_data_i.loc[:, "author_group"].iloc[:10]}')
+            #print(f'author group sample = {post_question_data_i.loc[:, "author_group"].iloc[:10]}')
             print(f'author group count = {post_question_data_i.loc[:, "author_group"].value_counts()}')
             print(f'label distribution = {pd.Series(labels_i).value_counts()}')
             # Tokenize all of the sentences and map the tokens to word IDs.
-            # max_length = 1024 # TOO LONG!! NO CAPES
-            max_length = 512
             input_data_i = list(map(lambda x: tokenizer.encode_plus(x, add_special_tokens=True, return_attention_mask=True,
                                                                   return_tensors='pt', max_length=max_length,
                                                                   padding='max_length', truncation=True),
@@ -933,7 +932,8 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
             print("Training complete!")
             print("Total training took {:} (h:mm:ss)".format(format_time(time.time() - total_t0)))
             ## save trained model
-            model.save_model(model_out_dir_i)
+            #model.save_model(model_out_dir_i)
+            model.save_pretrained(model_out_dir_i)
             ## save training stats
             training_stats_data = pd.DataFrame(training_stats)
             training_stats_data_file = os.path.join(model_out_dir_i, f'training_stats.tsv')
@@ -987,7 +987,9 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
         # compute mean, std F1
         val_labels = np.array(list(map(lambda x: x[2], val_dataset)))
         val_preds = np.array(val_preds)
-        val_f1 = f1_score(val_labels, val_preds)
+        # tmp debugging
+        #print(f'val labels sample {val_labels[:50]}')
+        val_f1 = f1_score(val_labels, val_preds, average='macro')
         val_accuracy = np.sum(val_preds == val_labels) / len(val_labels)
         val_scores = pd.Series([val_f1, val_accuracy], index=['F1', 'acc'])
         # save scores
@@ -1003,7 +1005,7 @@ def main():
     parser.add_argument('--group_categories', nargs='+', default=['location_region', 'expert_pct_bin', 'relative_time_bin'])
     parser.add_argument('--retrain', dest='feature', action='store_true', default=False)
     parser.add_argument('--out_dir', default='../../data/reddit_data/group_classification_model/')
-    parser.add_argument('--text_var', default='question_post')
+    parser.add_argument('--text_var', default='post_question')
     args = vars(parser.parse_args())
     #sample_size = 0 # no-replacement sampling
     sample_size = 10000 # sampling with replacement

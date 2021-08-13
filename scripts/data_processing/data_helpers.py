@@ -1172,16 +1172,16 @@ def try_convert_date(date_str, date_formats=['%Y-%m-%d', '%Y-%m-%d %H:%M:%S']):
             pass
     return date_val
 
-def sample_by_subreddit_author_group(data, group_var):
+def sample_by_subreddit_author_group(data, group_var, sample_size=None):
     subreddit_group_counts = data.loc[:, ['subreddit', group_var]].value_counts()
-    min_group_count = subreddit_group_counts.min()
+    if(sample_size is None):
+        sample_size = subreddit_group_counts.min()
     sample_data = []
     for (subreddit_i, group_var_i), data_i in data.groupby(['subreddit', group_var]):
-        sample_idx_i = np.random.choice(data_i.index, min_group_count, replace=False)
+        sample_idx_i = np.random.choice(data_i.index, sample_size, replace=(sample_size > data_i.shape[0]))
         sample_data.append(data_i.loc[sample_idx_i, :])
     sample_data = pd.concat(sample_data, axis=0)
     return sample_data
-
 
 def write_flush_data(data_cols, out_file, new_data):
     """
@@ -1237,17 +1237,16 @@ def load_sample_data(sample_type='all', sample_size=0):
         on=['date_day', 'author'], how='left',
     )
     question_author_data = pd.merge(
-        question_author_data,
-        clean_author_data.dropna(subset=static_author_vars, how='all').loc[:,
-        ['author', ] + static_author_vars],
+        question_author_data, clean_author_data.dropna(subset=static_author_vars, how='all').loc[:, ['author', ] + static_author_vars],
         on='author', how='left',
     )
     # drop null rows
     question_author_data.dropna(subset=dynamic_author_vars + static_author_vars,
                                 how='all', inplace=True)
     for dynamic_author_var in dynamic_author_vars:
-        question_author_data.drop_duplicates(
-            ['author', 'date_day', dynamic_author_var], inplace=True)
+        question_author_data.drop_duplicates(['author', 'date_day', dynamic_author_var], inplace=True)
+    # add question ID?
+    # question_author_data = question_author_data.assign(**{'question_id' : question_author_data.loc[:, 'question'].apply(hash)})
     ## load post data
     post_data = pd.read_csv('../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz', sep='\t', compression='gzip', index_col=False, usecols=['id', 'selftext', 'title'])
     post_data.rename(columns={'id': 'parent_id', 'selftext': 'post', 'title': 'post_title'}, inplace=True)
@@ -1283,23 +1282,30 @@ def load_sample_data(sample_type='all', sample_size=0):
         print(f'after paired sampling: question data has label distribution = {question_author_data.loc[:, "author_group"].value_counts()}')
         print(f'after paired sampling: question data has subreddit distribution = {question_author_data.loc[:, "subreddit"].value_counts()}')
         # print(f'question author data sample = {question_author_data.head()}')
-    elif(sample_type=='all'):
+    elif(sample_type=='group_subreddit_balance' or sample_type=='all'):
         # sample same number of reader group per subreddit
         group_vars = ['location_region', 'expert_pct_bin', 'relative_time_bin']
         sample_question_data = []
+        if(sample_size == 'all'):
+            sample_size = question_author_data.shape[0]
+        else:
+            sample_size = None
         for group_var in group_vars:
             # drop UNK vals FML
             if (group_var == 'location_region'):
                 data_to_sample = question_author_data[question_author_data.loc[:, group_var] != 'UNK']
             else:
                 data_to_sample = question_author_data.copy()
+            # sample_question_data_i = sample_by_subreddit_author_group(data_to_sample, group_var, sample_size=sample_size)
             sample_question_data_i = sample_by_subreddit_author_group(data_to_sample, group_var, sample_size=sample_size)
+            # remove duplicates
+            sample_question_data_i.drop_duplicates(['question', 'author', 'parent_id'], inplace=True)
             # reformat to prevent overlap!!
             # text | author group
-            sample_question_data_i = sample_question_data_i.loc[:, [group_var, 'question', 'subreddit', 'parent_id']]
+            sample_question_data_i = sample_question_data_i.loc[:, [group_var, 'question', 'subreddit', 'parent_id', 'question_id', 'author']]
             sample_question_data_i.rename(columns={group_var: 'author_group'}, inplace=True)
             sample_question_data_i = sample_question_data_i.assign(**{
-                'author_group': sample_question_data_i.loc[:, 'author_group'].apply(lambda x: f'{group_var}={x}'),
+                # 'author_group': sample_question_data_i.loc[:, 'author_group'].apply(lambda x: f'{group_var}={x}'),
                 'group_category': group_var,
             })
             sample_question_data.append(sample_question_data_i)
