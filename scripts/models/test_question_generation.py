@@ -284,7 +284,8 @@ def prepare_test_data_for_generation(model_config, model_type, test_data):
     ## fix metadata for reader-aware models
     # fix reader token for all models! because we need to
     # compare performance between reader groups
-    test_data.remove_column_('reader_token')
+    if('reader_token' in test_data.column_names):
+        test_data.remove_column_('reader_token')
     test_data.rename_column_('reader_token_str', 'reader_token')
     if (model_type == 'bart_author_token'):
         test_data.remove_column_('source_ids')
@@ -296,6 +297,7 @@ def prepare_test_data_for_generation(model_config, model_type, test_data):
     #     # fix reader token data
     #     test_data.rename_column_('reader_token_str', 'reader_token')
     data_cols = ['source_ids', 'target_ids', 'attention_mask']
+    data_cols = list(filter(lambda x: x in test_data.column_names, data_cols))
     if (model_type == 'bart_author_embeds'):
         # choose appropriate column for embeds
         test_data.rename_column_(
