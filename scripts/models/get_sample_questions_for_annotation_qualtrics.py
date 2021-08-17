@@ -216,12 +216,12 @@ def main():
     })
     paired_group_data = paired_group_data[paired_group_data.loc[:, 'reader_model_group_1']!=paired_group_data.loc[:, 'reader_model_group_2']]
     # filter long posts
-    # tokenizer = WordPunctTokenizer()
-    # max_post_word_count = 300
-    # paired_group_data = paired_group_data.assign(**{
-    #     'post_len': paired_group_data.loc[:, 'post_text'].apply(lambda x: len(tokenizer.tokenize(x)))
-    # })
-    # paired_group_data = paired_group_data[paired_group_data.loc[:, 'post_len']<=max_post_word_count]
+    tokenizer = WordPunctTokenizer()
+    max_post_word_count = 500
+    paired_group_data = paired_group_data.assign(**{
+        'post_len': paired_group_data.loc[:, 'post_text'].apply(lambda x: len(tokenizer.tokenize(x)))
+    })
+    paired_group_data = paired_group_data[paired_group_data.loc[:, 'post_len']<=max_post_word_count]
     ## convert to standard format
     ## one file per reader group per subreddit
     Q1_vars = ['target_text', 'text_model', 'reader_model']
@@ -251,7 +251,8 @@ def main():
         ## convert to Qualtrics text etc.
         # question_txt_output_i = group_question_txt_by_subgroup(annotation_data_i, subgroup_vars=subgroup_vars)
         # question_txt_i = question_txt_output_i[0]
-        question_txt_i = convert_question_data_to_txt_frame(annotation_data_i)
+        block_name = f'subreddit={subreddit_i}_group={group_category_i}'
+        question_txt_i = convert_question_data_to_txt_frame(annotation_data_i, block_name=block_name)
         question_txt_file_i = os.path.join(out_dir, f'subreddit={subreddit_i}_group={group_category_i}_annotation_data.txt')
         with open(question_txt_file_i, 'w') as question_txt_out:
             question_txt_out.write(question_txt_i)
