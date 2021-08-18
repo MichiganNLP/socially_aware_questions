@@ -681,7 +681,8 @@ def combine_post_question(data, tokenizer, max_length=1024):
         question_tokens = tokenizer.tokenize(question_txt)
         post_tokens = post_tokens[:(max_length - len(question_tokens) - EXTRA_PADDING_TOKENS)] # subtract extra tokens for CLS, QUESTION, EOS
         post_txt = tokenizer.convert_tokens_to_string(post_tokens)
-        post_question_txt = ' '.join([post_txt, QUESTION_TOKEN, question_txt])
+        #post_question_txt = ' '.join([post_txt, QUESTION_TOKEN, question_txt]) # TODO: why does post + question lead to bad performance?
+        post_question_txt = ' '.join([question_txt, QUESTION_TOKEN, post_txt])
     return post_question_txt
 
 # Function to calculate the accuracy of our predictions vs labels
