@@ -13,7 +13,9 @@ import torch
 torch.manual_seed(123)
 from scipy.stats import wilcoxon
 from statsmodels.stats.descriptivestats import sign_test
-from test_question_generation import test_question_overlap, STOP_WORDS, load_model, compute_perplexity, prepare_test_data_for_generation
+from test_question_generation import test_question_overlap, STOP_WORDS, \
+    compute_perplexity, prepare_test_data_for_generation
+from scripts.models.model_helpers import load_model
 
 
 def main():

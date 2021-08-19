@@ -21,7 +21,8 @@ if('..' not in sys.path):
 from data_processing.data_helpers import load_sample_data
 import random
 random.seed(123)
-from test_question_generation import load_model, prepare_test_data_for_generation
+from test_question_generation import prepare_test_data_for_generation
+from scripts.models.model_helpers import load_model
 from model_helpers import generate_predictions
 
 DEFAULT_GROUP_VAL_LOOKUP = {
@@ -164,7 +165,7 @@ def main():
     test_data_df.rename(columns={'article_id': 'parent_id', 'source_text' : 'post_text'}, inplace=True)
     # copy reader token to separate column for later
     test_data_df = test_data_df.assign(**{'reader_group' : test_data_df.loc[:, 'reader_token_str']})
-    ## TODO: get N questions per reader group, generate questions for other reader group from reader-aware model
+    ## get N questions per reader group, generate questions for other reader group from reader-aware model
     N_questions_per_group = 20 # need > 5 because we might generate the same text
     reader_group_category_lookup  = {
         'expert' : ['<EXPERT_PCT_0_AUTHOR>', '<EXPERT_PCT_1_AUTHOR>'],
