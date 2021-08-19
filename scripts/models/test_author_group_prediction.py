@@ -16,7 +16,8 @@ from math import ceil
 
 import pandas as pd
 import numpy as np
-from accelerate import Accelerator 
+from accelerate import Accelerator
+from nltk import PunktSentenceTokenizer
 from torch.utils.data import DataLoader, TensorDataset, random_split, \
     RandomSampler, SequentialSampler
 from tqdm import tqdm
@@ -670,8 +671,13 @@ def train_test_transformer_classification(group_categories, group_var,
 
 QUESTION_TOKEN='[QUESTION]'
 EXTRA_PADDING_TOKENS=3
-def combine_post_question(data, tokenizer, max_length=1024):
+def combine_post_question(data, tokenizer, max_length=1024, max_sents=0):
     post_txt = data.loc["post"]
+    # optional: limit post to initial K posts
+    if(max_sents > 0):
+        sent_tokenizer = PunktSentenceTokenizer()
+        post_sents = sent_tokenizer.tokenize(post_txt)[:max_sents]
+        post_txt = ' '.join(post_sents)
     question_txt = data.loc["question"]
     post_question_txt = ' '.join([post_txt, QUESTION_TOKEN, question_txt])
     post_question_txt_tokens = tokenizer.tokenize(post_question_txt)
@@ -721,10 +727,14 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
     tokenizer = BartTokenizer.from_pretrained('facebook/bart-base', do_lower_case=False)
     # max_length = 1024 # TOO LONG!! NO CAPES
     max_length = 512
+    # use full post data
+    # max_sents = 0
+    # use first-K sentences in post data
+    max_sents = 3
     if(text_var == 'post_question'):
         tokenizer.add_special_tokens({'additional_special_tokens': ['[QUESTION]']})
         post_question_data = post_question_data.assign(**{
-            'post_question': post_question_data.apply(lambda x: combine_post_question(x, tokenizer, max_length=max_length), axis=1)
+            'post_question': post_question_data.apply(lambda x: combine_post_question(x, tokenizer, max_length=max_length, max_sents=max_sents), axis=1)
         })
     default_group_values = {
         'expert_pct_bin' : 1,
