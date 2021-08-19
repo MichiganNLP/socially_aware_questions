@@ -14,19 +14,17 @@ from stop_words import get_stop_words
 from torch import Tensor
 from tqdm import tqdm
 
-from model_helpers import generate_predictions, compute_text_bleu, load_vectors
+from model_helpers import generate_predictions, compute_text_bleu, load_vectors, load_model
 import torch
-from author_group_attention_model import AuthorGroupAttentionModelConditionalGeneration
 from sentence_transformers import SentenceTransformer
 from nlp import Dataset
+
 CPU_COUNT=10
 torch.set_num_threads(CPU_COUNT)
-from transformers import AutoModelForSeq2SeqLM, BartTokenizer, BartConfig
 import pandas as pd
 import numpy as np
 np.random.seed(123)
 torch.manual_seed(123)
-from author_aware_model import AuthorTextGenerationModel
 from nltk.tokenize import WordPunctTokenizer
 
 STOP_WORDS = set(get_stop_words('en'))
@@ -226,59 +224,6 @@ def compute_word_mover_dist(tokens_1, tokens_2, word_embeds):
         # print(f'bad tokens:\n1={tokens_1};\n2={tokens_2}')
     return word_mover_dist_i
 
-def load_model(model_cache_dir, model_file, model_type, data_dir):
-    if (model_type.startswith('bart_')):
-        base_model_type = 'bart'
-    else:
-        base_model_type = model_type
-    model_name_lookup = {
-        'bart': 'facebook/bart-base',
-    }
-    model_full_name_lookup = {
-        'bart': 'BART',
-    }
-    full_model_name = model_name_lookup[base_model_type]
-    tokenizer_file = os.path.join(data_dir, f'{model_full_name_lookup[base_model_type]}_tokenizer.pt')
-    if (os.path.exists(tokenizer_file)):
-        model_tokenizer = torch.load(tokenizer_file)
-    else:
-        model_tokenizer = BartTokenizer.from_pretrained(full_model_name, cache_dir=model_cache_dir)
-    # add extra token for author embeds
-    if(model_type == 'bart_author_embeds'):
-        # add extra token to tokenizer
-        model_tokenizer.add_tokens({'<AUTHOR_EMBED>': len(model_tokenizer)}, special_tokens=True)
-    # get config file from same directory as model
-    config_file = os.path.join(os.path.dirname(model_file), 'config.json')
-    config = BartConfig.from_json_file(config_file)
-    if (model_type == 'bart_author_embeds'):
-        ## custom loading
-        # config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
-        # config = BartConfig.from_json_file(config_file)
-        # config.author_embeds = 100
-        generation_model = AuthorTextGenerationModel(config)
-    elif(model_type == 'bart_author_attention'):
-        ## tmp debugging
-        # config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
-        # config = BartConfig.from_json_file(config_file)
-        reader_group_types = config.__dict__['reader_group_types']
-        generation_model = AuthorGroupAttentionModelConditionalGeneration(config, reader_group_types=reader_group_types)
-    else:
-        generation_model = AutoModelForSeq2SeqLM.from_pretrained(full_model_name,
-                                                                 cache_dir=model_cache_dir)
-    generation_model.resize_token_embeddings(len(model_tokenizer))
-    if (model_file is not None):
-        if(torch.cuda.is_available()):
-            model_weights = torch.load(model_file)
-        else:
-            model_weights = torch.load(model_file, map_location=torch.device('cpu'))
-        # optional: reset vocab size
-        if(model_weights['lm_head.weight'].shape[0] != generation_model.config.vocab_size):
-            generation_model.resize_token_embeddings(model_weights['lm_head.weight'].shape[0])
-        generation_model.load_state_dict(model_weights)
-    # fix model device
-    device = torch.cuda.current_device()
-    generation_model.to(device)
-    return generation_model, model_tokenizer
 
 def prepare_test_data_for_generation(model_config, model_type, test_data):
     ## fix metadata for reader-aware models
