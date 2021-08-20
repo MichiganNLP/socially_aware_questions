@@ -4,8 +4,8 @@
 #SBATCH --output=/home/%u/logs/%x-%j.log
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --mem-per-gpu=20g
-#SBATCH --time=32:00:00
+#SBATCH --mem-per-gpu=50g
+#SBATCH --time=48:00:00
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 
@@ -72,9 +72,9 @@ VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 #MODEL_TYPE="bart_author"
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
 # author attention
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
-MODEL_TYPE="bart_author_attention"
-MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
+#MODEL_TYPE="bart_author_attention"
+#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 # author embed
 # subreddit embed 
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/ # encoder
@@ -82,13 +82,13 @@ MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 #MODEL_TYPE="bart_author_embeds"
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_subreddit_embed_model_config.json
 # text embed
-#OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/ # encoder
+OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/ # encoder
 #OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_decoder_data/ # decoder
-#MODEL_TYPE="bart_author_embeds"
-#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_text_embed_model_config.json
+MODEL_TYPE="bart_author_embeds"
+MODEL_CONFIG_FILE=../../data/model_cache/BART_author_text_embed_model_config.json
 # author (decoder) embed
 #OUT_DIR=../../data/reddit_data/author_text_data/author_decoder_embed_data/
-# author attention
+# author attention: hyperparameter tests
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.1/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.9/
@@ -104,8 +104,9 @@ MODEL_CACHE_DIR=../../data/model_cache/
 # optional: multiple GPUs
 N_GPU=1
 #N_GPU=2
-# use device for single-GPU processes
+## use device for single-GPU processes
 #export CUDA_VISIBLE_DEVICES=0
+
 #(python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU)&
 python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU
 # pretrained model
