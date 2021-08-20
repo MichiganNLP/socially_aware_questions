@@ -41,7 +41,7 @@ MODEL_TYPE=bart
 #MODEL_TYPE=longformer
 # enforce named entity overlap between article and question (>=1 NE overlap per question/article)
 #NE_overlap=False
-SAMPLE_PCT=0.50
+SAMPLE_PCT=0.5
 #SAMPLE_PCT=0.25
 
 # queue server

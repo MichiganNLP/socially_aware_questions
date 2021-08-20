@@ -687,7 +687,8 @@ def combine_post_question(data, tokenizer, max_length=1024, max_sents=0):
         question_tokens = tokenizer.tokenize(question_txt)
         post_tokens = post_tokens[:(max_length - len(question_tokens) - EXTRA_PADDING_TOKENS)] # subtract extra tokens for CLS, QUESTION, EOS
         post_txt = tokenizer.convert_tokens_to_string(post_tokens)
-        post_question_txt = ' '.join([post_txt, QUESTION_TOKEN, question_txt])
+        #post_question_txt = ' '.join([post_txt, QUESTION_TOKEN, question_txt]) # TODO: why does post + question lead to bad performance?
+        post_question_txt = ' '.join([question_txt, QUESTION_TOKEN, post_txt])
     return post_question_txt
 
 # Function to calculate the accuracy of our predictions vs labels
@@ -730,7 +731,9 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
     # use full post data
     # max_sents = 0
     # use first-K sentences in post data
-    max_sents = 3
+    # relative_time_bin: less post data is better?
+    max_sents = 1
+    #max_sents = 3
     if(text_var == 'post_question'):
         tokenizer.add_special_tokens({'additional_special_tokens': ['[QUESTION]']})
         post_question_data = post_question_data.assign(**{
