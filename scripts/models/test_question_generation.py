@@ -15,6 +15,7 @@ from torch import Tensor
 from tqdm import tqdm
 
 from model_helpers import generate_predictions, compute_text_bleu, load_vectors, load_model
+from answerability_metric.answerability_score import get_answerability_scores
 import torch
 from sentence_transformers import SentenceTransformer
 from nlp import Dataset
@@ -26,6 +27,9 @@ import numpy as np
 np.random.seed(123)
 torch.manual_seed(123)
 from nltk.tokenize import WordPunctTokenizer
+## suppress BLEU warnings
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning)
 
 STOP_WORDS = set(get_stop_words('en'))
 # remove question words from stops
@@ -173,6 +177,9 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
     rouge_scorer = RougeScorer(['rougeL'], use_stemmer=True)
     sentence_embed_model = SentenceTransformer('paraphrase-distilroberta-base-v1')
     score_cols = ['BLEU-1', 'ROUGE-L', 'sentence_dist']
+    # answerability coefficients
+    # ner_weight, qt_weight, re_weight, delta, ngram_metric = (0.6, 0.2, 0.1, 0.7, 'Bleu_3') # default coefficients
+    ner_weight, qt_weight, re_weight, delta, ngram_metric = (0.41, 0.20, 0.36, 0.66, 'Bleu_1') # optimal coefficients for SQUAD
     if(tokenizer is None):
         tokenizer = WordPunctTokenizer()
     # load embeddings for word mover distance
@@ -180,8 +187,8 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
         word_embeds = load_vectors(word_embed_file)
         score_cols.append('WMD')
         word_embed_vocab = set(word_embeds.index) - stop_words
-    for test_data_i, pred_data_i in zip(test_data['target_text'], pred_data):
-        # get tokens lol
+    for test_data_i, pred_data_i in tqdm(zip(test_data['target_text'], pred_data)):
+        # get tokens first
         pred_tokens_i = list(map(lambda x: x.lower(), tokenizer.tokenize(pred_data_i)))
         test_tokens_i = list(map(lambda x: x.lower(), tokenizer.tokenize(test_data_i)))
         bleu_score_i = compute_text_bleu(test_tokens_i, pred_tokens_i, weights=bleu_weights)
@@ -205,6 +212,19 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
     # tmp debugging
     # print(f'generation score sample {generation_scores[:10]}')
     generation_score_data = pd.DataFrame(text_overlap_scores, columns=score_cols)
+    ## also add answerability; we do it separately because it's bad to do in serial
+    target_text = [x['target_text'] for x in test_data]
+    # tmp debugging
+    # print(f'target text N={len(target_text)}')
+    # print(f'pred data N={len(pred_data)}')
+    answerability_scores, fluent_scores = get_answerability_scores(pred_data, ner_weight, qt_weight, re_weight, target_text, ngram_metric=ngram_metric, delta=delta, return_all_scores=False)
+    # tmp debugging
+    # print(f'answerability scores = {answerability_scores}')
+    ## TODO: how to get answerability scores for each Q separately??
+    generation_score_data = generation_score_data.assign(**{
+        'answer_score' : answerability_scores,
+    })
+
     return generation_score_data
 
 
@@ -301,7 +321,7 @@ def main():
     # tmp debugging: shuffle test data
     # test_data = test_data.shuffle(seed=123, keep_in_memory=True, cache_file_name=None)
     # tmp debugging: less test data
-    # test_data = test_data.select(list(range(5000)), keep_in_memory=True, cache_file_name=None)
+    # test_data = test_data.select(list(range(500)), keep_in_memory=True, cache_file_name=None)
     # get data name: based on model generation parameters
     generation_params = json.load(open(generation_param_file))
     # generation_method = generation_params['generation_method']
@@ -344,6 +364,9 @@ def main():
             generated_text_out.write('\n'.join(pred_data))
     else:
         pred_data = np.array(list(map(lambda x: x.strip(), gzip.open(generated_text_out_file, 'rt'))))
+    # tmp debugging: align test/pred data
+    if(len(test_data) < len(pred_data)):
+        pred_data = pred_data[:len(test_data)]
 
     ## get aggregate scores
     generated_text_score_out_file = os.path.join(out_dir, f'{output_name}_scores.tsv')
