@@ -732,7 +732,7 @@ def train_test_full_transformer(group_categories, sample_size, sample_type,
     # max_sents = 0
     # use first-K sentences in post data
     # relative_time_bin: less post data is better?
-    max_sents = 1
+    max_sents = 10
     #max_sents = 3
     if(text_var == 'post_question'):
         tokenizer.add_special_tokens({'additional_special_tokens': ['[QUESTION]']})
