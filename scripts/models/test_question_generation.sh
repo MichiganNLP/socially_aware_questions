@@ -57,12 +57,12 @@ TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_decoder_data/
 #MODEL_TYPE='bart_author_embeds'
 # reddit + text embed (+ encoder)
-MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_data/question_generation_model/checkpoint-527500/pytorch_model.bin
-OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_data/question_generation_model/checkpoint-275500/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
 # reddit + text embed (+ decoder)
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_decoder_data/question_generation_model/checkpoint-229000/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_decoder_data/
-MODEL_TYPE='bart_author_embeds'
+#MODEL_TYPE='bart_author_embeds'
 
 # metadata to test sub-sets of data
 POST_METADATA=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz

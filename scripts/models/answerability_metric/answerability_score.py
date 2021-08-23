@@ -77,6 +77,9 @@ def remove_stopwords_and_NER_line(question, relevant_words=None, question_words=
 def NER_line(question):
     q_types = question_words_global
     question_words = question.split()
+    # tmp debugging
+    if(len(question_words)==0):
+        print(f'bad question for NER_line = {question}')
     if question_words[0].lower() in q_types:
         question_words = question_words[1:]
 
@@ -132,6 +135,8 @@ def _get_json_format_qbleu(lines, output_path_prefix, relevant_words=None, quest
     pred_sents_sw = []
     for line in lines:
         line_impwords = remove_stopwords_and_NER_line(line, relevant_words)
+        # tmp debugging
+        # print(f'about to test NER_line on line = {line}')
         line_ner = NER_line(line)
         line_qt = questiontype(line, questiontypes)
         line_sw = get_stopwords(line)
@@ -256,7 +261,7 @@ class COCOEvalCap:
 
                      
 def compute_answerability_scores(all_scores, ner_weight, qt_weight, re_weight, d, output_dir, ngram_metric="Bleu_4",
-                                 save_to_files=False):
+                                 save_to_files=False, return_all_scores=False):
     _logger.debug("Number of samples: %s", len(all_scores))
     fluent_scores = [x[ngram_metric] for x in all_scores]
     imp_scores =  [x['imp'] for x in all_scores]
@@ -265,7 +270,8 @@ def compute_answerability_scores(all_scores, ner_weight, qt_weight, re_weight, d
     ner_scores =  [x['ner'] for x in all_scores]
 
     new_scores = []
-
+    # tmp debugging
+    # print(f'imp scores N={len(imp_scores)}; {imp_scores}')
     for i in range(len(imp_scores)):
         answerability = re_weight*imp_scores[i] + ner_weight*ner_scores[i]  + \
             qt_weight*qt_scores[i] + (1-re_weight - ner_weight - qt_weight)*sw_scores[i]
@@ -284,7 +290,13 @@ def compute_answerability_scores(all_scores, ner_weight, qt_weight, re_weight, d
             os.makedirs(output_dir)
         np.savetxt(os.path.join(output_dir, 'ngram_scores.txt'), fluent_scores)
         np.savetxt(os.path.join(output_dir, 'answerability_scores.txt'), new_scores)
-    return mean_answerability_score, mean_fluent_score
+    # tmp debugging
+    # print(f'return all scores = {return_all_scores}')
+    if(return_all_scores):
+        # print(f'returning new scores={new_scores} and fluent scores={fluent_scores}')
+        return new_scores, fluent_scores
+    else:
+        return mean_answerability_score, mean_fluent_score
 
 
 def new_eval_metric(final_eval_perline_impwords, final_eval_perline_ner, final_eval_perline_qt, fluent_eval_perline, final_eval_perline_sw, new_scores):
@@ -313,16 +325,16 @@ def get_answerability_scores(hypotheses,
                              re_weight,
                              references,
                              output_dir=None,
-                             ngram_metric='Blue_3',
+                             ngram_metric='Bleu_1',
                              nist_meteor_scores_dir=None,
                              delta=0.7,
                              data_type='SQuAD',
-                             save_to_files=False):
+                             save_to_files=False,
+                             return_all_scores=True):
     if data_type is not None:
         data_type = data_type.lower()
     if data_type == 'wikimovies':
-        relevant_words = ['act', 'write', 'direct', 'describ', 'appear', 'star', 'genre', 'language', 'about', 'appear',
-                          'cast']
+        relevant_words = ['act', 'write', 'direct', 'describ', 'appear', 'star', 'genre', 'language', 'about', 'appear', 'cast']
         question_words = None
     else:
         relevant_words = None
@@ -333,11 +345,19 @@ def get_answerability_scores(hypotheses,
     filenames_1 = _get_json_format_qbleu(references, os.path.join(output_dir, 'refs'),
                                          relevant_words, question_words)
     _logger.debug("Reference files written.")
+    # tmp debugging
+    # for hyp_i in hypotheses:
+    #     if (hyp_i.strip() == ''):
+    #         print(f'detected bad hypothesis sentence = {hyp_i}')
+    #     else:
+    #         print(f'detected good hypothesis sentence = {hyp_i}')
     filenames_2 = _get_json_format_qbleu(hypotheses, os.path.join(output_dir, 'hyps'),
                                          relevant_words, question_words)
     _logger.debug("Predicted files written.")
     final_eval = []
     final_eval_f = []
+    # tmp debugging
+    print(f'files_1 = {filenames_1}; files_2 = {filenames_2}')
     for file_1, file_2 in zip(filenames_1, filenames_2):
         coco, len_sents = loadJsonToMap(file_1)
         os.remove(file_1)
@@ -363,7 +383,8 @@ def get_answerability_scores(hypotheses,
 
         final_eval_f.append(temp_f)
         final_eval.append(eval_per_line_p)
-
+    # tmp debugging
+    # print(f'final eval N={len(final_eval)}; sample={final_eval[:10]}')
     if ngram_metric == 'NIST':
         assert nist_meteor_scores_dir is not None
         metric_scores = np.loadtxt(os.path.join(nist_meteor_scores_dir, "nist_scores"))
@@ -373,13 +394,16 @@ def get_answerability_scores(hypotheses,
     else:
         metric_scores = [fl[ngram_metric] for fl in final_eval[3]]
     save_all = []
+    # tmp debugging
+    # print(f'final eval {final_eval_f}')
     all_scores = zip(final_eval_f[0], final_eval_f[1], final_eval_f[2], final_eval_f[4],
                      metric_scores)
     for imp, ner, qt, sw, metric_score in all_scores:
         d = {'imp': imp, 'ner': ner, 'qt': qt, 'sw': sw, ngram_metric: metric_score}
         save_all.append(d)
+    # print(f'save all = {save_all}')
     return compute_answerability_scores(save_all, ner_weight, qt_weight, re_weight, delta, output_dir, ngram_metric,
-                                        save_to_files=save_to_files)
+                                        save_to_files=save_to_files, return_all_scores=return_all_scores)
 
 
 def main():
