@@ -548,7 +548,10 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
         # ]
         # if(author_data_type == 'tokens'):
         clean_data = add_author_tokens(author_vars, clean_data, max_source_length, tokenizer)
-    # optional: filter questions that have >=1 NEs shared with article
+    ## add subreddit token to source
+    clean_data = add_subreddit_token(clean_data, max_source_length, tokenizer)
+
+    # optional: filter questions that have >=1 NEs shared with text
     if(article_question_NE_overlap):
         clean_data = filter_data_NE_overlap(NE_data_dir, clean_data, data_name)
 
@@ -632,6 +635,26 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     torch.save(train_val_data, train_val_data_out_file)
     return clean_data
 
+def add_subreddit_token(data, max_source_length, tokenizer):
+    data_with_subreddit_token = []
+    subreddit_token_lookup = {
+        x: f'<{x}>'.upper() for x in data.loc[:, 'subreddit'].unique()
+    }
+    subreddit_tokens = list(subreddit_token_lookup.values())
+    tokenizer.add_tokens(subreddit_tokens, special_tokens=True)
+    pad_space = 1
+    for data_i in data.iterrows():
+        source_text_tokens_i = tokenizer.tokenize(data_i.loc['source_text'])
+        subreddit_i = data_i.loc['subreddit']
+        subreddit_token_i = subreddit_token_lookup[subreddit_i]
+        source_text_tokens_i = source_text_tokens_i[
+                               pad_space:(max_source_length - 1 - pad_space)]
+        source_text_tokens_i.append(subreddit_token_i)
+        source_text_i = tokenizer.convert_tokens_to_string(source_text_tokens_i)
+        data_with_subreddit_token.append(source_text_i)
+    data = pd.concat(data_with_subreddit_token, axis=0)
+    return data
+
 def convert_dataframe_to_data_set(data_frame, dataset_columns):
     data_dict = {
         k: data_frame.loc[:, k].values.tolist() for k in dataset_columns
@@ -682,7 +705,7 @@ def filter_data_NE_overlap(NE_data_dir, clean_data, data_name):
     return clean_data
 
 
-def add_author_tokens(author_vars, clean_data, max_source_length, tokenizer):
+def add_author_tokens(author_vars, data, max_source_length, tokenizer):
     author_tokens = [
         '<US_AUTHOR>', '<NONUS_AUTHOR>',
         '<EXPERT_PCT_0_AUTHOR>', '<EXPERT_PCT_1_AUTHOR>',  # prior comment activity in subreddit
@@ -709,8 +732,8 @@ def add_author_tokens(author_vars, clean_data, max_source_length, tokenizer):
     author_source_text_var = 'source_text_reader_token'
     pad_space = 1  # need to remove tokens from start and end to make space for pads
     # add author variable value to each source text
-    no_author_data = clean_data[clean_data.isna().loc[:, author_vars].apply(lambda x: all(x), axis=1)]
-    valid_author_data = clean_data.dropna(axis=0, subset=author_vars, how='all')
+    no_author_data = data[data.isna().loc[:, author_vars].apply(lambda x: all(x), axis=1)]
+    valid_author_data = data.dropna(axis=0, subset=author_vars, how='all')
     for data_idx, data_i in valid_author_data.iterrows():
         # tokenize, fit to max length
         source_text_i = data_i.loc[source_text_var]
@@ -752,16 +775,16 @@ def add_author_tokens(author_vars, clean_data, max_source_length, tokenizer):
         author_source_text_var : no_author_data.loc[:, source_text_var].values
     })
     # recombine data without-author and with-author
-    clean_data = pd.concat([no_author_data, author_txt_data], axis=0)
+    data = pd.concat([no_author_data, author_txt_data], axis=0)
     # tmp debugging: check for author vars
     for author_token in author_tokens:
-        for txt_i in clean_data.loc[:, author_source_text_var].values:
+        for txt_i in data.loc[:, author_source_text_var].values:
             if (author_token in txt_i):
                 logging.debug(f'found author token {author_token} in at least one doc')
                 break
     # remove author data to avoid NAN bugs in later data reading
     # clean_data = clean_data.loc[:, ['source_text', 'target_text', 'article_id', 'reader_token', 'reader_token_str']]
-    return clean_data
+    return data
 
 def convert_ids_to_clean_str(token_ids, tokenizer):
     """

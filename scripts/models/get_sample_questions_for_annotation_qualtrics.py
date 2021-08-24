@@ -22,8 +22,7 @@ from data_processing.data_helpers import load_sample_data
 import random
 random.seed(123)
 from test_question_generation import prepare_test_data_for_generation
-from scripts.models.model_helpers import load_model
-from model_helpers import generate_predictions
+from model_helpers import load_model, generate_predictions
 
 DEFAULT_GROUP_VAL_LOOKUP = {
     'location': 'US',
@@ -48,8 +47,9 @@ GROUP_EXPLANATION_LOOKUP = {
 
 }
 
-def convert_question_data_to_txt(data, question_vals=['Q1.1', 'Q1.2', 'Q1.3'], question_num=1):
+def convert_question_data_to_txt(data, question_vals=['Q1.1', 'Q1.2', 'Q1.3'], question_id_vars=[]):
     # header text
+    question_num = data.loc['question_num']
     subreddit = f"r/{data.loc['subreddit']}"
     text = [f"""
     [[Question:DB]]
@@ -69,10 +69,15 @@ def convert_question_data_to_txt(data, question_vals=['Q1.1', 'Q1.2', 'Q1.3'], q
     text.append(question_quality_txt)
     q_ctr = 1
     # [[ID:{question_id_base + 'question=' + question_val_i + '_quality_' + str(i + 1)}]]
+    if(len(question_id_vars) > 0):
+        question_id_base_str = '_'.join(list(map(lambda x: f'{x}={data.loc[x]}', question_id_vars)))
+    else:
+        question_id_base_str = ''
     for i, question_val_i in enumerate(question_vals):
+        question_id_str = '_'.join([f'{question_num}.{q_ctr}', question_id_base_str])
         question_txt_i = f"""
         [[Question:Matrix]]
-        [[ID:{question_num}.{q_ctr}]]
+        [[ID:{question_id_str}]]
         {q_ctr}. {data.loc[question_val_i]}
 
         [[Choices]]
@@ -120,13 +125,16 @@ def group_question_txt_by_subgroup(data, subgroup_vars=['subreddit']):
     subgroup_txt = []
     for subgroup_vals_i, data_i in data.groupby(subgroup_vars):
         subgroup_var_str_i = list(map(lambda x: f'{x[0]}={x[1]}', zip(subgroup_vars, subgroup_vals_i)))
+        ## add question index
+        data_i = data_i.assign(**{'question_num' : list(range(data_i.shape[0]))})
         subgroup_question_data_txt_i = convert_question_data_to_txt_frame(data_i, subgroup_var_str_i)
         subgroup_txt.append([subgroup_vals_i, subgroup_question_data_txt_i])
     subgroups, subgroup_question_data_txt = zip(*subgroup_txt)
     return subgroups, subgroup_question_data_txt
 
 def convert_question_data_to_txt_frame(data, block_name=None):
-    question_data = data.apply(lambda x: convert_question_data_to_txt(x), axis=1).values
+    question_id_vars = ['subreddit', 'group_category']
+    question_data = data.apply(lambda x: convert_question_data_to_txt(x, question_id_vars=question_id_vars), axis=1).values
     question_data_txt = '[[AdvancedFormat]]'
     question_data_txt = '\n'.join([question_data_txt, '\n\n[[PageBreak]]\n\n'.join(question_data)])
     if(block_name is not None):
@@ -245,6 +253,10 @@ def main():
             flat_data_j.extend(data_j.loc[[f'reader_group_{x}' for x in Q2_group_idx]].tolist())
             annotation_data_i.append(flat_data_j)
         annotation_data_i = pd.DataFrame(annotation_data_i, columns=annotation_data_cols)
+        # add question index
+        annotation_data_i = annotation_data_i.assign(**{
+            'question_num' : list(range(annotation_data_i.shape[0]))
+        })
         # print(f'annotation data has shape {annotation_data_i.shape}')
         # save original data => separate file per subreddit/group category
         annotation_data_file = os.path.join(out_dir, f'subreddit={subreddit_i}_group={group_category_i}_annotation_data.tsv')
