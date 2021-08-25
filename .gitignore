@@ -11,6 +11,7 @@ scripts/data_processing/pointer-generator/
 scripts/models/question_generation/
 scripts/models/runs/
 scripts/models/run_ner_no_trainer.*
+scripts/models/*.txt
 scripts/*/__pycache__/
 scripts/models/question_generation/
 logs/

@@ -22,8 +22,7 @@ from data_processing.data_helpers import load_sample_data
 import random
 random.seed(123)
 from test_question_generation import prepare_test_data_for_generation
-from scripts.models.model_helpers import load_model
-from model_helpers import generate_predictions
+from model_helpers import load_model, generate_predictions
 
 DEFAULT_GROUP_VAL_LOOKUP = {
     'location': 'US',
@@ -48,8 +47,9 @@ GROUP_EXPLANATION_LOOKUP = {
 
 }
 
-def convert_question_data_to_txt(data, question_vals=['Q1.1', 'Q1.2', 'Q1.3'], question_num=1):
+def convert_question_data_to_txt(data, question_vals=['Q1.1', 'Q1.2', 'Q1.3'], question_id_vars=[]):
     # header text
+    question_num = data.loc['question_num']
     subreddit = f"r/{data.loc['subreddit']}"
     text = [f"""
     [[Question:DB]]
@@ -69,10 +69,15 @@ def convert_question_data_to_txt(data, question_vals=['Q1.1', 'Q1.2', 'Q1.3'], q
     text.append(question_quality_txt)
     q_ctr = 1
     # [[ID:{question_id_base + 'question=' + question_val_i + '_quality_' + str(i + 1)}]]
+    if(len(question_id_vars) > 0):
+        question_id_base_str = '_'.join(list(map(lambda x: f'{x}={data.loc[x]}', question_id_vars)))
+    else:
+        question_id_base_str = ''
     for i, question_val_i in enumerate(question_vals):
+        question_id_str = '_'.join([f'{question_num}.{q_ctr}', question_id_base_str])
         question_txt_i = f"""
         [[Question:Matrix]]
-        [[ID:{question_num}.{q_ctr}]]
+        [[ID:{question_id_str}]]
         {q_ctr}. {data.loc[question_val_i]}
 
         [[Choices]]
@@ -120,13 +125,16 @@ def group_question_txt_by_subgroup(data, subgroup_vars=['subreddit']):
     subgroup_txt = []
     for subgroup_vals_i, data_i in data.groupby(subgroup_vars):
         subgroup_var_str_i = list(map(lambda x: f'{x[0]}={x[1]}', zip(subgroup_vars, subgroup_vals_i)))
+        ## add question index
+        data_i = data_i.assign(**{'question_num' : list(range(data_i.shape[0]))})
         subgroup_question_data_txt_i = convert_question_data_to_txt_frame(data_i, subgroup_var_str_i)
         subgroup_txt.append([subgroup_vals_i, subgroup_question_data_txt_i])
     subgroups, subgroup_question_data_txt = zip(*subgroup_txt)
     return subgroups, subgroup_question_data_txt
 
 def convert_question_data_to_txt_frame(data, block_name=None):
-    question_data = data.apply(lambda x: convert_question_data_to_txt(x), axis=1).values
+    question_id_vars = ['subreddit', 'group_category']
+    question_data = data.apply(lambda x: convert_question_data_to_txt(x, question_id_vars=question_id_vars), axis=1).values
     question_data_txt = '[[AdvancedFormat]]'
     question_data_txt = '\n'.join([question_data_txt, '\n\n[[PageBreak]]\n\n'.join(question_data)])
     if(block_name is not None):
@@ -198,23 +206,12 @@ def main():
     })
     ## generate text for the other reader group
     # get inverted text data: e.g. "US" => "NONUS"
-    paired_group_test_data = paired_group_data.loc[:, ['reader_group_2', 'source_ids', 'attention_mask']]
-    inv_test_data = Dataset.from_pandas(paired_group_test_data)
-    inv_test_data.rename_column_('reader_group_2', 'reader_token_str')
     model_cache_dir = '../../data/model_cache'
     model_type = 'bart_author_attention'
     data_dir = '../../data/reddit_data/'
-    reader_text_model, model_tokenizer = load_model(model_cache_dir, reader_model_file, model_type, data_dir)
-    reader_text_model.to(torch.cuda.current_device())
-    model_kwargs = prepare_test_data_for_generation(reader_text_model.config, model_type, inv_test_data)
-    generation_param_file = os.path.join(model_cache_dir, 'sample_generation_params.json')
-    generation_params = json.load(open(generation_param_file))
-    inv_test_data_pred = generate_predictions(reader_text_model, inv_test_data,
-                                              model_tokenizer, generation_params=generation_params,
-                                              model_kwargs=model_kwargs)
-    paired_group_data = paired_group_data.assign(**{
-        'reader_model_group_2' : inv_test_data_pred,
-    })
+    paired_group_data = generate_opposite_group_questions(data_dir, model_cache_dir,
+                                                          model_type, paired_group_data,
+                                                          reader_model_file)
     paired_group_data = paired_group_data[paired_group_data.loc[:, 'reader_model_group_1']!=paired_group_data.loc[:, 'reader_model_group_2']]
     # filter long posts
     tokenizer = WordPunctTokenizer()
@@ -245,6 +242,10 @@ def main():
             flat_data_j.extend(data_j.loc[[f'reader_group_{x}' for x in Q2_group_idx]].tolist())
             annotation_data_i.append(flat_data_j)
         annotation_data_i = pd.DataFrame(annotation_data_i, columns=annotation_data_cols)
+        # add question index
+        annotation_data_i = annotation_data_i.assign(**{
+            'question_num' : list(range(annotation_data_i.shape[0]))
+        })
         # print(f'annotation data has shape {annotation_data_i.shape}')
         # save original data => separate file per subreddit/group category
         annotation_data_file = os.path.join(out_dir, f'subreddit={subreddit_i}_group={group_category_i}_annotation_data.tsv')
@@ -309,6 +310,50 @@ def main():
     # })
     # paired_group_data = paired_group_data[paired_group_data.loc[:, 'post_len'] <= max_post_word_count]
     # print(paired_group_data.loc[:, 'subreddit'].value_counts())
+
+
+def generate_opposite_group_questions(data_dir, model_cache_dir, model_type,
+                                      paired_group_data, reader_model_file):
+    """
+    Generate questions from the opposite reader group: e.g.
+    for a question written by "US" reader, generate question by "NONUS" reader.
+
+    :param data_dir:
+    :param model_cache_dir:
+    :param model_type:
+    :param paired_group_data:
+    :param reader_model_file:
+    :return:
+    """
+    if('reader_group_2' not in paired_group_data.columns):
+        reader_group_category_lookup = {
+            'expert': ['<EXPERT_PCT_0_AUTHOR>', '<EXPERT_PCT_1_AUTHOR>'],
+            'time': ['<RESPONSE_TIME_0_AUTHOR>', '<RESPONSE_TIME_1_AUTHOR>'],
+            'location': ['<US_AUTHOR>', '<NONUS_AUTHOR>'],
+        }
+        reader_group_pair_lookup = {x: y for vs in reader_group_category_lookup.values()
+                                    for (x, y) in zip(vs, list(reversed(vs)))}
+        paired_group_data = paired_group_data.assign(**{
+            'reader_group_2': paired_group_data.loc[:, 'reader_group_1'].apply(reader_group_pair_lookup.get)
+        })
+    paired_group_test_data = paired_group_data.loc[:, ['reader_group_2', 'source_ids', 'attention_mask']]
+    inv_test_data = Dataset.from_pandas(paired_group_test_data)
+    inv_test_data.rename_column_('reader_group_2', 'reader_token_str')
+    model, model_tokenizer = load_model(model_cache_dir, reader_model_file,
+                                        model_type, data_dir)
+    model.to(torch.cuda.current_device())
+    model_kwargs = prepare_test_data_for_generation(model.config, model_type, inv_test_data)
+    generation_param_file = os.path.join(model_cache_dir, 'sample_generation_params.json')
+    generation_params = json.load(open(generation_param_file))
+    inv_test_data_pred = generate_predictions(model, inv_test_data,
+                                              model_tokenizer,
+                                              generation_params=generation_params,
+                                              model_kwargs=model_kwargs)
+    # paired_group_data = paired_group_data.assign(**{
+    #     'reader_model_group_2': inv_test_data_pred,
+    # })
+    return inv_test_data_pred
+
 
 if __name__ == '__main__':
     main()
