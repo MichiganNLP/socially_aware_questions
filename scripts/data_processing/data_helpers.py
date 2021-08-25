@@ -548,7 +548,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
         # ]
         # if(author_data_type == 'tokens'):
         clean_data = add_author_tokens(author_vars, clean_data, max_source_length, tokenizer)
-    ## add subreddit token to source
+    ## add subreddit token to source text
     clean_data = add_subreddit_token(clean_data, max_source_length, tokenizer)
 
     # optional: filter questions that have >=1 NEs shared with text
