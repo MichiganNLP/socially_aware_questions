@@ -357,7 +357,7 @@ def get_answerability_scores(hypotheses,
     final_eval = []
     final_eval_f = []
     # tmp debugging
-    print(f'files_1 = {filenames_1}; files_2 = {filenames_2}')
+    #print(f'files_1 = {filenames_1}; files_2 = {filenames_2}')
     for file_1, file_2 in zip(filenames_1, filenames_2):
         coco, len_sents = loadJsonToMap(file_1)
         os.remove(file_1)

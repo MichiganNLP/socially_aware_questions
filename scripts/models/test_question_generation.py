@@ -15,6 +15,9 @@ from torch import Tensor
 from tqdm import tqdm
 
 from model_helpers import generate_predictions, compute_text_bleu, load_vectors, load_model
+import sys
+if('answerability_metric' not in sys.path):
+    sys.path.append('answerability_metric')
 from answerability_metric.answerability_score import get_answerability_scores
 import torch
 from sentence_transformers import SentenceTransformer
@@ -217,7 +220,8 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
     # tmp debugging
     # print(f'target text N={len(target_text)}')
     # print(f'pred data N={len(pred_data)}')
-    answerability_scores, fluent_scores = get_answerability_scores(pred_data, ner_weight, qt_weight, re_weight, target_text, ngram_metric=ngram_metric, delta=delta, return_all_scores=False)
+    output_dir = 'tmp/'
+    answerability_scores, fluent_scores = get_answerability_scores(pred_data, ner_weight, qt_weight, re_weight, target_text, ngram_metric=ngram_metric, delta=delta, return_all_scores=False, output_dir=output_dir)
     # tmp debugging
     # print(f'answerability scores = {answerability_scores}')
     ## TODO: how to get answerability scores for each Q separately??

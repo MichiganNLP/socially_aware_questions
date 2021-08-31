@@ -643,7 +643,7 @@ def add_subreddit_token(data, max_source_length, tokenizer):
     subreddit_tokens = list(subreddit_token_lookup.values())
     tokenizer.add_tokens(subreddit_tokens, special_tokens=True)
     pad_space = 1
-    for data_i in data.iterrows():
+    for idx_i, data_i in data.iterrows():
         source_text_tokens_i = tokenizer.tokenize(data_i.loc['source_text'])
         subreddit_i = data_i.loc['subreddit']
         subreddit_token_i = subreddit_token_lookup[subreddit_i]
@@ -651,8 +651,9 @@ def add_subreddit_token(data, max_source_length, tokenizer):
                                pad_space:(max_source_length - 1 - pad_space)]
         source_text_tokens_i.append(subreddit_token_i)
         source_text_i = tokenizer.convert_tokens_to_string(source_text_tokens_i)
-        data_with_subreddit_token.append(source_text_i)
-    data = pd.concat(data_with_subreddit_token, axis=0)
+        data_i.loc['source_text'] = source_text_i
+        data_with_subreddit_token.append(data_i)
+    data = pd.concat(data_with_subreddit_token, axis=1).transpose()
     return data
 
 def convert_dataframe_to_data_set(data_frame, dataset_columns):

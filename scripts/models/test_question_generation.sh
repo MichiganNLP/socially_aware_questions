@@ -32,12 +32,12 @@ TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
 #MODEL_TYPE='bart'
 #OUT_DIR=../../data/CNN_articles/cnn/
 # text only
-#MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-529000/pytorch_model.bin
-#MODEL_TYPE='bart'
-#OUT_DIR=../../data/reddit_data/text_only_model/ # generate
+MODEL_FILE=../../data/reddit_data/text_only_model/question_generation_model/checkpoint-263500/pytorch_model.bin
+MODEL_TYPE='bart'
+OUT_DIR=../../data/reddit_data/text_only_model/ # generate
 #OUT_DIR=../../data/reddit_data/text_only_model/generate_classify_output/ # generate and classify
 # text+author token
-#MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-529000/pytorch_model.bin
+#MODEL_FILE=../../data/reddit_data/author_text_data/question_generation_model/checkpoint-275500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/
 # text+author token: fine-tuning author data
 #MODEL_FILE=../../data/reddit_data/author_text_data/text_only_fine_tune/question_generation_model/checkpoint-213500/pytorch_model.bin
@@ -45,11 +45,11 @@ TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
 #MODEL_TYPE='bart_author_token' # test w/ author data
 #MODEL_TYPE='bart' # test w/out author data
 # reddit + author group attention
-#MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/question_generation_model/checkpoint-529000/pytorch_model.bin
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/question_generation_model/checkpoint-263500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
 #MODEL_TYPE='bart_author_attention'
 # reddit + subreddit embed (+ encoder)
-#MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_data/question_generation_model/checkpoint-529000/pytorch_model.bin
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_data/question_generation_model/checkpoint-275500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
 #MODEL_TYPE='bart_author_embeds'
 # reddit + subreddit embed (+ decoder)
