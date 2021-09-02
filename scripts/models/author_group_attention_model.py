@@ -24,11 +24,13 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
         self.reader_attn_weight = config.__dict__['reader_attn_weight']
         # NOTE we need to include "OTHER" in reader_groups
         # to provide catch-all category
-        ## TODO: align attention module matrices between groups?
-        self.self_attn_per_group = {
+        ## TODO: align attention weights between groups?
+        self.self_attn_per_group = nn.ModuleDict({
             reader_group : BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout).to(torch.cuda.current_device())
             for reader_group in reader_group_types
-        }
+        })
+        # tmp debugging
+        # self.self_attn_per_group_2 = nn.ModuleList([BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout).to(torch.cuda.current_device()),]*len(reader_group_types))
         self.self_attn_general = BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout).to(torch.cuda.current_device())
         # self.self_attn = BartAttention(
         #     embed_dim=self.embed_dim,
