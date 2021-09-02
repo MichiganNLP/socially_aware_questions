@@ -220,6 +220,8 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
     # tmp debugging
     # print(f'target text N={len(target_text)}')
     # print(f'pred data N={len(pred_data)}')
+    # question answerability scores
+    answerability_scores, fluent_scores = get_answerability_scores(pred_data, ner_weight, qt_weight, re_weight, target_text, ngram_metric=ngram_metric, delta=delta, return_all_scores=False)
     output_dir = 'tmp/'
     answerability_scores, fluent_scores = get_answerability_scores(pred_data, ner_weight, qt_weight, re_weight, target_text, ngram_metric=ngram_metric, delta=delta, return_all_scores=False, output_dir=output_dir)
     # tmp debugging

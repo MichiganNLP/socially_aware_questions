@@ -44,9 +44,9 @@ MODEL_TYPE=bart
 #SAMPLE_PCT=0.5
 SAMPLE_PCT=0.25
 
-# queue server
-HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
-python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT
+# queue server (server can't get online data)
+#HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+#python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT
 
 # regular server
 # CNN
@@ -54,7 +54,7 @@ python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name 
 # reddit
 #python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --sample_pct $SAMPLE_PCT
 # reddit + author
-#(python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT)&
-#PID=$!
-#MAX_MEMORY=120000000000 # 100G
-#prlimit --pid $PID --as=$MAX_MEMORY
+(python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT)&
+PID=$!
+MAX_MEMORY=120000000000 # 100G
+prlimit --pid $PID --as=$MAX_MEMORY
