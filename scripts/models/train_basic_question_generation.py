@@ -77,7 +77,7 @@ def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, m
     training_args.adam_epsilon = 1e-8
     training_args.warmup_steps = 500
     # limits number of checkpoints => 1 GB per optimizer file ;_;
-    training_args.save_total_limit = 2
+    training_args.save_total_limit = 1 # change to 2 if more disk space 
     return training_args
 
 def get_optimizer(model, args):
