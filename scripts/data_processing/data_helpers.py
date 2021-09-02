@@ -549,7 +549,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
         # if(author_data_type == 'tokens'):
         clean_data = add_author_tokens(author_vars, clean_data, max_source_length, tokenizer)
     ## add subreddit token to source text
-    clean_data = add_subreddit_token(clean_data, max_source_length, tokenizer)
+    ## TODO: does this actually improve performance? early tests say no
+    # clean_data = add_subreddit_token(clean_data, max_source_length, tokenizer)
 
     # optional: filter questions that have >=1 NEs shared with text
     if(article_question_NE_overlap):

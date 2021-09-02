@@ -49,10 +49,10 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
     :param test_data:
     :return:
     """
-    generation_score_data = test_question_overlap(pred_data, test_data, word_embed_file=word_embed_file, stop_words=STOP_WORDS)
+    full_generation_score_data = test_question_overlap(pred_data, test_data, word_embed_file=word_embed_file, stop_words=STOP_WORDS)
     # compute mean/sd
-    generation_score_means = generation_score_data.mean(axis=0)
-    generation_score_sd = generation_score_data.std(axis=0)
+    generation_score_means = full_generation_score_data.mean(axis=0)
+    generation_score_sd = full_generation_score_data.std(axis=0)
     generation_score_data = pd.concat([
         generation_score_means,
         generation_score_sd,
@@ -74,7 +74,7 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
     generation_score_data = pd.concat([generation_score_data, perplexity_data], axis=1)
     # fix score format
     generation_score_data = generation_score_data.reset_index().rename(columns={'index': 'stat'})
-    return generation_score_data
+    return full_generation_score_data, generation_score_data
 
 
 def compute_perplexity(model, model_type, sample_size, test_data, return_log_likelihoods=False):
@@ -374,17 +374,20 @@ def main():
 
     ## get aggregate scores
     generated_text_score_out_file = os.path.join(out_dir, f'{output_name}_scores.tsv')
+    full_generated_text_score_out_file = os.path.join(out_dir, f'{output_name}_scores_full.gz')
     # print(f'generated score file {generated_text_score_out_file}')
     if(not os.path.exists(generated_text_score_out_file)):
         # tmp debugging
         # test_data = test_data.select(list(range(100)))
         # pred_data = pred_data[:100]
-        generation_score_data = get_generation_scores(pred_data, test_data, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
+        full_generation_score_data, generation_score_data = get_generation_scores(pred_data, test_data, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
         ## write things to file
+        full_generation_score_data.to_csv(full_generated_text_score_out_file, sep='\t', index=False, compression='gzip')
         generation_score_data.to_csv(generated_text_score_out_file, sep='\t', index=False)
     ## optional: same thing but for different subsets of post data
     ## reader groups
     reader_group_score_out_file = os.path.join(out_dir, f'{output_name}_scores_reader_groups.tsv')
+    # full_generated_text_score_out_file = os.path.join(out_dir, f'{output_name}_scores_reader_groups_full.tsv')
     # print(f'reader group file = {reader_group_score_out_file}')
     if(not os.path.exists(reader_group_score_out_file)):
         # if(model_type == 'bart_author_attention'):
@@ -401,7 +404,7 @@ def main():
                 idx_i = np.where(np.array(test_data['reader_token'])==reader_group_i)[0]
             test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
             pred_data_i = pred_data[idx_i]
-            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
+            full_generation_score_data_i, generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
             generation_score_data_i = generation_score_data_i.assign(**{'reader_group' : reader_group_i})
             reader_group_scores.append(generation_score_data_i)
         # also: get scores for readers with embeddings
@@ -434,7 +437,7 @@ def main():
             #                         post_article_ids.reshape(1, -1)))[0]
             test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
             pred_data_i = pred_data[idx_i]
-            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
+            full_generation_score_data_i, generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
             generation_score_data_i = generation_score_data_i.assign(**{'community' : community_i})
             community_scores.append(generation_score_data_i)
         community_scores = pd.concat(community_scores, axis=0)
@@ -442,6 +445,7 @@ def main():
     ## post sub-group
     post_subgroup_name = os.path.basename(post_subgroup_file).replace('_data.gz', '')
     post_subgroup_score_out_file = os.path.join(out_dir, f'{output_name}_scores_subgroup={post_subgroup_name}.tsv')
+    full_post_subgroup_score_out_file = os.path.join(out_dir, f'{output_name}_scores_subgroup={post_subgroup_name}_full.gz')
     if(post_subgroup_file is not None and not os.path.exists(post_subgroup_score_out_file)):
         #subgroup_test_data_out_file = post_subgroup_file.replace('.gz', '_test.pt')
         #if(not os.path.exists(subgroup_test_data_out_file)):
@@ -463,8 +467,10 @@ def main():
         #    subgroup_test_data = torch.load(subgroup_test_data_out_file)
         # tmp debugging
         # print(f'subgroup test data = {len(subgroup_test_data)}')
-        subgroup_generation_score_data = get_generation_scores(subgroup_pred_data, subgroup_test_data, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
+        full_subgroup_generation_score_data, subgroup_generation_score_data = get_generation_scores(subgroup_pred_data, subgroup_test_data, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
+        full_subgroup_generation_score_data.to_csv(full_post_subgroup_score_out_file, sep='\t', index=False, compression='gzip')
         subgroup_generation_score_data.to_csv(post_subgroup_score_out_file, sep='\t', index=False)
+
 
 if __name__ == '__main__':
     main()
