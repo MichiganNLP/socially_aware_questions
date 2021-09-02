@@ -494,7 +494,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
         # add null embed for all data with missing embed
         for embed_data_var in embed_data_vars:
             embed_dim = len(embed_author_data.loc[:, embed_data_var].iloc[0])
-            print(f'{data[data.loc[:, embed_data_var].apply(lambda x: type(x) is not float and x is not None)].shape[0]}/{data.shape[0]} data with author embeds')
+            # print(f'{data[data.loc[:, embed_data_var].apply(lambda x: type(x) is not float and x is not None)].shape[0]}/{data.shape[0]} data with author embeds')
             # null_embed = [0,]*embed_dim
             # data.fillna(value={author_embed_var : null_embed}, inplace=True)
             has_embed_var = f'author_has_{embed_data_var}'
@@ -549,7 +549,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
         # if(author_data_type == 'tokens'):
         clean_data = add_author_tokens(author_vars, clean_data, max_source_length, tokenizer)
     ## add subreddit token to source text
-    clean_data = add_subreddit_token(clean_data, max_source_length, tokenizer)
+    ## TODO: does this actually improve performance? early tests say no
+    # clean_data = add_subreddit_token(clean_data, max_source_length, tokenizer)
 
     # optional: filter questions that have >=1 NEs shared with text
     if(article_question_NE_overlap):
@@ -588,7 +589,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
                                    max_target_length=max_target_length,
                                    extra_source_text_vars=extra_source_text_vars)
     # debug: source text data type?
-    print(f'train data sample = {train_data_set[0]}')
+    # print(f'train data sample = {train_data_set[0]}')
     # print(f'{train_data_set} train data')
     # print(f'{len(val_data_set["source_text"])} val data')
     train_data = data_processor.process(train_data_set)
