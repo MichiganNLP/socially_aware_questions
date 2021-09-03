@@ -230,7 +230,6 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
     # generation_score_data = generation_score_data.assign(**{
     #     'answer_score' : answerability_scores,
     # })
-
     return generation_score_data
 
 
