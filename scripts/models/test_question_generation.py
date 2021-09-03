@@ -221,15 +221,15 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
     # print(f'target text N={len(target_text)}')
     # print(f'pred data N={len(pred_data)}')
     # question answerability scores
-    answerability_scores, fluent_scores = get_answerability_scores(pred_data, ner_weight, qt_weight, re_weight, target_text, ngram_metric=ngram_metric, delta=delta, return_all_scores=False)
-    output_dir = 'tmp/'
-    answerability_scores, fluent_scores = get_answerability_scores(pred_data, ner_weight, qt_weight, re_weight, target_text, ngram_metric=ngram_metric, delta=delta, return_all_scores=False, output_dir=output_dir)
+    # answerability_scores, fluent_scores = get_answerability_scores(pred_data, ner_weight, qt_weight, re_weight, target_text, ngram_metric=ngram_metric, delta=delta, return_all_scores=False)
+    # output_dir = 'tmp/'
+    # answerability_scores, fluent_scores = get_answerability_scores(pred_data, ner_weight, qt_weight, re_weight, target_text, ngram_metric=ngram_metric, delta=delta, return_all_scores=False, output_dir=output_dir)
     # tmp debugging
     # print(f'answerability scores = {answerability_scores}')
     ## TODO: how to get answerability scores for each Q separately??
-    generation_score_data = generation_score_data.assign(**{
-        'answer_score' : answerability_scores,
-    })
+    # generation_score_data = generation_score_data.assign(**{
+    #     'answer_score' : answerability_scores,
+    # })
 
     return generation_score_data
 
@@ -415,7 +415,7 @@ def main():
             idx_i = np.where(np.array(test_data[embed_group_i]))[0]
             test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
             pred_data_i = pred_data[idx_i]
-            generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
+            full_generation_score_data_i, generation_score_data_i = get_generation_scores(pred_data_i, test_data_i, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
             generation_score_data_i = generation_score_data_i.assign(**{'reader_group': embed_group_i})
             reader_group_scores.append(generation_score_data_i)
         reader_group_scores = pd.concat(reader_group_scores, axis=0)
