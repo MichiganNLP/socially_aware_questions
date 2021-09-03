@@ -41,11 +41,11 @@
 #VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
 ## reddit+author data
 # sampled data
-#TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
-#VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
+TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
+VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 # split training data (parameter tuning)
-TRAIN_DATA=../../data/reddit_data/combined_data_train_train_data.pt
-VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
+#TRAIN_DATA=../../data/reddit_data/combined_data_train_train_data.pt
+#VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 # author-only data: fine-tuning
 #TRAIN_DATA=../../data/reddit_data/combined_data_valid_authors_train_data.pt
 #VAL_DATA=../../data/reddit_data/combined_data_valid_authors_test_data.pt
@@ -71,19 +71,19 @@ VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 #MODEL_TYPE="bart_author"
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
 # author attention
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
-#MODEL_TYPE="bart_author_attention"
-#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
+MODEL_TYPE="bart_author_attention"
+MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 # author attention: hyperparameter tests
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.1/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.5/
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.9/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.9/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5/
-MODEL_TYPE="bart_author_attention"
-MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
+#MODEL_TYPE="bart_author_attention"
+#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 ## author embed
 # subreddit embed 
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/ # encoder
