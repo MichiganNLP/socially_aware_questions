@@ -12,7 +12,7 @@ from typing import Optional, Tuple
 import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss
-from transformers import BartConfig, logger
+from transformers import BartConfig
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput, \
     Seq2SeqModelOutput, BaseModelOutputWithPastAndCrossAttentions
 from transformers.models.bart.modeling_bart import BartAttention, ACT2FN, \
@@ -21,6 +21,8 @@ from transformers.models.bart.modeling_bart import BartAttention, ACT2FN, \
     BartForConditionalGeneration, \
     shift_tokens_right, BartDecoderLayer
 import torch.nn.functional as F
+from transformers.utils import logging
+logger = logging.get_logger(__name__)
 
 class AuthorGroupAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
@@ -949,10 +951,11 @@ class AuthorGroupAttentionModel(BartModel):
         padding_idx, vocab_size = config.pad_token_id, config.vocab_size
         self.shared = nn.Embedding(vocab_size, config.d_model, padding_idx)
 
-        if(config.__dict__['reader_group_attention_location']=='encoder'):
+        self.reader_group_attention_location = config.__dict__['reader_group_attention_location']
+        if(self.reader_group_attention_location == 'encoder'):
             self.encoder = AuthorGroupAttentionEncoder(config, self.shared, reader_group_types=reader_group_types, reader_attn_position=config.__dict__['reader_attn_position'])
             self.decoder = BartDecoder(config, self.shared)
-        elif(config.__dict__['reader_group_attention_location']=='decoder'):
+        elif(self.reader_group_attention_location == 'decoder'):
             self.encoder = BartEncoder(config, self.shared)
             self.decoder = AuthorGroupAttentionDecoder(config, self.shared, reader_group_types=reader_group_types, reader_attn_position=config.__dict__['reader_attn_position'])
 
@@ -994,10 +997,10 @@ class AuthorGroupAttentionModel(BartModel):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         if encoder_outputs is None:
+            if(self.)
             encoder_outputs = self.encoder(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
-                reader_token=reader_token,
                 head_mask=head_mask,
                 inputs_embeds=inputs_embeds,
                 output_attentions=output_attentions,
