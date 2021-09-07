@@ -997,16 +997,27 @@ class AuthorGroupAttentionModel(BartModel):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         if encoder_outputs is None:
-            if(self.)
-            encoder_outputs = self.encoder(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                head_mask=head_mask,
-                inputs_embeds=inputs_embeds,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
-                return_dict=return_dict,
-            )
+            if(self.reader_group_attention_location == 'encoder'):
+                encoder_outputs = self.encoder(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    head_mask=head_mask,
+                    inputs_embeds=inputs_embeds,
+                    output_attentions=output_attentions,
+                    output_hidden_states=output_hidden_states,
+                    return_dict=return_dict,
+                    reader_token=reader_token,
+                )
+            else:
+                encoder_outputs = self.encoder(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    head_mask=head_mask,
+                    inputs_embeds=inputs_embeds,
+                    output_attentions=output_attentions,
+                    output_hidden_states=output_hidden_states,
+                    return_dict=return_dict,
+                )
         # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=True
         elif return_dict and not isinstance(encoder_outputs, BaseModelOutput):
             encoder_outputs = BaseModelOutput(
@@ -1016,20 +1027,37 @@ class AuthorGroupAttentionModel(BartModel):
             )
 
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
-        decoder_outputs = self.decoder(
-            input_ids=decoder_input_ids,
-            attention_mask=decoder_attention_mask,
-            encoder_hidden_states=encoder_outputs[0],
-            encoder_attention_mask=attention_mask,
-            # head_mask=decoder_head_mask,
-            # encoder_head_mask=head_mask,
-            past_key_values=past_key_values,
-            inputs_embeds=decoder_inputs_embeds,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
+        if(self.reader_group_attention_location == 'decoder'):
+            decoder_outputs = self.decoder(
+                input_ids=decoder_input_ids,
+                attention_mask=decoder_attention_mask,
+                encoder_hidden_states=encoder_outputs[0],
+                encoder_attention_mask=attention_mask,
+                # head_mask=decoder_head_mask,
+                # encoder_head_mask=head_mask,
+                past_key_values=past_key_values,
+                inputs_embeds=decoder_inputs_embeds,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+                reader_token=reader_token,
+            )
+        else:
+            decoder_outputs = self.decoder(
+                input_ids=decoder_input_ids,
+                attention_mask=decoder_attention_mask,
+                encoder_hidden_states=encoder_outputs[0],
+                encoder_attention_mask=attention_mask,
+                # head_mask=decoder_head_mask,
+                # encoder_head_mask=head_mask,
+                past_key_values=past_key_values,
+                inputs_embeds=decoder_inputs_embeds,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
 
         if not return_dict:
             return decoder_outputs + encoder_outputs
