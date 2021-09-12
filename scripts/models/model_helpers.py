@@ -200,13 +200,13 @@ def generate_predictions(model, data, tokenizer,
         pred_text.extend(prediction)
     return pred_text
 
-def prepare_model_kwargs_for_generation(data, model_kwargs, rename_kwargs=[]):
+def prepare_model_kwargs_for_generation(data, model_kwargs):
     model_kwargs = {
         model_kwarg: data[model_kwarg]
         for model_kwarg in model_kwargs
     }
     # optional: rename kwargs (e.g. "attention_mask" => "decoder_attention_mask")
-    model_kwargs.update({v : data[k] for k,v in rename_kwargs})
+    # model_kwargs.update({v : data[k] for k,v in rename_kwargs})
     # fix type, shape of model kwargs
     # tmp debugging
     # print(f'model kwargs before type fix {model_kwargs_i}')
