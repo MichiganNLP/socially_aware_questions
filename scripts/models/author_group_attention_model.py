@@ -504,7 +504,7 @@ class AuthorGroupAttentionEncoder(BartEncoder):
 class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
     ## TODO: make it work
     def __init__(self, config: BartConfig, reader_group_types = [], reader_attn_weight = 0.1):
-        super().__init__()
+        super().__init__(config)
         self.embed_dim = config.d_model
 
         # self.self_attn = BartAttention(
@@ -668,7 +668,7 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
 
         return outputs
 
-class AuthorGroupAttentionDecoder(BartPretrainedModel):
+class AuthorGroupAttentionDecoder(BartDecoder):
     """
     Transformer decoder consisting of *config.decoder_layers* layers. Each layer is a :class:`BartDecoderLayer`
 
