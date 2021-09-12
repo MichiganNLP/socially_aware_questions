@@ -131,6 +131,7 @@ def generate_predictions(model, data, tokenizer,
                 max_length=max_decoding_length,
                 length_penalty=length_penalty,
                 num_return_sequences=1,
+                output_attentions=True,
                 **model_kwargs_i
             )
         elif(generation_method == 'sample'):
@@ -144,6 +145,8 @@ def generate_predictions(model, data, tokenizer,
             if(generate_classify_tools is not None and batch_i['reader_token'] != 'UNK'):
                 num_return_sequences = 10
                 num_beams = 1
+            # tmp debugging
+            print(f'attention mask={attention_i}')
             output_i = model.generate(
                 input_ids=source_i,
                 attention_mask=attention_i,
@@ -154,6 +157,8 @@ def generate_predictions(model, data, tokenizer,
                 num_return_sequences=num_return_sequences,
                 num_beams=num_beams,
                 do_sample=True,
+                output_attentions=True,
+                output_hidden_states=True,
                 **model_kwargs_i
             )
             ## for generate-classify model, rerank generated text based on P(class | text)

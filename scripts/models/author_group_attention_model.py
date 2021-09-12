@@ -1032,6 +1032,8 @@ class AuthorGroupAttentionModel(BartModel):
 
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         if(self.reader_group_attention_location == 'decoder'):
+            # tmp debugging
+            print(f'attention mask = {decoder_attention_mask}')
             decoder_outputs = self.decoder(
                 input_ids=decoder_input_ids,
                 attention_mask=decoder_attention_mask,
