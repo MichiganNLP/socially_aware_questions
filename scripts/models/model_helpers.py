@@ -119,6 +119,7 @@ def generate_predictions(model, data, tokenizer,
         # handle model kwargs: reader tokens, embeddings, etc.
         model_kwargs_i = prepare_model_kwargs_for_generation(batch_i, model_kwargs, rename_kwargs=rename_kwargs)
         # tmp debugging
+        print(f'model kwargs = {model_kwargs_i}')
         #if ('author_embeds' in model_kwargs_i):
             # model_kwargs_i['author_embeds'] =model_kwargs_i['author_embeds'].unsqueeze(0)
             # source_i = source_i.unsqueeze(0)
@@ -206,7 +207,7 @@ def prepare_model_kwargs_for_generation(data, model_kwargs, rename_kwargs=[]):
         for model_kwarg in model_kwargs
     }
     # optional: rename kwargs (e.g. "attention_mask" => "decoder_attention_mask")
-    model_kwargs.update({v : data[k] for k,v in rename_kwargs})
+    model_kwargs.update({v : data[k] for k,v in rename_kwargs.items()})
     # fix type, shape of model kwargs
     # tmp debugging
     # print(f'model kwargs before type fix {model_kwargs_i}')
