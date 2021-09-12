@@ -132,7 +132,7 @@ def generate_predictions(model, data, tokenizer,
                 length_penalty=length_penalty,
                 num_return_sequences=1,
                 **model_kwargs_i
-            )            
+            )
         elif(generation_method == 'sample'):
             # tmp debugging
             if('author_embeds' in model_kwargs_i):
