@@ -1189,6 +1189,7 @@ class AuthorGroupAttentionModelConditionalGeneration(BartForConditionalGeneratio
             "head_mask": head_mask,
             "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
             'reader_token' : kwargs['reader_token'],
+            'decoder_attention_mask' : (attention_mask if self.config.__dict__['reader_group_attention_location']=='decoder' else None), # for decoder model: add decoder attention mask
         }
 
     def _prepare_encoder_decoder_kwargs_for_generation(self, input_ids: torch.LongTensor, model_kwargs) -> Dict[str, Any]:

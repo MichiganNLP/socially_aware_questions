@@ -103,9 +103,9 @@ def generate_predictions(model, data, tokenizer,
         }
         reader_group_category_lookup = {v : k for k,vs in reader_group_category_lookup.items() for v in vs}
     # for decoder-modified model, need to add extra attention mask
-    rename_kwargs = {}
-    if(type(model) is AuthorGroupAttentionModelConditionalGeneration and model.config.__dict__['reader_group_attention_location']=='decoder'):
-        rename_kwargs['attention_mask'] = 'decoder_attention_mask'
+    # rename_kwargs = {}
+    # if(type(model) is AuthorGroupAttentionModelConditionalGeneration and model.config.__dict__['reader_group_attention_location']=='decoder'):
+    #     rename_kwargs['attention_mask'] = 'decoder_attention_mask'
     for batch_i in tqdm(data):
         source_i = batch_i['source_ids']
         attention_i = batch_i['attention_mask']
@@ -117,7 +117,7 @@ def generate_predictions(model, data, tokenizer,
         source_i = source_i.unsqueeze(0).to(device)
         attention_i = attention_i.unsqueeze(0).to(device)
         # handle model kwargs: reader tokens, embeddings, etc.
-        model_kwargs_i = prepare_model_kwargs_for_generation(batch_i, model_kwargs, rename_kwargs=rename_kwargs)
+        model_kwargs_i = prepare_model_kwargs_for_generation(batch_i, model_kwargs)
         # tmp debugging
         print(f'model kwargs = {model_kwargs_i}')
         #if ('author_embeds' in model_kwargs_i):
@@ -201,13 +201,13 @@ def generate_predictions(model, data, tokenizer,
         pred_text.extend(prediction)
     return pred_text
 
-def prepare_model_kwargs_for_generation(data, model_kwargs, rename_kwargs=[]):
+def prepare_model_kwargs_for_generation(data, model_kwargs):
     model_kwargs = {
         model_kwarg: data[model_kwarg]
         for model_kwarg in model_kwargs
     }
     # optional: rename kwargs (e.g. "attention_mask" => "decoder_attention_mask")
-    model_kwargs.update({v : data[k] for k,v in rename_kwargs.items()})
+    # model_kwargs.update({v : data[k] for k,v in rename_kwargs})
     # fix type, shape of model kwargs
     # tmp debugging
     # print(f'model kwargs before type fix {model_kwargs_i}')
