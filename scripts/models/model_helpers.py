@@ -129,7 +129,7 @@ def generate_predictions(model, data, tokenizer,
         #    print(f'input ids  {source_i.cpu().numpy()}')
         # print(f'model kwargs after type fix has type: {model_kwargs_i["author_embeds"].dtype}')
         if(generation_method == 'beam_search'):
-            output_i = model.generate(
+                output_i = model.generate(
                 input_ids=source_i,
                 attention_mask=attention_i,
                 num_beams=generation_params['num_beams'],
@@ -151,7 +151,11 @@ def generate_predictions(model, data, tokenizer,
                 num_return_sequences = 10
                 num_beams = 1
             # tmp debugging
-            print(f'attention mask={attention_i}')
+            # tmp debugging: do regular pass
+            print(f'about to do regular forward pass as test; source shape = {source_i.shape}')
+            test_output_i = model(input_ids=source_i, attention_mask=attention_i, **model_kwargs_i)
+            print('about to generate')
+            print(f'pre-generate attention mask={attention_i}; source shape = {source_i.shape}')
             output_i = model.generate(
                 input_ids=source_i,
                 attention_mask=attention_i,

@@ -589,12 +589,21 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
 
         combined_hidden_states = []
         combined_attn_weights = []
+        # tmp debugging
+        #if(self_attn_past_key_value is not None):
+        #    print(f'self-attn past key value shapes = {list(map(lambda x: x.shape, self_attn_past_key_value))}')
         for i, reader_group_i in enumerate(reader_token):
             reader_group_attn_i = self.self_attn_per_group[reader_group_i]
+            # fix past key values
+            if(self_attn_past_key_value is not None):
+                self_attn_past_key_value_i = [v[[i], :, :, :] for v in self_attn_past_key_value]
+                #print(f'reader token idx={i}; self-attention past key = {self_attn_past_key_value_i}')
+            else:
+                self_attn_past_key_value_i = None
             hidden_states_i, attn_weights_i, _ = reader_group_attn_i(
                 hidden_states=hidden_states[[i], :, :],
                 attention_mask=(attention_mask[[i], :, :, :] if attention_mask is not None else None),
-                past_key_value=self_attn_past_key_value,
+                past_key_value=self_attn_past_key_value_i,
                 layer_head_mask=layer_head_mask,
                 output_attentions=output_attentions,
             )
@@ -821,10 +830,12 @@ class AuthorGroupAttentionDecoder(BartDecoder):
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids) * self.embed_scale
 
+        # tmp debugging
+        #print(f'decoder attention mask before preparing = {attention_mask}; input shape = {input_shape}')
         attention_mask = self._prepare_decoder_attention_mask(
             attention_mask, input_shape, inputs_embeds, past_key_values_length
         )
-
+        #print(f'decoder attention mask after preparing = {attention_mask}')
         # expand encoder attention mask
         if encoder_hidden_states is not None and encoder_attention_mask is not None:
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
@@ -884,7 +895,8 @@ class AuthorGroupAttentionDecoder(BartDecoder):
                     None,
                 )
             else:
-                print(f'decoder layer = {idx}; attention mask = {attention_mask}')
+                # tmp debugging
+                #print(f'decoder layer = {idx}; attention mask = {attention_mask}')
                 if (idx == self.reader_attn_position):
                     layer_outputs = decoder_layer(
                         hidden_states,
@@ -1034,7 +1046,8 @@ class AuthorGroupAttentionModel(BartModel):
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         if(self.reader_group_attention_location == 'decoder'):
             # tmp debugging
-            print(f'decoder attention mask = {decoder_attention_mask}')
+            #print(f'decoder attention mask = {decoder_attention_mask}')
+            #print(f'attention mask = {attention_mask}')
             decoder_outputs = self.decoder(
                 input_ids=decoder_input_ids,
                 attention_mask=decoder_attention_mask,
@@ -1190,7 +1203,7 @@ class AuthorGroupAttentionModelConditionalGeneration(BartForConditionalGeneratio
             "head_mask": head_mask,
             "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
             'reader_token' : kwargs['reader_token'],
-            # 'decoder_attention_mask' : (attention_mask if self.config.__dict__['reader_group_attention_location']=='decoder' else None), # for decoder model: add decoder attention mask
+            #'decoder_attention_mask' : (attention_mask if self.config.__dict__['reader_group_attention_location']=='decoder' else None), # for decoder model: add decoder attention mask
         }
 
     def _prepare_encoder_decoder_kwargs_for_generation(self, input_ids: torch.LongTensor, model_kwargs) -> Dict[str, Any]:
