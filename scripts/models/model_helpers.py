@@ -102,6 +102,10 @@ def generate_predictions(model, data, tokenizer,
             'relative_time_bin' : ['<RESPONSE_TIME_0_AUTHOR>', '<RESPONSE_TIME_1_AUTHOR>'],
         }
         reader_group_category_lookup = {v : k for k,vs in reader_group_category_lookup.items() for v in vs}
+    # for decoder-modified model, need to add extra attention mask
+    # rename_kwargs = {}
+    # if(type(model) is AuthorGroupAttentionModelConditionalGeneration and model.config.__dict__['reader_group_attention_location']=='decoder'):
+    #     rename_kwargs['attention_mask'] = 'decoder_attention_mask'
     for batch_i in tqdm(data):
         source_i = batch_i['source_ids']
         attention_i = batch_i['attention_mask']
@@ -115,6 +119,7 @@ def generate_predictions(model, data, tokenizer,
         # handle model kwargs: reader tokens, embeddings, etc.
         model_kwargs_i = prepare_model_kwargs_for_generation(batch_i, model_kwargs)
         # tmp debugging
+        print(f'model kwargs = {model_kwargs_i}')
         #if ('author_embeds' in model_kwargs_i):
             # model_kwargs_i['author_embeds'] =model_kwargs_i['author_embeds'].unsqueeze(0)
             # source_i = source_i.unsqueeze(0)
@@ -124,15 +129,16 @@ def generate_predictions(model, data, tokenizer,
         #    print(f'input ids  {source_i.cpu().numpy()}')
         # print(f'model kwargs after type fix has type: {model_kwargs_i["author_embeds"].dtype}')
         if(generation_method == 'beam_search'):
-            output_i = model.generate(
+                output_i = model.generate(
                 input_ids=source_i,
                 attention_mask=attention_i,
                 num_beams=generation_params['num_beams'],
                 max_length=max_decoding_length,
                 length_penalty=length_penalty,
                 num_return_sequences=1,
+                output_attentions=True,
                 **model_kwargs_i
-            )            
+            )
         elif(generation_method == 'sample'):
             # tmp debugging
             if('author_embeds' in model_kwargs_i):
@@ -144,6 +150,12 @@ def generate_predictions(model, data, tokenizer,
             if(generate_classify_tools is not None and batch_i['reader_token'] != 'UNK'):
                 num_return_sequences = 10
                 num_beams = 1
+            # tmp debugging
+            # tmp debugging: do regular pass
+            print(f'about to do regular forward pass as test; source shape = {source_i.shape}')
+            test_output_i = model(input_ids=source_i, attention_mask=attention_i, **model_kwargs_i)
+            print('about to generate')
+            print(f'pre-generate attention mask={attention_i}; source shape = {source_i.shape}')
             output_i = model.generate(
                 input_ids=source_i,
                 attention_mask=attention_i,
@@ -154,6 +166,8 @@ def generate_predictions(model, data, tokenizer,
                 num_return_sequences=num_return_sequences,
                 num_beams=num_beams,
                 do_sample=True,
+                output_attentions=True,
+                output_hidden_states=True,
                 **model_kwargs_i
             )
             ## for generate-classify model, rerank generated text based on P(class | text)
@@ -196,6 +210,8 @@ def prepare_model_kwargs_for_generation(data, model_kwargs):
         model_kwarg: data[model_kwarg]
         for model_kwarg in model_kwargs
     }
+    # optional: rename kwargs (e.g. "attention_mask" => "decoder_attention_mask")
+    # model_kwargs.update({v : data[k] for k,v in rename_kwargs})
     # fix type, shape of model kwargs
     # tmp debugging
     # print(f'model kwargs before type fix {model_kwargs_i}')
