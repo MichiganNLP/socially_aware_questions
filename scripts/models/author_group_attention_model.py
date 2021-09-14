@@ -506,8 +506,7 @@ class AuthorGroupAttentionEncoder(BartEncoder):
         )
 
 class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
-    ## TODO: make it work
-    def __init__(self, config: BartConfig, reader_group_types = [], reader_attn_weight = 0.1):
+    def __init__(self, config: BartConfig, reader_group_types = []):
         super().__init__(config)
         self.embed_dim = config.d_model
 
@@ -527,7 +526,7 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
             # .to(torch.cuda.current_device())
             for reader_group in reader_group_types
         })
-        self.reader_attn_weight = reader_attn_weight
+        self.reader_attn_weight = config.__dict__['reader_attn_weight']
         self.self_attn_general = BartAttention(
             embed_dim=self.embed_dim,
             num_heads=config.encoder_attention_heads,
