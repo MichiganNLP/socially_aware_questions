@@ -265,7 +265,7 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
             # print(f'attention forward = {help(reader_group_attn_i.forward)}')
             hidden_states_i, attn_weights_i, _ = reader_group_attn_i(
                 hidden_states=hidden_states[[i], :, :],
-                attention_mask=attention_mask[[i], :, :, :],
+                attention_mask=(attention_mask[[i], :, :, :] if attention_mask is not None else None),
                 # key_value_states=None,
                 # past_key_value=None,
                 layer_head_mask=layer_head_mask,
@@ -506,8 +506,7 @@ class AuthorGroupAttentionEncoder(BartEncoder):
         )
 
 class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
-    ## TODO: make it work
-    def __init__(self, config: BartConfig, reader_group_types = [], reader_attn_weight = 0.1):
+    def __init__(self, config: BartConfig, reader_group_types = []):
         super().__init__(config)
         self.embed_dim = config.d_model
 
@@ -527,7 +526,7 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
             # .to(torch.cuda.current_device())
             for reader_group in reader_group_types
         })
-        self.reader_attn_weight = reader_attn_weight
+        self.reader_attn_weight = config.__dict__['reader_attn_weight']
         self.self_attn_general = BartAttention(
             embed_dim=self.embed_dim,
             num_heads=config.encoder_attention_heads,

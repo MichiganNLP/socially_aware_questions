@@ -136,7 +136,7 @@ def generate_predictions(model, data, tokenizer,
                 max_length=max_decoding_length,
                 length_penalty=length_penalty,
                 num_return_sequences=1,
-                # output_attentions=True,
+                output_attentions=True,
                 **model_kwargs_i
             )
         elif(generation_method == 'sample'):
