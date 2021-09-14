@@ -8,6 +8,7 @@ pre-trained language models (e.g. BART).
 from torch import distributed
 from torch.nn.parallel import DistributedDataParallel
 from torch.nn import DataParallel
+from torch.utils.data import DataLoader
 
 from data_collator import T2TDataCollator
 from transformers import AutoModelForSeq2SeqLM, BartConfig, AdamW
@@ -237,6 +238,10 @@ def main():
         tensor_cols.append('author_embeds')
     train_dataset.set_format('torch', columns=tensor_cols, output_all_columns=True)
     val_dataset.set_format('torch', columns=tensor_cols, output_all_columns=True)
+    ## get data loaders
+    num_workers = 5
+    train_dataset_loader = DataLoader(train_dataset, num_workers=num_workers)
+    val_dataset_loader = DataLoader(val_dataset, num_workers=num_workers)
 
     ## set up data collator
     # get max source/target len
@@ -256,6 +261,7 @@ def main():
         using_tpu=False,
         extra_args=extra_data_collate_args,
     )
+
     model_out_dir = os.path.join(out_dir, 'question_generation_model/')
     if (not os.path.exists(model_out_dir)):
         os.mkdir(model_out_dir)
@@ -279,8 +285,8 @@ def main():
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=val_dataset,
+        train_dataset=train_dataset_loader,
+        eval_dataset=val_dataset_loader,
         data_collator=data_collator,
         #     prediction_loss_only=True,
         label_smoothing=model_args['label_smoothing'],
