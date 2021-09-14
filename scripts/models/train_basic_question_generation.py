@@ -170,6 +170,8 @@ def main():
     tokenizer_name = model_type_tokenizer_lookup[base_model_type]
     tokenizer_file = os.path.join(data_dir, f'{tokenizer_name}_tokenizer.pt')
     tokenizer = torch.load(tokenizer_file)
+	# load config first (hyperparameter tests)
+    config = BartConfig.from_json_file(model_config_file)
 
     ## load data
     # train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
@@ -190,7 +192,6 @@ def main():
     if (model_type == 'bart_author_embeds'):
         ## custom loading
         # config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json') # copy of config file with author args
-        config = BartConfig.from_json_file(model_config_file)
         model = AuthorTextGenerationModel(config)
         # choose appropriate embeds in data
         # print(f'author embed type = {config.__dict__["author_embed_type"]}')
@@ -202,7 +203,6 @@ def main():
         # print(f'tokenizer has {len(tokenizer)} tokens')
     elif(model_type == 'bart_author_attention'):
         # config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json')
-        config = BartConfig.from_json_file(model_config_file)
         reader_group_types = config.__dict__['reader_group_types']
         model = AuthorGroupAttentionModelConditionalGeneration(config, reader_group_types=reader_group_types)
         # fix reader token type
