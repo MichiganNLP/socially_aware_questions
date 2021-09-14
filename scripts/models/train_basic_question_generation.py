@@ -66,7 +66,7 @@ def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, m
     ## TODO: increase training size
     training_args.learning_rate = 1e-4
     training_args.dataloader_drop_last = False
-    training_args.dataloader_num_workers = 8
+    training_args.dataloader_num_workers = 16
     training_args.evaluate_during_training = True
     training_args.do_eval = True
     training_args.evaluation_strategy = 'steps'
@@ -238,10 +238,6 @@ def main():
         tensor_cols.append('author_embeds')
     train_dataset.set_format('torch', columns=tensor_cols, output_all_columns=True)
     val_dataset.set_format('torch', columns=tensor_cols, output_all_columns=True)
-    ## get data loaders
-    num_workers = 5
-    train_dataset_loader = DataLoader(train_dataset, num_workers=num_workers)
-    val_dataset_loader = DataLoader(val_dataset, num_workers=num_workers)
 
     ## set up data collator
     # get max source/target len
@@ -285,8 +281,8 @@ def main():
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=train_dataset_loader,
-        eval_dataset=val_dataset_loader,
+        train_dataset=train_dataset,
+        eval_dataset=val_dataset,
         data_collator=data_collator,
         #     prediction_loss_only=True,
         label_smoothing=model_args['label_smoothing'],
