@@ -18,11 +18,11 @@
 #MODEL_FILE=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
 #OUT_DIR=../../data/CNN_articles/cnn/
 # regular training reddit data
-#TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
-#TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
+TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
+TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
 # mini train/val data for parameter tuning
-TRAIN_DATA=../../data/reddit_data/combined_data_train_train_data.pt
-TEST_DATA=../../data/reddit_data/combined_data_train_val_data.pt
+#TRAIN_DATA=../../data/reddit_data/combined_data_train_train_data.pt
+#TEST_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 # data w/ valid author data
 #TRAIN_DATA=../../data/reddit_data/combined_data_valid_authors_train_data.pt
 #TEST_DATA=../../data/reddit_data/combined_data_valid_authors_test_data.pt
@@ -84,7 +84,8 @@ TEST_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_weight\=0.5_location\=decoder/question_generation_model/checkpoint-194000/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_weight\=0.5_location\=decoder/
 MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_weight\=0.9_location\=decoder/question_generation_model/checkpoint-194000/pytorch_model.bin
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_weight\=0.9_location\=decoder/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_weight\=0.9_location\=decoder/
+OUT_DIR=/home/ianbstew/audience_aware_NLP/data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.9_location=decoder/full_test_data/
 MODEL_TYPE='bart_author_attention'
 # reddit + subreddit embed (+ encoder)
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_data/question_generation_model/checkpoint-275500/pytorch_model.bin

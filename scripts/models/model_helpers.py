@@ -119,7 +119,7 @@ def generate_predictions(model, data, tokenizer,
         # handle model kwargs: reader tokens, embeddings, etc.
         model_kwargs_i = prepare_model_kwargs_for_generation(batch_i, model_kwargs)
         # tmp debugging
-        print(f'model kwargs = {model_kwargs_i}')
+        #print(f'model kwargs = {model_kwargs_i}')
         #if ('author_embeds' in model_kwargs_i):
             # model_kwargs_i['author_embeds'] =model_kwargs_i['author_embeds'].unsqueeze(0)
             # source_i = source_i.unsqueeze(0)
@@ -152,10 +152,10 @@ def generate_predictions(model, data, tokenizer,
                 num_beams = 1
             # tmp debugging
             # tmp debugging: do regular pass
-            print(f'about to do regular forward pass as test; source shape = {source_i.shape}')
-            test_output_i = model(input_ids=source_i, attention_mask=attention_i, **model_kwargs_i)
-            print('about to generate')
-            print(f'pre-generate attention mask={attention_i}; source shape = {source_i.shape}')
+            #print(f'about to do regular forward pass as test; source shape = {source_i.shape}')
+            #test_output_i = model(input_ids=source_i, attention_mask=attention_i, **model_kwargs_i)
+            #print('about to generate')
+            #print(f'pre-generate attention mask={attention_i}; source shape = {source_i.shape}')
             output_i = model.generate(
                 input_ids=source_i,
                 attention_mask=attention_i,
