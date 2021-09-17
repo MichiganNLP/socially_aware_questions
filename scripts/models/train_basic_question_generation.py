@@ -66,7 +66,7 @@ def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, m
     ## TODO: increase training size
     training_args.learning_rate = 1e-4
     training_args.dataloader_drop_last = False
-    training_args.dataloader_num_workers = 16
+    training_args.dataloader_num_workers = 8
     training_args.evaluate_during_training = True
     training_args.do_eval = True
     training_args.evaluation_strategy = 'steps'

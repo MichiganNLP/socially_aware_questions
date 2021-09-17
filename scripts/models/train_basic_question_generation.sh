@@ -4,7 +4,8 @@
 #SBATCH --output=/home/%u/logs/%x-%j.log
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --mem-per-gpu=50g
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-gpu=80g
 #SBATCH --time=48:00:00
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
@@ -40,12 +41,12 @@
 #TRAIN_DATA=../../data/reddit_data/advice_subreddit_train_data.pt
 #VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
 ## reddit+author data
-# sampled data
-#TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
-#VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
+# "full" (sampled) data
+TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
+VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 # split training data (parameter tuning)
-TRAIN_DATA=../../data/reddit_data/combined_data_train_train_data.pt
-VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
+#TRAIN_DATA=../../data/reddit_data/combined_data_train_train_data.pt
+#VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 # author-only data: fine-tuning
 #TRAIN_DATA=../../data/reddit_data/combined_data_valid_authors_train_data.pt
 #VAL_DATA=../../data/reddit_data/combined_data_valid_authors_test_data.pt
@@ -71,9 +72,9 @@ VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 #MODEL_TYPE="bart_author"
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_token_model_config.json
 # author attention
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
-#MODEL_TYPE="bart_author_attention"
-#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
+MODEL_TYPE="bart_author_attention"
+MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 # author attention: hyperparameter tests
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.1_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.5_location=encoder/
@@ -87,14 +88,14 @@ VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.1_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.5_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder/
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_weight=0.1_location=decoder/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_weight=0.1_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_weight=0.5_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_weight=0.9_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.1_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.5_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.9_location=decoder/
-MODEL_TYPE="bart_author_attention"
-MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
+#MODEL_TYPE="bart_author_attention"
+#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 ## author embed
 # subreddit embed 
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/ # encoder
