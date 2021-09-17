@@ -8,6 +8,7 @@ pre-trained language models (e.g. BART).
 from torch import distributed
 from torch.nn.parallel import DistributedDataParallel
 from torch.nn import DataParallel
+from torch.utils.data import DataLoader
 
 from data_collator import T2TDataCollator
 from transformers import AutoModelForSeq2SeqLM, BartConfig, AdamW
@@ -65,7 +66,7 @@ def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, m
     ## TODO: increase training size
     training_args.learning_rate = 1e-4
     training_args.dataloader_drop_last = False
-    training_args.dataloader_num_workers = 8
+    training_args.dataloader_num_workers = 16
     training_args.evaluate_during_training = True
     training_args.do_eval = True
     training_args.evaluation_strategy = 'steps'
@@ -256,6 +257,7 @@ def main():
         using_tpu=False,
         extra_args=extra_data_collate_args,
     )
+
     model_out_dir = os.path.join(out_dir, 'question_generation_model/')
     if (not os.path.exists(model_out_dir)):
         os.mkdir(model_out_dir)
