@@ -82,7 +82,7 @@ class AuthorGroupAttention(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
         layer_head_mask: Optional[torch.Tensor] = None,
         output_attentions: bool = False,
-        reader_tokens: list = [],
+        reader_token: list = [],
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
 
@@ -93,20 +93,38 @@ class AuthorGroupAttention(nn.Module):
 
         # get reader-specific probs
         reader_attn_probs = []
-        for reader_token_i in reader_tokens:
+        # tmp debugging
+        # print(f'attention mask has shape = {attention_mask.shape}')
+        # print(f'hidden states has shape = {hidden_states.shape}')
+        # if(key_value_states is not None):
+        #     print(f'key value states has shape = {key_value_states.shape}')
+        if(past_key_value is not None):
+            print(f'past key value has shape = {past_key_value.shape}')
+        reader_bsz = 1
+        reader_past_key_value = past_key_value
+        for i, reader_token_i in enumerate(reader_token):
+            attention_mask_i = attention_mask[[i], :, :, :]
+            hidden_states_i = hidden_states[[i], :, :]
+            if(reader_past_key_value is not None):
+                past_key_value_i = reader_past_key_value[[i], :, :]
+            else:
+                past_key_value_i = None
             attn_probs_i, attn_weights_reshaped_i, past_key_value_i, value_states_i = self.get_attn_probs(
-                attention_mask, bsz, hidden_states, is_cross_attention,
+                attention_mask_i,
+                reader_bsz,
+                hidden_states_i,
+                is_cross_attention,
                 key_value_states, layer_head_mask, output_attentions,
-                past_key_value, tgt_len, reader_token=reader_token_i)
+                past_key_value_i, tgt_len, reader_token=reader_token_i)
             reader_attn_probs.append(attn_probs_i)
-        reader_attn_probs = torch.cat(reader_attn_probs, axis=1)
+        reader_attn_probs = torch.cat(reader_attn_probs, axis=0)
         # generic probs
         generic_attn_probs, generic_attn_weights_reshaped, generic_past_key_value, generic_value_states = self.get_attn_probs(
                 attention_mask, bsz, hidden_states, is_cross_attention,
                 key_value_states, layer_head_mask, output_attentions,
                 past_key_value, tgt_len, reader_token=None)
         ## attn_probs = reader_attn_probs + general_attn_probs
-        attn_probs = self.reader_group_weight * reader_attn_probs + (1-self.reader_group_weight) * generic_attn_probs
+        attn_probs = (self.reader_group_weight * reader_attn_probs + (1-self.reader_group_weight) * generic_attn_probs) / 2.
         attn_output = torch.bmm(attn_probs, generic_value_states)
 
         if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_dim):
@@ -119,6 +137,8 @@ class AuthorGroupAttention(nn.Module):
         attn_output = attn_output.reshape(bsz, tgt_len, embed_dim)
 
         attn_output = self.out_proj(attn_output)
+        # tmp debugging
+        print(f'generic past key value = {generic_past_key_value}')
 
         return attn_output, generic_attn_weights_reshaped, generic_past_key_value
 
@@ -211,9 +231,10 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
                 num_heads=config.encoder_attention_heads,
                 dropout=config.attention_dropout,
                 reader_group_types=reader_group_types,
-                reader_group_weight=self.reader_attn_weight
+                reader_group_weight=self.reader_attn_weight,
+                is_decoder=False,
             )
-        else:
+        elif (self.reader_attn_config == 'attn_full'):
             self.self_attn_per_group = nn.ModuleDict({
                 reader_group : BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout)#.to(torch.cuda.current_device())
                 for reader_group in reader_group_types
@@ -255,49 +276,57 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
                 returned tensors for more detail.
         """
         residual = hidden_states
-        # run the hidden states, attention masks through each
-        # reader-group specific module separately, then
-        # recombine after
-        combined_hidden_states = []
-        combined_attn_weights = []
         # tmp debugging
         # print(f'encoder: reader tokens {reader_token}')
         # tmp debugging
         # print(f'attention per group = {self.self_attn_per_group}')
-        for i, reader_group_i in enumerate(reader_token):
-            # print(f'reader group = {reader_group_i}')
-            # reader_group_attn_i = self.self_attn_per_group[int(reader_group_i)]
-            reader_group_attn_i = self.self_attn_per_group[reader_group_i]
-            # tmp debug
-            # print(f'encoder layer: hidden states {hidden_states[[i], :, :].shape}')
-            # print(f'encoder layer: attention {attention_mask[[i], :, :, :].shape}')
-            # print(f'attention module {reader_group_attn_i}')
-            # print(f'attention forward = {help(reader_group_attn_i.forward)}')
-            hidden_states_i, attn_weights_i, _ = reader_group_attn_i(
-                hidden_states=hidden_states[[i], :, :],
-                attention_mask=(attention_mask[[i], :, :, :] if attention_mask is not None else None),
-                # key_value_states=None,
-                # past_key_value=None,
-                layer_head_mask=layer_head_mask,
+        if(self.reader_attn_config == 'attn_prob'):
+            hidden_states, attn_weights, _ = self.self_attn(
+                hidden_states=hidden_states,
+                attention_mask=attention_mask,
+                output_attentions=output_attentions,
+                reader_token=reader_token,
+            )
+        else:
+            # run the hidden states, attention masks through each
+            # reader-group specific module separately, then
+            # recombine after
+            combined_hidden_states = []
+            combined_attn_weights = []
+            for i, reader_group_i in enumerate(reader_token):
+                # print(f'reader group = {reader_group_i}')
+                # reader_group_attn_i = self.self_attn_per_group[int(reader_group_i)]
+                reader_group_attn_i = self.self_attn_per_group[reader_group_i]
+                # tmp debug
+                # print(f'encoder layer: hidden states {hidden_states[[i], :, :].shape}')
+                # print(f'encoder layer: attention {attention_mask[[i], :, :, :].shape}')
+                # print(f'attention module {reader_group_attn_i}')
+                # print(f'attention forward = {help(reader_group_attn_i.forward)}')
+                hidden_states_i, attn_weights_i, _ = reader_group_attn_i(
+                    hidden_states=hidden_states[[i], :, :],
+                    attention_mask=(attention_mask[[i], :, :, :] if attention_mask is not None else None),
+                    # key_value_states=None,
+                    # past_key_value=None,
+                    layer_head_mask=layer_head_mask,
+                    output_attentions=output_attentions,
+                )
+
+                # print(f'output = attention weights {attn_weights_i}')
+                combined_hidden_states.append(hidden_states_i)
+                combined_attn_weights.append(attn_weights_i)
+            reader_hidden_states = torch.cat(combined_hidden_states, axis=0)
+            if(not any(list(map(lambda x: x is None, combined_attn_weights)))):
+                reader_attn_weights = torch.cat(combined_attn_weights, axis=0)
+            else:
+                attn_weights = None
+            ## combine reader states with "regular" attention (non-weighted? sure)
+            general_hidden_states, general_attn_weights, _ = self.self_attn_general(
+                hidden_states=hidden_states,
+                attention_mask=attention_mask,
                 output_attentions=output_attentions,
             )
-
-            # print(f'output = attention weights {attn_weights_i}')
-            combined_hidden_states.append(hidden_states_i)
-            combined_attn_weights.append(attn_weights_i)
-        reader_hidden_states = torch.cat(combined_hidden_states, axis=0)
-        if(not any(list(map(lambda x: x is None, combined_attn_weights)))):
-            reader_attn_weights = torch.cat(combined_attn_weights, axis=0)
-        else:
-            attn_weights = None
-        ## combine reader states with "regular" attention (non-weighted? sure)
-        general_hidden_states, general_attn_weights, _ = self.self_attn_general(
-            hidden_states=hidden_states,
-            attention_mask=attention_mask,
-            output_attentions=output_attentions,
-        )
-        hidden_states = (self.reader_attn_weight * reader_hidden_states + (1 - self.reader_attn_weight) * general_hidden_states) / 2.
-        attn_weights = (self.reader_attn_weight * reader_attn_weights + (1 - self.reader_attn_weight) * general_attn_weights) / 2.
+            hidden_states = (self.reader_attn_weight * reader_hidden_states + (1 - self.reader_attn_weight) * general_hidden_states) / 2.
+            attn_weights = (self.reader_attn_weight * reader_attn_weights + (1 - self.reader_attn_weight) * general_attn_weights) / 2.
 
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
@@ -526,23 +555,35 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
         #     dropout=config.attention_dropout,
         #     is_decoder=True,
         # )
-        self.self_attn_per_group = nn.ModuleDict({
-            reader_group: BartAttention(
+        self.reader_attn_config = config.__dict__['reader_attn_config']
+        self.reader_attn_weight = config.__dict__['reader_attn_weight']
+        # NOTE we need to include "OTHER" in reader_groups
+        # to provide catch-all category
+        if (self.reader_attn_config == 'attn_prob'):
+            self.self_attn = AuthorGroupAttention(
+                embed_dim=self.embed_dim,
+                num_heads=config.encoder_attention_heads,
+                dropout=config.attention_dropout,
+                reader_group_types=reader_group_types,
+                reader_group_weight=self.reader_attn_weight,
+                is_decoder=True
+            )
+        elif(self.reader_attn_config == 'attn_full'):
+            self.self_attn_per_group = nn.ModuleDict({
+                reader_group: BartAttention(
+                    embed_dim=self.embed_dim,
+                    num_heads=config.encoder_attention_heads,
+                    dropout=config.attention_dropout,
+                    is_decoder=True
+                )
+                for reader_group in reader_group_types
+            })
+            self.self_attn_general = BartAttention(
                 embed_dim=self.embed_dim,
                 num_heads=config.encoder_attention_heads,
                 dropout=config.attention_dropout,
                 is_decoder=True
             )
-            # .to(torch.cuda.current_device())
-            for reader_group in reader_group_types
-        })
-        self.reader_attn_weight = config.__dict__['reader_attn_weight']
-        self.self_attn_general = BartAttention(
-            embed_dim=self.embed_dim,
-            num_heads=config.encoder_attention_heads,
-            dropout=config.attention_dropout,
-            is_decoder=True
-        )
         self.dropout = config.dropout
         self.activation_fn = ACT2FN[config.activation_function]
         self.activation_dropout = config.activation_dropout
@@ -596,45 +637,54 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
         self_attn_past_key_value = past_key_value[:2] if past_key_value is not None else None
         # add present self-attn cache to positions 1,2 of present_key_value tuple
 
-        combined_hidden_states = []
-        combined_attn_weights = []
-        # tmp debugging
-        #if(self_attn_past_key_value is not None):
-        #    print(f'self-attn past key value shapes = {list(map(lambda x: x.shape, self_attn_past_key_value))}')
-        for i, reader_group_i in enumerate(reader_token):
-            reader_group_attn_i = self.self_attn_per_group[reader_group_i]
-            # fix past key values
-            if(self_attn_past_key_value is not None):
-                self_attn_past_key_value_i = [v[[i], :, :, :] for v in self_attn_past_key_value]
-                #print(f'reader token idx={i}; self-attention past key = {self_attn_past_key_value_i}')
+        if (self.reader_attn_config == 'attn_prob'):
+            hidden_states, attn_weights, present_key_value = self.self_attn(
+                hidden_states=hidden_states,
+                attention_mask=attention_mask,
+                output_attentions=output_attentions,
+                reader_token=reader_token,
+            )
+        else:
+            combined_hidden_states = []
+            combined_attn_weights = []
+            # tmp debugging
+            #if(self_attn_past_key_value is not None):
+            #    print(f'self-attn past key value shapes = {list(map(lambda x: x.shape, self_attn_past_key_value))}')
+            for i, reader_group_i in enumerate(reader_token):
+                reader_group_attn_i = self.self_attn_per_group[reader_group_i]
+                # fix past key values
+                if(self_attn_past_key_value is not None):
+                    self_attn_past_key_value_i = [v[[i], :, :, :] for v in self_attn_past_key_value]
+                    #print(f'reader token idx={i}; self-attention past key = {self_attn_past_key_value_i}')
+                else:
+                    self_attn_past_key_value_i = None
+                hidden_states_i, attn_weights_i, _ = reader_group_attn_i(
+                    hidden_states=hidden_states[[i], :, :],
+                    attention_mask=(attention_mask[[i], :, :, :] if attention_mask is not None else None),
+                    past_key_value=self_attn_past_key_value_i,
+                    layer_head_mask=layer_head_mask,
+                    output_attentions=output_attentions,
+                )
+                combined_hidden_states.append(hidden_states_i)
+                combined_attn_weights.append(attn_weights_i)
+            reader_hidden_states = torch.cat(combined_hidden_states, axis=0)
+            if(not any(list(map(lambda x: x is None, combined_attn_weights)))):
+                reader_attn_weights = torch.cat(combined_attn_weights, axis=0)
             else:
-                self_attn_past_key_value_i = None
-            hidden_states_i, attn_weights_i, _ = reader_group_attn_i(
-                hidden_states=hidden_states[[i], :, :],
-                attention_mask=(attention_mask[[i], :, :, :] if attention_mask is not None else None),
-                past_key_value=self_attn_past_key_value_i,
+                reader_attn_weights = None
+            ## combine reader states with "regular" attention
+            general_hidden_states, general_attn_weights, present_key_value = self.self_attn_general(
+                hidden_states=hidden_states,
+                past_key_value=self_attn_past_key_value,
+                attention_mask=attention_mask,
                 layer_head_mask=layer_head_mask,
                 output_attentions=output_attentions,
             )
-            combined_hidden_states.append(hidden_states_i)
-            combined_attn_weights.append(attn_weights_i)
-        reader_hidden_states = torch.cat(combined_hidden_states, axis=0)
-        if(not any(list(map(lambda x: x is None, combined_attn_weights)))):
-            reader_attn_weights = torch.cat(combined_attn_weights, axis=0)
-        else:
-            reader_attn_weights = None
-        ## combine reader states with "regular" attention
-        general_hidden_states, general_attn_weights, present_key_value = self.self_attn_general(
-            hidden_states=hidden_states,
-            past_key_value=self_attn_past_key_value,
-            attention_mask=attention_mask,
-            layer_head_mask=layer_head_mask,
-            output_attentions=output_attentions,
-        )
-        if(reader_attn_weights is not None):
-            hidden_states = (self.reader_attn_weight * reader_hidden_states + (1 - self.reader_attn_weight) * general_hidden_states) / 2.
-        else:
-            hidden_states = general_hidden_states
+            attn_weights = general_attn_weights
+            if(reader_attn_weights is not None):
+                hidden_states = (self.reader_attn_weight * reader_hidden_states + (1 - self.reader_attn_weight) * general_hidden_states) / 2.
+            else:
+                hidden_states = general_hidden_states
         # attn_weights = (self.reader_attn_weight * reader_attn_weights + (1 - self.reader_attn_weight) * general_attn_weights) / 2.
 
         # hidden_states, self_attn_weights, present_key_value = self.self_attn(
@@ -669,6 +719,8 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
             hidden_states = self.encoder_attn_layer_norm(hidden_states)
 
             # add cross-attn to positions 3,4 of present_key_value tuple
+            # tmp debugging
+            print(f'present key value = {present_key_value}')
             present_key_value = present_key_value + cross_attn_present_key_value
 
         # Fully Connected
@@ -683,7 +735,7 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
         outputs = (hidden_states,)
 
         if output_attentions:
-            outputs += (general_attn_weights, cross_attn_weights)
+            outputs += (attn_weights, cross_attn_weights)
 
         if use_cache:
             outputs += (present_key_value,)

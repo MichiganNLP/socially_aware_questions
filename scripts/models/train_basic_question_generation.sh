@@ -76,7 +76,7 @@ VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 #MODEL_TYPE="bart_author_attention"
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 # author attention: hyperparameter tests
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.1_location=encoder/
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.1_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.5_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_weight=0.1_location=encoder/
@@ -92,10 +92,10 @@ VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_weight=0.5_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_weight=0.9_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.1_location=decoder/
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.5_location=decoder/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.5_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.9_location=decoder/
 # optional hyperparameters: for overriding config file
-MODEL_CONFIG_PARAMS="reader_attn_layer=5,reader_attn_weight=0.5,reader_group_attention_location=decoder"
+#MODEL_CONFIG_PARAMS="reader_attn_layer=5,reader_attn_weight=0.5,reader_group_attention_location=decoder"
 MODEL_TYPE="bart_author_attention"
 MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 ## author embed
@@ -123,13 +123,14 @@ N_GPU=1
 ## use device for single-GPU processes
 #export CUDA_VISIBLE_DEVICES=0
 
-# queue process
+## queue process
 #python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU
 # override model parameters
-python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --model_config_params $MODEL_CONFIG_PARAMS
+#python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --model_config_params $MODEL_CONFIG_PARAMS
 # pretrained model
-#(python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --pretrained_model $PRETRAINED_MODEL)&
-# normal process
-#PID=$!
-#MAX_MEMORY=50000000000 # 50G
-#prlimit --pid $PID --as=$MAX_MEMORY
+#python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --pretrained_model $PRETRAINED_MODEL
+## normal process
+(python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU)&
+PID=$!
+MAX_MEMORY=50000000000 # 50G
+prlimit --pid $PID --as=$MAX_MEMORY
