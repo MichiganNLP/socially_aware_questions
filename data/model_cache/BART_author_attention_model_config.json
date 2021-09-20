@@ -72,7 +72,7 @@
   },
   "vocab_size": 50271,
   "reader_group_types" : ["<US_AUTHOR>", "<NONUS_AUTHOR>", "<EXPERT_PCT_0_AUTHOR>", "<EXPERT_PCT_1_AUTHOR>", "<RESPONSE_TIME_0_AUTHOR>", "<RESPONSE_TIME_1_AUTHOR>", "UNK"],
-  "reader_attn_weight" : 0.9,
-  "reader_attn_position" : 1,
+  "reader_attn_weight" : 0.5,
+  "reader_attn_position" : 5,
   "reader_group_attention_location":"decoder"
 }
