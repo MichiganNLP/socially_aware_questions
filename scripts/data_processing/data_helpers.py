@@ -565,6 +565,8 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     test_article_ids = article_ids[N_train:]
     # train_article_ids = np.random.choice(article_ids, N_train, replace=False)
     # test_article_ids = list(set(article_ids) - set(train_article_ids))
+    # shuffle data
+    clean_data = clean_data.sample(frac=1., replace=False, random_state=123)
     clean_data_train = clean_data[clean_data.loc[:, 'article_id'].isin(train_article_ids)]
     clean_data_test = clean_data[clean_data.loc[:, 'article_id'].isin(test_article_ids)]
     dataset_columns = ['source_text', 'target_text', 'article_id', 'id', 'author', 'question_id']

@@ -5,6 +5,8 @@ pre-trained language models (e.g. BART).
 # import sys
 # if ('question_generation' not in sys.path):
 #     sys.path.append('question_generation')
+from ast import literal_eval
+
 from torch import distributed
 from torch.nn.parallel import DistributedDataParallel
 from torch.nn import DataParallel
@@ -104,6 +106,15 @@ def get_optimizer(model, args):
     optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
     return optimizer
 
+def update_model_config(config, model_config_params):
+    for param_i, val_i in model_config_params.split(','):
+        # try to parse number values
+        try:
+            val_i = literal_eval(val_i)
+        except Exception as e:
+            pass
+        config.__dict__[param_i] = val_i
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('train_data')
@@ -114,6 +125,7 @@ def main():
     parser.add_argument('--model_config_file', default='../../data/model_cache/BART_config.json')
     parser.add_argument('--pretrained_model', default=None)
     parser.add_argument('--n_gpu', type=int, default=1)
+    parser.add_argument('--model_config_params', default=None)
     args = vars(parser.parse_args())
     train_data_file = args['train_data']
     val_data_file = args['val_data']
@@ -123,6 +135,7 @@ def main():
     model_cache_dir = args['model_cache_dir']
     pretrained_model = args['pretrained_model']
     model_config_file = args['model_config_file']
+    model_config_params = args.get('model_config_params')
     n_gpu = args['n_gpu']
     if(not os.path.exists(out_dir)):
         os.mkdir(out_dir)
@@ -173,7 +186,9 @@ def main():
     tokenizer = torch.load(tokenizer_file)
 	# load config first (hyperparameter tests)
     config = BartConfig.from_json_file(model_config_file)
-
+    # optional: override config file
+    if(model_config_params is not None):
+        update_model_config(config, model_config_params)
     ## load data
     # train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
     # val_data_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
@@ -303,6 +318,9 @@ def main():
         resume_from_checkpoint=None,
     )
     trainer.save_model()
+
+
+
 
 if __name__ == '__main__':
     main()
