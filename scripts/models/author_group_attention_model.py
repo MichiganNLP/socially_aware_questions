@@ -56,7 +56,7 @@ class AuthorGroupAttention(nn.Module):
         self.v_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
         self.q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
-        ## TODO: make this less bad
+        ## reader-specific attention types
         self.reader_group_weight = reader_group_weight
         self.reader_k_proj = nn.ModuleDict({
             reader_group_type : nn.Linear(embed_dim, embed_dim, bias=bias)
@@ -105,7 +105,7 @@ class AuthorGroupAttention(nn.Module):
                 attention_mask, bsz, hidden_states, is_cross_attention,
                 key_value_states, layer_head_mask, output_attentions,
                 past_key_value, tgt_len, reader_token=None)
-        ## TODO: attn_probs = reader_attn_probs + general_attn_probs
+        ## attn_probs = reader_attn_probs + general_attn_probs
         attn_probs = self.reader_group_weight * reader_attn_probs + (1-self.reader_group_weight) * generic_attn_probs
         attn_output = torch.bmm(attn_probs, generic_value_states)
 
@@ -128,7 +128,7 @@ class AuthorGroupAttention(nn.Module):
         if(reader_token is None):
             q_proj, k_proj, v_proj = self.q_proj, self.k_proj, self.v_proj
         else:
-            q_proj, k_proj, v_proj = self.reader_v_proj[reader_token], self.reader_k_proj[reader_token], self.reader_v_proj[reader_token]
+            q_proj, k_proj, v_proj = self.reader_q_proj[reader_token], self.reader_k_proj[reader_token], self.reader_v_proj[reader_token]
         query_states = q_proj(hidden_states) * self.scaling
         # get key, value proj
         if is_cross_attention and past_key_value is not None:
@@ -202,15 +202,25 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
         super().__init__(config)
         self.embed_dim = config.d_model
         self.reader_attn_weight = config.__dict__['reader_attn_weight']
+        self.reader_attn_config = config.__dict__['reader_attn_config']
         # NOTE we need to include "OTHER" in reader_groups
         # to provide catch-all category
-        self.self_attn_per_group = nn.ModuleDict({
-            reader_group : BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout)#.to(torch.cuda.current_device())
-            for reader_group in reader_group_types
-        })
-        # tmp debugging
-        # self.self_attn_per_group_2 = nn.ModuleList([BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout).to(torch.cuda.current_device()),]*len(reader_group_types))
-        self.self_attn_general = BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout)#.to(torch.cuda.current_device())
+        if(self.reader_attn_config == 'attn_prob'):
+            self.self_attn = AuthorGroupAttention(
+                embed_dim=self.embed_dim,
+                num_heads=config.encoder_attention_heads,
+                dropout=config.attention_dropout,
+                reader_group_types=reader_group_types,
+                reader_group_weight=self.reader_attn_weight
+            )
+        else:
+            self.self_attn_per_group = nn.ModuleDict({
+                reader_group : BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout)#.to(torch.cuda.current_device())
+                for reader_group in reader_group_types
+            })
+            # tmp debugging
+            # self.self_attn_per_group_2 = nn.ModuleList([BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout).to(torch.cuda.current_device()),]*len(reader_group_types))
+            self.self_attn_general = BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout)#.to(torch.cuda.current_device())
         # self.self_attn = BartAttention(
         #     embed_dim=self.embed_dim,
         #     num_heads=config.encoder_attention_heads,
