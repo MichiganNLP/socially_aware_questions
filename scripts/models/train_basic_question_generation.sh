@@ -76,7 +76,7 @@ VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 #MODEL_TYPE="bart_author_attention"
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 # author attention: hyperparameter tests
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.1_location=encoder/
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.1_location=encoder_config=attnprob/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.5_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_weight=0.1_location=encoder/
