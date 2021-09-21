@@ -103,8 +103,14 @@ class AuthorGroupAttention(nn.Module):
         reader_bsz = 1
         reader_past_key_value = past_key_value
         for i, reader_token_i in enumerate(reader_token):
-            attention_mask_i = attention_mask[[i], :, :, :]
-            hidden_states_i = hidden_states[[i], :, :]
+            if(attention_mask is not None):
+                attention_mask_i = attention_mask[[i], :, :, :]
+            else:
+                attention_mask_i = None
+            if(hidden_states is not None):
+                hidden_states_i = hidden_states[[i], :, :]
+            else:
+                hidden_states_i = None
             if(reader_past_key_value is not None):
                 past_key_value_i = reader_past_key_value[[i], :, :]
             else:
