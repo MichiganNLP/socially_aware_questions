@@ -98,8 +98,8 @@ class AuthorGroupAttention(nn.Module):
         # print(f'hidden states has shape = {hidden_states.shape}')
         # if(key_value_states is not None):
         #     print(f'key value states has shape = {key_value_states.shape}')
-        if(past_key_value is not None):
-            print(f'past key value has shape = {past_key_value.shape}')
+        # if(past_key_value is not None):
+        #     print(f'past key value has shape = {past_key_value.shape}')
         reader_bsz = 1
         reader_past_key_value = past_key_value
         for i, reader_token_i in enumerate(reader_token):
@@ -138,7 +138,7 @@ class AuthorGroupAttention(nn.Module):
 
         attn_output = self.out_proj(attn_output)
         # tmp debugging
-        print(f'generic past key value = {generic_past_key_value}')
+        # print(f'generic past key value = {generic_past_key_value}')
 
         return attn_output, generic_attn_weights_reshaped, generic_past_key_value
 
@@ -720,7 +720,7 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
 
             # add cross-attn to positions 3,4 of present_key_value tuple
             # tmp debugging
-            print(f'present key value = {present_key_value}')
+            # print(f'present key value = {present_key_value}')
             present_key_value = present_key_value + cross_attn_present_key_value
 
         # Fully Connected
