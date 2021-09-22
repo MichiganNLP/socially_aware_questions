@@ -233,8 +233,9 @@ def main():
         )
     model.resize_token_embeddings(len(tokenizer))
     if(pretrained_model is not None):
-        pretrained_model_weights = torch.load(pretrained_model)
+        pretrained_model_weights= torch.load(pretrained_model)
         model.load_state_dict(pretrained_model_weights)
+        pretrained_model_dir = os.path.dirname(pretrained_model)
     if(n_gpu > 1):
         # no devices (?) for accelerate
         #device_ids = list(range(n_gpu))
@@ -316,12 +317,9 @@ def main():
     torch.cuda.empty_cache()
     trainer.train(
         # model_path=model_out_dir,
-        resume_from_checkpoint=None,
+        resume_from_checkpoint=(pretrained_model_dir if pretrained_model is not None else None),
     )
     trainer.save_model()
-
-
-
 
 if __name__ == '__main__':
     main()
