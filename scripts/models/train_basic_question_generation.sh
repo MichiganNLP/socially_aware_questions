@@ -42,11 +42,11 @@
 #VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
 ## reddit+author data
 # "full" (sampled) data
-#TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
-#VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
+TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
+VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 # split training data (parameter tuning)
-TRAIN_DATA=../../data/reddit_data/combined_data_train_train_data.pt
-VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
+#TRAIN_DATA=../../data/reddit_data/combined_data_train_train_data.pt
+#VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 # author-only data: fine-tuning
 #TRAIN_DATA=../../data/reddit_data/combined_data_valid_authors_train_data.pt
 #VAL_DATA=../../data/reddit_data/combined_data_valid_authors_test_data.pt
@@ -105,10 +105,10 @@ MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 #MODEL_TYPE="bart_author_embeds"
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_subreddit_embed_model_config.json
 # text embed
-#OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/ # encoder
+OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/ # encoder
 #OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_decoder_data/ # decoder
-#MODEL_TYPE="bart_author_embeds"
-#MODEL_CONFIG_FILE=../../data/model_cache/BART_author_text_embed_model_config.json
+MODEL_TYPE="bart_author_embeds"
+MODEL_CONFIG_FILE=../../data/model_cache/BART_author_text_embed_model_config.json
 # author (decoder) embed
 #OUT_DIR=../../data/reddit_data/author_text_data/author_decoder_embed_data/
 # regular transformer
