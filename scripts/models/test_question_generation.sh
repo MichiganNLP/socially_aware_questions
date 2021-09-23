@@ -129,5 +129,5 @@ POST_SUBGROUP_FILE=../../data/reddit_data/paired_question_low_sim_simpct=25_data
 # regular generation
 (python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA --generation_params $GENERATION_PARAMS --post_subgroup_file $POST_SUBGROUP_FILE)&
 PID=$!
-MAX_MEMORY=60000000000 # 50G
+MAX_MEMORY=70000000000 # 50G
 prlimit --pid $PID --as=$MAX_MEMORY
