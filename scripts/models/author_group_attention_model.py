@@ -359,7 +359,7 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
             # print(f'self attn combiner weights has shape {self.self_attn_combiner.weight.shape}')
             combined_attn_weights = self.self_attn_combiner(combined_attn_weights.transpose(1,3))
             attn_weights = self.self_attn_combiner_norm(combined_attn_weights).transpose(1,3)
-
+            
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
         hidden_states = self.self_attn_layer_norm(hidden_states)
