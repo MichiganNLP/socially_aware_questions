@@ -78,6 +78,7 @@ VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 # author attention: hyperparameter tests
 OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_location=encoder_config=attnconcat/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.1_location=encoder_config=attnprob/
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_location=encoder_config=attnfull/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.1_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.5_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=encoder/
