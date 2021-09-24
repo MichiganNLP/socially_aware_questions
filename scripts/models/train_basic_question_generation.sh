@@ -6,7 +6,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-gpu=60g
-#SBATCH --time=18:00:00
+#SBATCH --time=20:00:00
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 
@@ -76,6 +76,8 @@ VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 #MODEL_TYPE="bart_author_attention"
 #MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 # author attention: hyperparameter tests
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_location=encoder_config=attnconcat/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.1_location=encoder_config=attnprob/
 OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_location=encoder_config=attnfull/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.1_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.5_location=encoder/
@@ -117,7 +119,8 @@ MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML
 #MODEL_CACHE_DIR=../../data/longformer_cache/
 # optional: pretrained model
-#PRETRAINED_MODEL=../../data/CNN_articles/cnn/question_generation_model/checkpoint-120500/pytorch_model.bin
+#PRETRAINED_MODEL=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_weight\=0.1_location\=encoder/question_generation_model/checkpoint-125500/pytorch_model.bin
+
 # optional: multiple GPUs
 N_GPU=1
 #N_GPU=2
@@ -125,13 +128,13 @@ N_GPU=1
 #export CUDA_VISIBLE_DEVICES=0
 
 ## queue process
-#python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU
+python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU
 # override model parameters
 #python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --model_config_params $MODEL_CONFIG_PARAMS
 # pretrained model
 #python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --pretrained_model $PRETRAINED_MODEL
 ## normal process
-(python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU)&
-PID=$!
-MAX_MEMORY=50000000000 # 50G
-prlimit --pid $PID --as=$MAX_MEMORY
+#(python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU)&
+#PID=$!
+#MAX_MEMORY=50000000000 # 50G
+#prlimit --pid $PID --as=$MAX_MEMORY

@@ -141,6 +141,11 @@ class AuthorGroupAttention(nn.Module):
                 past_key_value, tgt_len, reader_token=None)
         print(f'generic attn probs shape = {generic_attn_probs.shape}')
         ## attn_probs = reader_attn_probs + general_attn_probs
+        # tmp debugging
+        print(f'key value states {key_value_states}')
+        print(f'hidden states have shape = {hidden_states.shape}')
+        print(f'reader attn probs have shape = {reader_attn_probs.shape}')
+        print(f'generic attn probs have shape = {generic_attn_probs.shape}')
         attn_probs = (self.reader_group_weight * reader_attn_probs + (1-self.reader_group_weight) * generic_attn_probs) / 2.
         attn_output = torch.bmm(attn_probs, generic_value_states)
 
