@@ -353,6 +353,8 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
             combined_hidden_states = torch.cat([reader_hidden_states, general_hidden_states], axis=2)
             combined_hidden_states = self.hidden_state_combiner(combined_hidden_states)
             hidden_states = self.hidden_state_combiner_norm(combined_hidden_states)
+            # tmp debugging
+            # print(f'encoder: after combining, hidden states have shape = {hidden_states.shape}')
             combined_attn_weights = torch.cat([reader_attn_weights, general_attn_weights], axis=1)
             # print(f'reader attn weights has shape = {reader_attn_weights.shape}; general attn weights has shape = {general_attn_weights.shape}')
             # print(f'combined attn weights has shape = {combined_attn_weights.shape}')
@@ -616,6 +618,17 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
                 dropout=config.attention_dropout,
                 is_decoder=True
             )
+            # tmp debugging
+            # self.self_attn_per_group_2 = nn.ModuleList([BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout).to(torch.cuda.current_device()),]*len(reader_group_types))
+            # self.self_attn_general = BartAttention(embed_dim=self.embed_dim,
+            #                                        num_heads=config.encoder_attention_heads,
+            #                                        dropout=config.attention_dropout)  # .to(torch.cuda.current_device())
+            # extra weights for combining reader + general attn
+            self.self_attn_combiner = nn.Linear(2 * config.encoder_attention_heads, config.encoder_attention_heads)
+            self.self_attn_combiner_norm = nn.LayerNorm(config.encoder_attention_heads)
+            self.hidden_state_combiner = nn.Linear(2 * self.embed_dim, self.embed_dim)
+            self.hidden_state_combiner_norm = nn.LayerNorm(self.embed_dim)
+
         self.dropout = config.dropout
         self.activation_fn = ACT2FN[config.activation_function]
         self.activation_dropout = config.activation_dropout
@@ -716,7 +729,17 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
             )
             attn_weights = general_attn_weights
             if(reader_attn_weights is not None):
-                hidden_states = (self.reader_attn_weight * reader_hidden_states + (1 - self.reader_attn_weight) * general_hidden_states) / 2.
+                # hidden_states = (self.reader_attn_weight * reader_hidden_states + (1 - self.reader_attn_weight) * general_hidden_states) / 2.
+                # concat hidden states, attentions; normalize
+                combined_hidden_states = torch.cat([reader_hidden_states, general_hidden_states], axis=2)
+                combined_hidden_states = self.hidden_state_combiner(combined_hidden_states)
+                hidden_states = self.hidden_state_combiner_norm(combined_hidden_states)
+                combined_attn_weights = torch.cat([reader_attn_weights, general_attn_weights], axis=1)
+                # print(f'reader attn weights has shape = {reader_attn_weights.shape}; general attn weights has shape = {general_attn_weights.shape}')
+                # print(f'combined attn weights has shape = {combined_attn_weights.shape}')
+                # print(f'self attn combiner weights has shape {self.self_attn_combiner.weight.shape}')
+                combined_attn_weights = self.self_attn_combiner(combined_attn_weights.transpose(1, 3))
+                attn_weights = self.self_attn_combiner_norm(combined_attn_weights).transpose(1, 3)
             else:
                 hidden_states = general_hidden_states
         # attn_weights = (self.reader_attn_weight * reader_attn_weights + (1 - self.reader_attn_weight) * general_attn_weights) / 2.
