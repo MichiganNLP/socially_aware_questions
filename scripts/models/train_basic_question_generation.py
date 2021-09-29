@@ -195,6 +195,13 @@ def main():
     # val_data_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
     train_dataset = torch.load(train_data_file)
     val_dataset = torch.load(val_data_file)
+    # optional: filter data
+    if('filter_data' in config.__dict__.keys()):
+        filter_data_args = config.__dict__['filter_data']
+        filter_arg_name, filter_arg_vals = filter_data_args.split('=')
+        filter_arg_vals = filter_arg_vals.split(',')
+        train_dataset = train_dataset.filter(lambda x: x[filter_arg_name] in filter_arg_vals, keep_in_memory=True)
+        val_dataset = val_dataset.filter(lambda x: x[filter_arg_name] in filter_arg_vals, keep_in_memory=True)
 
     ## initialize model
     if(model_cache_dir is None):
