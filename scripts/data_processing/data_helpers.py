@@ -626,10 +626,15 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
 
     ## extra step: split train into "train_train" and "train_val"
     # for parameter tuning UGH
+    ## TODO: split by article ID to avoid overfitting
     val_data_pct = 0.25
     train_data_count = len(train_data)
-    train_train_idx = list(range(train_data_count))[:-int(val_data_pct * train_data_count)]
-    train_val_idx = list(range(train_data_count))[-int(val_data_pct * train_data_count):]
+    train_article_ids = np.array(train_data['article_id'])
+    val_article_ids = np.random.choice(train_article_ids, int(val_data_pct*train_data_count), replace=False)
+    train_train_idx = np.where(~np.isin(train_article_ids, val_article_ids))
+    train_val_idx = np.where(np.isin(train_article_ids, val_article_ids))
+    # train_train_idx = list(range(train_data_count))[:-int(val_data_pct * train_data_count)]
+    # train_val_idx = list(range(train_data_count))[-int(val_data_pct * train_data_count):]
     train_train_data = train_data.select(train_train_idx, keep_in_memory=True, load_from_cache_file=False)
     train_val_data = train_data.select(train_val_idx, keep_in_memory=True, load_from_cache_file=False)
     train_train_data_out_file = os.path.join(out_dir, f'{data_name}_train_train_data.pt')

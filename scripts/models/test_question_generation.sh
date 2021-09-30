@@ -49,6 +49,18 @@ TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
 #MODEL_TYPE='bart_author_attention'
 # author group attention: hyperparameters
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_location\=encoder_config\=attnconcat/question_generation_model/checkpoint-97000/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_location\=encoder_config\=attnconcat/
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=3_location\=encoder_config\=attnconcat/question_generation_model/checkpoint-97000/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=3_location\=encoder_config\=attnconcat/
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_location\=encoder_config\=attnconcat/question_generation_model/checkpoint-97000/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_location\=encoder_config\=attnconcat/
+MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_location\=decoder_config\=attnconcat/question_generation_model/checkpoint-97000/pytorch_model.bin
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_location\=decoder_config\=attnconcat/
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=3_location\=decoder_config\=attnconcat/question_generation_model/checkpoint-97000/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=3_location\=decoder_config\=attnconcat/
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_location\=decoder_config\=attnconcat/question_generation_model/checkpoint-97000/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_location\=decoder_config\=attnconcat/
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_weight\=0.1_location\=encoder/question_generation_model/checkpoint-129000/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_weight\=0.1_location\=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_weight\=0.1_location\=encoder/full_data/
@@ -89,11 +101,11 @@ TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_weight\=0.9_location\=decoder/
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_weight\=0.1_location\=encoder_config\=attnprob/question_generation_model/checkpoint-97000/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_weight\=0.1_location\=encoder_config\=attnprob/
-#MODEL_TYPE='bart_author_attention'
+MODEL_TYPE='bart_author_attention'
 # reddit + subreddit embed (+ encoder)
-MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_data/question_generation_model/checkpoint-129000/pytorch_model.bin
-OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
-MODEL_TYPE='bart_author_embeds'
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_data/question_generation_model/checkpoint-129000/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_data/
+#MODEL_TYPE='bart_author_embeds'
 # reddit + subreddit embed (+ decoder)
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_subreddit_embed_decoder_data/question_generation_model/checkpoint-275500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_subreddit_embed_decoder_data/
@@ -101,6 +113,7 @@ MODEL_TYPE='bart_author_embeds'
 # reddit + text embed (+ encoder)
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_data/question_generation_model/checkpoint-129000/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_data/
+#MODEL_TYPE='bart_author_embeds'
 # reddit + text embed (+ decoder)
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_text_embed_decoder_data/question_generation_model/checkpoint-229000/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_text_embed_decoder_data/
@@ -121,7 +134,7 @@ POST_SUBGROUP_FILE=../../data/reddit_data/paired_question_low_sim_simpct=25_data
 
 ## regular server
 # set GPU
-#export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=3
 # no model (i.e. zero-shot)
 #(python test_question_generation.py $TEST_DATA --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA)&
 # trained model
@@ -129,5 +142,5 @@ POST_SUBGROUP_FILE=../../data/reddit_data/paired_question_low_sim_simpct=25_data
 # regular generation
 (python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA --generation_params $GENERATION_PARAMS --post_subgroup_file $POST_SUBGROUP_FILE)&
 PID=$!
-MAX_MEMORY=70000000000 # 50G
+MAX_MEMORY=70000000000 # 70G
 prlimit --pid $PID --as=$MAX_MEMORY

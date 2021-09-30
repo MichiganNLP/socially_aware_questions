@@ -695,8 +695,8 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
             combined_hidden_states = []
             combined_attn_weights = []
             # tmp debugging
-            #if(self_attn_past_key_value is not None):
-            #    print(f'self-attn past key value shapes = {list(map(lambda x: x.shape, self_attn_past_key_value))}')
+            # if(self_attn_past_key_value is not None):
+            #     print(f'self-attn past key value shapes = {list(map(lambda x: x.shape, self_attn_past_key_value))}')
             for i, reader_group_i in enumerate(reader_token):
                 reader_group_attn_i = self.self_attn_per_group[reader_group_i]
                 # fix past key values
@@ -720,6 +720,8 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
             else:
                 reader_attn_weights = None
             ## combine reader states with "regular" attention
+            # tmp debugging
+            # print(f'before generic attention: hidden state shape = {hidden_states.shape}')
             general_hidden_states, general_attn_weights, present_key_value = self.self_attn_general(
                 hidden_states=hidden_states,
                 past_key_value=self_attn_past_key_value,
@@ -731,6 +733,15 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
             if(reader_attn_weights is not None):
                 # hidden_states = (self.reader_attn_weight * reader_hidden_states + (1 - self.reader_attn_weight) * general_hidden_states) / 2.
                 # concat hidden states, attentions; normalize
+                # print(f'reader hidden state shape = {reader_hidden_states.shape}')
+                # print(f'generic hidden state shape = {general_hidden_states.shape}')
+                # print(f'reader attn shape = {reader_attn_weights.shape}')
+                # print(f'generic attn shape = {general_attn_weights.shape}')
+                # fix misalignment in reader/general during decoding
+                # copy reader states to match general states
+                if(reader_hidden_states.shape[0] != general_hidden_states.shape[0]):
+                    reader_hidden_states = reader_hidden_states.repeat(general_hidden_states.shape[0], 1, 1)
+                    reader_attn_weights = reader_attn_weights.repeat(general_attn_weights.shape[0], 1, 1, 1)
                 combined_hidden_states = torch.cat([reader_hidden_states, general_hidden_states], axis=2)
                 combined_hidden_states = self.hidden_state_combiner(combined_hidden_states)
                 hidden_states = self.hidden_state_combiner_norm(combined_hidden_states)
@@ -1018,6 +1029,9 @@ class AuthorGroupAttentionDecoder(BartDecoder):
                 # tmp debugging
                 #print(f'decoder layer = {idx}; attention mask = {attention_mask}')
                 if (idx == self.reader_attn_position):
+                    # tmp debugging
+                    # print(f'input shape = {input_shape}')
+                    # print(f'reader token = {reader_token}')
                     layer_outputs = decoder_layer(
                         hidden_states,
                         reader_token=reader_token,
