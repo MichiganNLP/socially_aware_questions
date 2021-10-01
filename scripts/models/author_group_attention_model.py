@@ -731,7 +731,9 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
             )
             attn_weights = general_attn_weights
             if(reader_attn_weights is not None):
+                # TODO: make mean-attention an option
                 # hidden_states = (self.reader_attn_weight * reader_hidden_states + (1 - self.reader_attn_weight) * general_hidden_states) / 2.
+                # attn_weights = (self.reader_attn_weight * reader_attn_weights + (1 - self.reader_attn_weight) * general_attn_weights) / 2.
                 # concat hidden states, attentions; normalize
                 # print(f'reader hidden state shape = {reader_hidden_states.shape}')
                 # print(f'generic hidden state shape = {general_hidden_states.shape}')
@@ -753,7 +755,6 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
                 attn_weights = self.self_attn_combiner_norm(combined_attn_weights).transpose(1, 3)
             else:
                 hidden_states = general_hidden_states
-        # attn_weights = (self.reader_attn_weight * reader_attn_weights + (1 - self.reader_attn_weight) * general_attn_weights) / 2.
 
         # hidden_states, self_attn_weights, present_key_value = self.self_attn(
         #     hidden_states=hidden_states,

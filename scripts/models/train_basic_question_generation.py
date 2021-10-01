@@ -24,6 +24,7 @@ from model_helpers import DataArguments
 from argparse import ArgumentParser
 import numpy as np
 import torch
+from nlp.arrow_dataset import Dataset
 np.random.seed(123)
 torch.manual_seed(123)
 
@@ -197,12 +198,24 @@ def main():
     val_dataset = torch.load(val_data_file)
     # optional: filter data
     # arg format = "ARG=FILTERVAL1,FILTERVAL2"
-    if('filter_data' in config.__dict__.keys()):
+    if('filter_data' in config.__dict__.keys() and config.__dict__['filter_data']!='NA'):
         filter_data_args = config.__dict__['filter_data']
         filter_arg_name, filter_arg_vals = filter_data_args.split('=')
-        filter_arg_vals = filter_arg_vals.split(',')
-        train_dataset = train_dataset.filter(lambda x: x[filter_arg_name] in filter_arg_vals, keep_in_memory=True)
-        val_dataset = val_dataset.filter(lambda x: x[filter_arg_name] in filter_arg_vals, keep_in_memory=True)
+        filter_arg_vals = set(filter_arg_vals.split(','))
+
+        # tmp debugging
+        # print(f'filter arg name = {filter_arg_name}; filter arg vals = {filter_arg_vals}')
+        # print(f'train data before filter = {len(train_dataset)}')
+        # filter throws weird error
+        # train_dataset = train_dataset.filter(lambda x: x[filter_arg_name] in filter_arg_vals, keep_in_memory=True)
+        # val_dataset = val_dataset.filter(lambda x: x[filter_arg_name] in filter_arg_vals, keep_in_memory=True)
+        train_dataset_pd = train_dataset.data.to_pandas()
+        val_dataset_pd = val_dataset.data.to_pandas()
+        train_dataset_pd = train_dataset_pd[train_dataset_pd.loc[:, filter_arg_name].isin(filter_arg_vals)]
+        val_dataset_pd = val_dataset_pd[val_dataset_pd.loc[:, filter_arg_name].isin(filter_arg_vals)]
+        train_dataset = Dataset.from_pandas(train_dataset_pd)
+        val_dataset = Dataset.from_pandas(val_dataset_pd)
+        # print(f'train data before filter = {len(train_dataset)}')
 
     ## initialize model
     if(model_cache_dir is None):
