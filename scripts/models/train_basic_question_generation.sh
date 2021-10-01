@@ -42,11 +42,11 @@
 #VAL_DATA=../../data/reddit_data/advice_subreddit_val_data.pt
 ## reddit+author data
 # "full" (sampled) data
-#TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
-#VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
+TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
+VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 # split training data (parameter tuning)
-TRAIN_DATA=../../data/reddit_data/combined_data_train_train_data.pt
-VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
+#TRAIN_DATA=../../data/reddit_data/combined_data_train_train_data.pt
+#VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 # author-only data: fine-tuning
 #TRAIN_DATA=../../data/reddit_data/combined_data_valid_authors_train_data.pt
 #VAL_DATA=../../data/reddit_data/combined_data_valid_authors_test_data.pt
@@ -132,9 +132,9 @@ N_GPU=1
 #export CUDA_VISIBLE_DEVICES=0
 
 ## queue process
-python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU
+#python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU
 # override model parameters
-#python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --model_config_params $MODEL_CONFIG_PARAMS
+python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --model_config_params $MODEL_CONFIG_PARAMS
 # pretrained model
 #python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --pretrained_model $PRETRAINED_MODEL
 ## normal process
