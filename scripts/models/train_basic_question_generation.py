@@ -196,6 +196,7 @@ def main():
     train_dataset = torch.load(train_data_file)
     val_dataset = torch.load(val_data_file)
     # optional: filter data
+    # arg format = "ARG=FILTERVAL1,FILTERVAL2"
     if('filter_data' in config.__dict__.keys()):
         filter_data_args = config.__dict__['filter_data']
         filter_arg_name, filter_arg_vals = filter_data_args.split('=')

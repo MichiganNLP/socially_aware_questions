@@ -626,12 +626,28 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
 
     ## extra step: split train into "train_train" and "train_val"
     # for parameter tuning UGH
+    ## split by article ID to avoid overfitting
     val_data_pct = 0.25
     train_data_count = len(train_data)
-    train_train_idx = list(range(train_data_count))[:-int(val_data_pct * train_data_count)]
-    train_val_idx = list(range(train_data_count))[-int(val_data_pct * train_data_count):]
+    train_article_ids = np.array(train_data['article_id'])
+    uniq_train_article_ids = set(train_article_ids)
+    print(f'train size = {train_data_count}; uniq train size = {len(uniq_train_article_ids)}')
+    print(f'train-val sample size = {int(val_data_pct*len(uniq_train_article_ids))}')
+    val_article_ids = np.random.choice(uniq_train_article_ids, int(val_data_pct*len(uniq_train_article_ids)), replace=False)
+    print(f'train-val article IDs = {len(val_article_ids)}')
+    train_train_idx = np.where(~np.isin(train_article_ids, val_article_ids))[0]
+    train_val_idx = np.where(np.isin(train_article_ids, val_article_ids))[0]
+    # tmp debugging
+    # print(f'train-train idx = {train_train_idx}')
+    print(f'train-train idx = {len(train_train_idx)}')
+    print(f'train-val idx = {len(train_val_idx)}')
+    # train_train_idx = list(range(train_data_count))[:-int(val_data_pct * train_data_count)]
+    # train_val_idx = list(range(train_data_count))[-int(val_data_pct * train_data_count):]
     train_train_data = train_data.select(train_train_idx, keep_in_memory=True, load_from_cache_file=False)
     train_val_data = train_data.select(train_val_idx, keep_in_memory=True, load_from_cache_file=False)
+    # tmp debugging
+    print(f'train-train data has shape = {train_train_data.shape}')
+    print(f'train-val data has shape = {train_val_data.shape}')
     train_train_data_out_file = os.path.join(out_dir, f'{data_name}_train_train_data.pt')
     train_val_data_out_file = os.path.join(out_dir, f'{data_name}_train_val_data.pt')
     torch.save(train_train_data, train_train_data_out_file)
