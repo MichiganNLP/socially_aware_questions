@@ -188,9 +188,14 @@ def main():
     tokenizer = torch.load(tokenizer_file)
 	# load config first (hyperparameter tests)
     config = BartConfig.from_json_file(model_config_file)
-    # optional: override config file
+    # optional: override config file w/ custom params
     if(model_config_params is not None):
         update_model_config(config, model_config_params)
+    # optional: override config file w/ existing config
+    if (pretrained_model is not None):
+        pretrained_model_dir = os.path.dirname(pretrained_model)
+        model_config_file = os.path.join(pretrained_model_dir, 'config.json')
+        config = BartConfig.from_json_file(model_config_file)
     ## load data
     # train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
     # val_data_file = os.path.join(out_dir, f'{data_name}_val_data.pt')
@@ -226,7 +231,7 @@ def main():
         'longformer' : 'allenai/led-base-16384',
     }
     # print(f'model type = {model_type}')
-    ## NOTE: you have to copy/modify all the config files before running
+    ## NOTE: you have to update all the config files before running
     if (model_type == 'bart_author_embeds'):
         ## custom loading
         # config_file = os.path.join(model_cache_dir, 'BART_author_model_config.json') # copy of config file with author args
@@ -254,7 +259,7 @@ def main():
         )
     model.resize_token_embeddings(len(tokenizer))
     if(pretrained_model is not None):
-        pretrained_model_weights= torch.load(pretrained_model)
+        pretrained_model_weights = torch.load(pretrained_model)
         model.load_state_dict(pretrained_model_weights)
         pretrained_model_dir = os.path.dirname(pretrained_model)
     if(n_gpu > 1):
