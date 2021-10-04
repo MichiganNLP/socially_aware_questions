@@ -205,6 +205,7 @@ def main():
     # arg format = "ARG=FILTERVAL1,FILTERVAL2"
     if('filter_data' in config.__dict__.keys() and config.__dict__['filter_data']!='NA'):
         filter_data_args = config.__dict__['filter_data']
+        print(f'filter args = {filter_data_args}')
         filter_arg_name, filter_arg_vals = filter_data_args.split('=')
         filter_arg_vals = set(filter_arg_vals.split(','))
 
