@@ -75,6 +75,6 @@
   "reader_attn_weight" : 0.1,
   "reader_attn_position" : 5,
   "reader_group_attention_location":"decoder",
-  "reader_attn_config" : "attn_full",
-  "filter_data" : "reader_token_str=UNK"
+  "reader_attn_config" : "attn_full_mean",
+  "filter_data" : "NA"
 }
