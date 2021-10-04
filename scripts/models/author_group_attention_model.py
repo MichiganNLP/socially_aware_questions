@@ -258,8 +258,8 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
             })
             # tmp debugging
             # self.self_attn_per_group_2 = nn.ModuleList([BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout).to(torch.cuda.current_device()),]*len(reader_group_types))
+            self.self_attn_general = BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout)  # .to(torch.cuda.current_device())
             if(self.reader_attn_config == 'attn_full_concat'):
-                self.self_attn_general = BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout)#.to(torch.cuda.current_device())
                 self.self_attn_combiner = nn.Linear(2 * config.encoder_attention_heads, config.encoder_attention_heads)
                 self.self_attn_combiner_norm = nn.LayerNorm(config.encoder_attention_heads)
                 self.hidden_state_combiner = nn.Linear(2 * self.embed_dim, self.embed_dim)
@@ -349,6 +349,8 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
             )
             ## attn combinination = addition
             if(self.reader_attn_config == 'attn_full_mean'):
+                # tmp debugging
+                print(f'computing mean reader and general attention states')
                 hidden_states = (self.reader_attn_weight * reader_hidden_states + (1 - self.reader_attn_weight) * general_hidden_states) / 2.
                 attn_weights = (self.reader_attn_weight * reader_attn_weights + (1 - self.reader_attn_weight) * general_attn_weights) / 2.
             elif(self.reader_attn_config == 'attn_full_concat'):
@@ -1241,6 +1243,13 @@ class AuthorGroupAttentionModelConditionalGeneration(BartForConditionalGeneratio
         self.model = AuthorGroupAttentionModel(config, reader_group_types=reader_group_types)
         self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
         self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
+        ## TODO: use reader group-specific LM for final decoding? more parameters but less complicated to implement
+        if(self.model.config.__dict__['reader_group_attention_location']=='lm_head'):
+            self.reader_lm_heads = nn.ModuleDict({
+                reader_group_type : nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
+                for reader_group_type in reader_group_types
+            })
+            self.reader_attn_weight = self.model.config.__dict__['reader_attn_weight']
 
         self.init_weights()
 
@@ -1299,7 +1308,13 @@ class AuthorGroupAttentionModelConditionalGeneration(BartForConditionalGeneratio
             return_dict=return_dict,
         )
         lm_logits = self.lm_head(outputs[0]) + self.final_logits_bias
-
+        if (self.model.config.__dict__['reader_group_attention_location'] == 'lm_head'):
+            reader_group_logits = []
+            for reader_token_i in reader_token:
+                reader_group_logit_i = self.reader_lm_heads[reader_token_i](outputs[0]) + self.final_logits_bias
+                reader_group_logits.append(reader_group_logit_i)
+            reader_group_logits = torch.cat(reader_group_logits, axis=0)
+            lm_logits = (lm_logits * (1-self.reader_attn_weight) + reader_group_logits * self.reader_attn_weight) / 2.
         masked_lm_loss = None
         if labels is not None:
             loss_fct = CrossEntropyLoss()
