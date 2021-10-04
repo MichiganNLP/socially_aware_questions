@@ -6,7 +6,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-gpu=60g
-#SBATCH --time=20:00:00
+#SBATCH --time=16:00:00
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 
@@ -78,12 +78,12 @@ VAL_DATA=../../data/reddit_data/combined_data_train_val_data.pt
 # author attention: hyperparameter tests
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_location=encoder_config=attnconcat/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_location=encoder_config=attnconcat/
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_location=decoder_config=attnconcat/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_location=decoder_config=attnconcat/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=decoder_config=attnconcat/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.1_location=encoder_config=attnprob/
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.1_location=encoder/
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.1_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.5_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_weight=0.1_location=encoder/
@@ -104,7 +104,7 @@ OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_att
 # author attention: fine-tuning
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.9_location=decoder_finetune=AUTHORS/
 # optional hyperparameters: for overriding config file
-MODEL_CONFIG_PARAMS="reader_attn_position=1,reader_group_attention_location=encoder,reader_attn_config=attn_full"
+MODEL_CONFIG_PARAMS="reader_attn_position=1,reader_attn_weight=0.1,reader_group_attention_location=encoder,reader_attn_config=attn_full_mean"
 MODEL_TYPE="bart_author_attention"
 MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 ## author embed
@@ -125,8 +125,8 @@ MODEL_CACHE_DIR=../../data/model_cache/
 # longformer FML
 #MODEL_CACHE_DIR=../../data/longformer_cache/
 # optional: pretrained model
-PRETRAINED_MODEL=data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat/question_generation_model/checkpoint-120000/pytorch_model.bin
-
+PRETRAINED_MODEL=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat/question_generation_model/checkpoint-120000/pytorch_model.bin
+#PRETRAINED_MODEL=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_weight\=0.9_location\=decoder_finetune\=AUTHORS/question_generation_model/checkpoint-40000/pytorch_model.bin
 ## queue process
 # optional: multiple GPUs
 N_GPU=1
