@@ -125,20 +125,19 @@ MODEL_CACHE_DIR=../../data/model_cache/
 # optional: pretrained model
 #PRETRAINED_MODEL=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_weight\=0.1_location\=encoder/question_generation_model/checkpoint-125500/pytorch_model.bin
 
+## queue process
 # optional: multiple GPUs
 N_GPU=1
 #N_GPU=2
-## use device for single-GPU processes
-#export CUDA_VISIBLE_DEVICES=0
-
-## queue process
 #python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU
 # override model parameters
-python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --model_config_params $MODEL_CONFIG_PARAMS
+#python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --model_config_params $MODEL_CONFIG_PARAMS
 # pretrained model
 #python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --pretrained_model $PRETRAINED_MODEL
 ## normal process
-#(python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU)&
-#PID=$!
-#MAX_MEMORY=50000000000 # 50G
-#prlimit --pid $PID --as=$MAX_MEMORY
+## use device for single-GPU processes
+export CUDA_VISIBLE_DEVICES=1
+(python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU)&
+PID=$!
+MAX_MEMORY=50000000000 # 50G
+prlimit --pid $PID --as=$MAX_MEMORY
