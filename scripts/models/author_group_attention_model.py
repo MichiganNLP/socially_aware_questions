@@ -258,8 +258,8 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
             })
             # tmp debugging
             # self.self_attn_per_group_2 = nn.ModuleList([BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout).to(torch.cuda.current_device()),]*len(reader_group_types))
+            self.self_attn_general = BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout)  # .to(torch.cuda.current_device())
             if(self.reader_attn_config == 'attn_full_concat'):
-                self.self_attn_general = BartAttention(embed_dim=self.embed_dim, num_heads=config.encoder_attention_heads, dropout=config.attention_dropout)#.to(torch.cuda.current_device())
                 self.self_attn_combiner = nn.Linear(2 * config.encoder_attention_heads, config.encoder_attention_heads)
                 self.self_attn_combiner_norm = nn.LayerNorm(config.encoder_attention_heads)
                 self.hidden_state_combiner = nn.Linear(2 * self.embed_dim, self.embed_dim)
@@ -1241,6 +1241,7 @@ class AuthorGroupAttentionModelConditionalGeneration(BartForConditionalGeneratio
         self.model = AuthorGroupAttentionModel(config, reader_group_types=reader_group_types)
         self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
         self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
+        ## TODO: use reader group-specific LM for final decoding? more parameters but less complicated to implement
 
         self.init_weights()
 
