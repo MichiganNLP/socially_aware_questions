@@ -1118,6 +1118,9 @@ class AuthorGroupAttentionModel(BartModel):
         elif(self.reader_group_attention_location == 'decoder'):
             self.encoder = BartEncoder(config, self.shared)
             self.decoder = AuthorGroupAttentionDecoder(config, self.shared, reader_group_types=reader_group_types, reader_attn_position=config.__dict__['reader_attn_position'])
+        else:
+            self.encoder = BartEncoder(config, self.shared)
+            self.decoder = BartDecoder(config, self.shared)
 
         self.init_weights()
 
