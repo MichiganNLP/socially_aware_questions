@@ -350,7 +350,7 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
             ## attn combinination = addition
             if(self.reader_attn_config == 'attn_full_mean'):
                 # tmp debugging
-                print(f'computing mean reader and general attention states')
+                # print(f'computing mean reader and general attention states')
                 hidden_states = (self.reader_attn_weight * reader_hidden_states + (1 - self.reader_attn_weight) * general_hidden_states) / 2.
                 attn_weights = (self.reader_attn_weight * reader_attn_weights + (1 - self.reader_attn_weight) * general_attn_weights) / 2.
             elif(self.reader_attn_config == 'attn_full_concat'):
@@ -1243,7 +1243,8 @@ class AuthorGroupAttentionModelConditionalGeneration(BartForConditionalGeneratio
         self.model = AuthorGroupAttentionModel(config, reader_group_types=reader_group_types)
         self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
         self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
-        ## TODO: use reader group-specific LM for final decoding? more parameters but less complicated to implement
+        ## reader group-specific LM for final decoding
+        ## more parameters but more straightforward to learn
         if(self.model.config.__dict__['reader_group_attention_location']=='lm_head'):
             self.reader_lm_heads = nn.ModuleDict({
                 reader_group_type : nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
@@ -1310,10 +1311,15 @@ class AuthorGroupAttentionModelConditionalGeneration(BartForConditionalGeneratio
         lm_logits = self.lm_head(outputs[0]) + self.final_logits_bias
         if (self.model.config.__dict__['reader_group_attention_location'] == 'lm_head'):
             reader_group_logits = []
-            for reader_token_i in reader_token:
-                reader_group_logit_i = self.reader_lm_heads[reader_token_i](outputs[0]) + self.final_logits_bias
+            print(f'output weights have shape = {outputs[0].shape}')
+            for i, reader_token_i in enumerate(reader_token):
+                output_i = outputs[0][[i], :, :]
+                reader_group_logit_i = self.reader_lm_heads[reader_token_i](output_i) + self.final_logits_bias
                 reader_group_logits.append(reader_group_logit_i)
             reader_group_logits = torch.cat(reader_group_logits, axis=0)
+            # tmp debugging
+            print(f'reader group LM logits have shape = {reader_group_logits.shape}')
+            print(f'generic LM logits have shape = {lm_logits.shape}')
             lm_logits = (lm_logits * (1-self.reader_attn_weight) + reader_group_logits * self.reader_attn_weight) / 2.
         masked_lm_loss = None
         if labels is not None:
