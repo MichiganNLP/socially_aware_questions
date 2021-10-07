@@ -337,10 +337,11 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
                 combined_hidden_states.append(hidden_states_i)
                 combined_attn_weights.append(attn_weights_i)
             reader_hidden_states = torch.cat(combined_hidden_states, axis=0)
-            if(not any(list(map(lambda x: x is None, combined_attn_weights)))):
-                reader_attn_weights = torch.cat(combined_attn_weights, axis=0)
-            else:
-                reader_attn_weights = None
+            reader_attn_weights = torch.cat(combined_attn_weights, axis=0)
+            # if(not any(list(map(lambda x: x is None, combined_attn_weights)))):
+            #     reader_attn_weights = torch.cat(combined_attn_weights, axis=0)
+            # else:
+            #     reader_attn_weights = None
             ## combine reader states with "regular" attention (non-weighted? sure)
             general_hidden_states, general_attn_weights, _ = self.self_attn_general(
                 hidden_states=hidden_states,
@@ -584,10 +585,11 @@ class AuthorGroupAttentionEncoder(BartEncoder):
         )
 
 class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
-    def __init__(self, config: BartConfig, reader_group_types = []):
+    def __init__(self, config: BartConfig, reader_group_types = None):
         super().__init__(config)
         self.embed_dim = config.d_model
-
+        if(reader_group_types is None):
+            reader_group_types = []
         # self.self_attn = BartAttention(
         #     embed_dim=self.embed_dim,
         #     num_heads=config.decoder_attention_heads,
@@ -737,7 +739,6 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
             )
             attn_weights = general_attn_weights
             if(reader_attn_weights is not None):
-                # TODO: make mean-attention an option
                 if(self.reader_attn_config == 'attn_full_mean'):
                     hidden_states = (self.reader_attn_weight * reader_hidden_states + (1 - self.reader_attn_weight) * general_hidden_states) / 2.
                     attn_weights = (self.reader_attn_weight * reader_attn_weights + (1 - self.reader_attn_weight) * general_attn_weights) / 2.
@@ -1118,6 +1119,9 @@ class AuthorGroupAttentionModel(BartModel):
         elif(self.reader_group_attention_location == 'decoder'):
             self.encoder = BartEncoder(config, self.shared)
             self.decoder = AuthorGroupAttentionDecoder(config, self.shared, reader_group_types=reader_group_types, reader_attn_position=config.__dict__['reader_attn_position'])
+        else:
+            self.encoder = BartEncoder(config, self.shared)
+            self.decoder = BartDecoder(config, self.shared)
 
         self.init_weights()
 

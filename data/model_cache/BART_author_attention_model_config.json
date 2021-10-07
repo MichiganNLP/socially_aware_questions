@@ -15,7 +15,7 @@
   "decoder_attention_heads": 12,
   "decoder_ffn_dim": 3072,
   "decoder_layerdrop": 0.0,
-  "decoder_layers": 6,
+  "decoder_layers": 1,
   "decoder_start_token_id": 2,
   "do_blenderbot_90_layernorm": false,
   "dropout": 0.1,
@@ -23,7 +23,7 @@
   "encoder_attention_heads": 12,
   "encoder_ffn_dim": 3072,
   "encoder_layerdrop": 0.0,
-  "encoder_layers": 6,
+  "encoder_layers": 1,
   "eos_token_id": 2,
   "extra_pos_embeddings": 2,
   "force_bos_token_to_be_generated": false,
@@ -73,8 +73,8 @@
   "vocab_size": 50271,
   "reader_group_types" : ["<US_AUTHOR>", "<NONUS_AUTHOR>", "<EXPERT_PCT_0_AUTHOR>", "<EXPERT_PCT_1_AUTHOR>", "<RESPONSE_TIME_0_AUTHOR>", "<RESPONSE_TIME_1_AUTHOR>", "UNK"],
   "reader_attn_weight" : 0.1,
-  "reader_attn_position" : 1,
-  "reader_group_attention_location":"lm_head",
+  "reader_attn_position" : 0,
+  "reader_group_attention_location":"encoder",
   "reader_attn_config" : "attn_full_mean",
   "filter_data" : "NA"
 }
