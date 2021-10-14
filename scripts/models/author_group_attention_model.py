@@ -1379,7 +1379,7 @@ class AuthorGroupAttentionModelConditionalGeneration(BartForConditionalGeneratio
                 argument: value for argument, value in model_kwargs.items() if not argument.startswith("decoder_")
             }
             # for decoder model: remove reader_token from encoder args
-            if(self.config.__dict__['reader_group_attention_location'] == 'decoder'):
+            if(self.config.__dict__['reader_group_attention_location'] in {'decoder', 'lm_head'}):
                 del(encoder_kwargs['reader_token'])
             model_kwargs["encoder_outputs"]: ModelOutput = encoder(input_ids, return_dict=True, **encoder_kwargs)
         return model_kwargs
