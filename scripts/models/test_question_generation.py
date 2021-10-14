@@ -216,7 +216,7 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
     # print(f'generation score sample {generation_scores[:10]}')
     generation_score_data = pd.DataFrame(text_overlap_scores, columns=score_cols)
     ## also add answerability; we do it separately because it's bad to do in serial
-    target_text = [x['target_text'] for x in test_data]
+    # target_text = [x['target_text'] for x in test_data]
     # tmp debugging
     # print(f'target text N={len(target_text)}')
     # print(f'pred data N={len(pred_data)}')

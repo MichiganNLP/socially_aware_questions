@@ -315,6 +315,7 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
             # recombine after
             combined_hidden_states = []
             combined_attn_weights = []
+            ## TODO: do not compute reader attn for UNK readers
             for i, reader_group_i in enumerate(reader_token):
                 # print(f'reader group = {reader_group_i}')
                 # reader_group_attn_i = self.self_attn_per_group[int(reader_group_i)]
@@ -337,17 +338,18 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
                 combined_hidden_states.append(hidden_states_i)
                 combined_attn_weights.append(attn_weights_i)
             reader_hidden_states = torch.cat(combined_hidden_states, axis=0)
-            if(not any(list(map(lambda x: x is None, combined_attn_weights)))):
-                reader_attn_weights = torch.cat(combined_attn_weights, axis=0)
-            else:
-                reader_attn_weights = None
+            reader_attn_weights = torch.cat(combined_attn_weights, axis=0)
+            # if(not any(list(map(lambda x: x is None, combined_attn_weights)))):
+            #     reader_attn_weights = torch.cat(combined_attn_weights, axis=0)
+            # else:
+            #     reader_attn_weights = None
             ## combine reader states with "regular" attention (non-weighted? sure)
             general_hidden_states, general_attn_weights, _ = self.self_attn_general(
                 hidden_states=hidden_states,
                 attention_mask=attention_mask,
                 output_attentions=output_attentions,
             )
-            ## attn combinination = addition
+            ## attn combination = addition
             if(self.reader_attn_config == 'attn_full_mean'):
                 # tmp debugging
                 # print(f'computing mean reader and general attention states')
@@ -391,6 +393,30 @@ class AuthorGroupAttentionEncoderLayer(BartEncoderLayer):
             outputs += (attn_weights,)
 
         return outputs
+
+    def freeze_weights(self, weight_type, freeze=True):
+        """
+        Freeze all reader weights or all general weights.
+        Could help in training?
+
+        :param weight_type:
+        :param freeze:
+        :return:
+        """
+        requires_grad = not freeze
+        if(self.reader_attn_config.startswith('attn_full')):
+            if(weight_type == 'reader'):
+                for _,v in self.self_attn_per_group.items():
+                    for _, param in v.named_parameters():
+                        param.requires_grad = requires_grad
+            elif(weight_type == 'general'):
+                for _, param in self.self_attn_general.named_parameters():
+                    param.requires_grad = requires_grad
+            if(self.reader_attn_config == 'attn_full_concat'):
+                self.hidden_state_combiner.requires_grad = requires_grad
+                self.hidden_state_combiner_norm.requires_grad = requires_grad
+                self.self_attn_combiner.requires_grad = requires_grad
+                self.self_attn_combiner_norm.requires_grad = requires_grad
 
 class AuthorGroupAttentionEncoder(BartEncoder):
     """
@@ -583,11 +609,15 @@ class AuthorGroupAttentionEncoder(BartEncoder):
             last_hidden_state=hidden_states, hidden_states=encoder_states, attentions=all_attentions
         )
 
+    def freeze_weights(self, weight_type, freeze=True):
+        self.layers[self.reader_attn_position].freeze_weights(weight_type, freeze=freeze)
+
 class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
-    def __init__(self, config: BartConfig, reader_group_types = []):
+    def __init__(self, config: BartConfig, reader_group_types = None):
         super().__init__(config)
         self.embed_dim = config.d_model
-
+        if(reader_group_types is None):
+            reader_group_types = []
         # self.self_attn = BartAttention(
         #     embed_dim=self.embed_dim,
         #     num_heads=config.decoder_attention_heads,
@@ -737,7 +767,6 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
             )
             attn_weights = general_attn_weights
             if(reader_attn_weights is not None):
-                # TODO: make mean-attention an option
                 if(self.reader_attn_config == 'attn_full_mean'):
                     hidden_states = (self.reader_attn_weight * reader_hidden_states + (1 - self.reader_attn_weight) * general_hidden_states) / 2.
                     attn_weights = (self.reader_attn_weight * reader_attn_weights + (1 - self.reader_attn_weight) * general_attn_weights) / 2.
@@ -818,6 +847,30 @@ class AuthorGroupAttentionDecoderLayer(BartDecoderLayer):
             outputs += (present_key_value,)
 
         return outputs
+
+    def freeze_weights(self, weight_type, freeze=True):
+        """
+        Freeze all reader weights or all general weights.
+        Could help in training?
+
+        :param weight_type:
+        :param freeze:
+        :return:
+        """
+        requires_grad = not freeze
+        if(self.reader_attn_config.startswith('attn_full')):
+            if(weight_type == 'reader'):
+                for _,v in self.self_attn_per_group.items():
+                    for _, param in v.named_parameters():
+                        param.requires_grad = requires_grad
+            elif(weight_type == 'general'):
+                for _, param in self.self_attn_general.named_parameters():
+                    param.requires_grad = requires_grad
+            if(self.reader_attn_config == 'attn_full_concat'):
+                self.hidden_state_combiner.requires_grad = requires_grad
+                self.hidden_state_combiner_norm.requires_grad = requires_grad
+                self.self_attn_combiner.requires_grad = requires_grad
+                self.self_attn_combiner_norm.requires_grad = requires_grad
 
 class AuthorGroupAttentionDecoder(BartDecoder):
     """
@@ -1103,6 +1156,8 @@ class AuthorGroupAttentionDecoder(BartDecoder):
             attentions=all_self_attns,
             cross_attentions=all_cross_attentions,
         )
+    def freeze_weights(self, weight_type, freeze=True):
+        self.layers[self.reader_attn_position].freeze_weights(weight_type, freeze=freeze)
 
 class AuthorGroupAttentionModel(BartModel):
     def __init__(self, config: BartConfig, reader_group_types=[]):
@@ -1314,15 +1369,15 @@ class AuthorGroupAttentionModelConditionalGeneration(BartForConditionalGeneratio
         lm_logits = self.lm_head(outputs[0]) + self.final_logits_bias
         if (self.model.config.__dict__['reader_group_attention_location'] == 'lm_head'):
             reader_group_logits = []
-            print(f'output weights have shape = {outputs[0].shape}')
+            # print(f'output weights have shape = {outputs[0].shape}')
             for i, reader_token_i in enumerate(reader_token):
                 output_i = outputs[0][[i], :, :]
                 reader_group_logit_i = self.reader_lm_heads[reader_token_i](output_i) + self.final_logits_bias
                 reader_group_logits.append(reader_group_logit_i)
             reader_group_logits = torch.cat(reader_group_logits, axis=0)
             # tmp debugging
-            print(f'reader group LM logits have shape = {reader_group_logits.shape}')
-            print(f'generic LM logits have shape = {lm_logits.shape}')
+            # print(f'reader group LM logits have shape = {reader_group_logits.shape}')
+            # print(f'generic LM logits have shape = {lm_logits.shape}')
             lm_logits = (lm_logits * (1-self.reader_attn_weight) + reader_group_logits * self.reader_attn_weight) / 2.
         masked_lm_loss = None
         if labels is not None:
@@ -1378,8 +1433,8 @@ class AuthorGroupAttentionModelConditionalGeneration(BartForConditionalGeneratio
             encoder_kwargs = {
                 argument: value for argument, value in model_kwargs.items() if not argument.startswith("decoder_")
             }
-            # for decoder model: remove reader_token from encoder args
-            if(self.config.__dict__['reader_group_attention_location'] == 'decoder'):
+            # for decoder model and LM head model: remove reader_token from encoder args
+            if(self.config.__dict__['reader_group_attention_location'] in {'decoder', 'lm_head'}):
                 del(encoder_kwargs['reader_token'])
             model_kwargs["encoder_outputs"]: ModelOutput = encoder(input_ids, return_dict=True, **encoder_kwargs)
         return model_kwargs
@@ -1717,3 +1772,8 @@ class AuthorGroupAttentionModelConditionalGeneration(BartForConditionalGeneratio
     #             **model_kwargs,
     #         )
 
+    def freeze_weights(self, weight_name, freeze=True):
+        if(self.model.config.__dict__['reader_group_attention_location'] == 'decoder'):
+            self.model.decoder.freeze_weights(weight_name, freeze=freeze)
+        elif(self.model.config.__dict__['reader_group_attention_location'] == 'encoder'):
+            self.model.encoder.freeze_weights(weight_name, freeze=freeze)

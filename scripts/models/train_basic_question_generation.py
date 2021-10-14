@@ -82,6 +82,7 @@ def load_training_args(model_out_dir, train_data_file, val_data_file, out_dir, m
     training_args.warmup_steps = 500
     # limits number of checkpoints => 1 GB per optimizer file ;_;
     training_args.save_total_limit = 1 # change to 2 if more disk space
+    training_args.plot_gradient = False # optional: plot gradient in reader-attn layers
     return training_args
 
 def get_optimizer(model, args):
@@ -205,22 +206,15 @@ def main():
     # arg format = "ARG=FILTERVAL1,FILTERVAL2"
     if('filter_data' in config.__dict__.keys() and config.__dict__['filter_data']!='NA'):
         filter_data_args = config.__dict__['filter_data']
-        filter_arg_name, filter_arg_vals = filter_data_args.split('=')
-        filter_arg_vals = set(filter_arg_vals.split(','))
+        train_dataset, val_dataset = filter_data_by_arg(filter_data_args, train_dataset, val_dataset)
+        # print(f'train data before filter = {len(train_dataset)}')
+    # optional: sort data by value
+    # arg format = "ARG"
+    if('sort_data' in config.__dict__.keys() and config.__dict__['sort_data']!='NA'):
+        sort_val = config.__dict__['sort_data']
+        ## assign tmp value for reader tokens => "UNK" is lowest
+        train_dataset = sort_data_by_arg(config, sort_val, train_dataset)
 
-        # tmp debugging
-        # print(f'filter arg name = {filter_arg_name}; filter arg vals = {filter_arg_vals}')
-        # print(f'train data before filter = {len(train_dataset)}')
-        # filter throws weird error
-        # train_dataset = train_dataset.filter(lambda x: x[filter_arg_name] in filter_arg_vals, keep_in_memory=True)
-        # val_dataset = val_dataset.filter(lambda x: x[filter_arg_name] in filter_arg_vals, keep_in_memory=True)
-        train_dataset_pd = train_dataset.data.to_pandas()
-        val_dataset_pd = val_dataset.data.to_pandas()
-        train_dataset_pd = train_dataset_pd[train_dataset_pd.loc[:, filter_arg_name].isin(filter_arg_vals)]
-        val_dataset_pd = val_dataset_pd[val_dataset_pd.loc[:, filter_arg_name].isin(filter_arg_vals)]
-        train_dataset = Dataset.from_pandas(train_dataset_pd)
-        val_dataset = Dataset.from_pandas(val_dataset_pd)
-        # print(f'train data before filter = {len(train_dataset)}')
 
     ## initialize model
     if(model_cache_dir is None):
@@ -274,6 +268,15 @@ def main():
         accelerator = None
         # send to same device
         model.to(torch.cuda.current_device())
+    # optional: freeze model weights
+    if('freeze_weights' in config.__dict__ and config.__dict__['freeze_weights']!='NA'):
+        weight_type = config.__dict__['freeze_weights']
+        model.freeze_weights(weight_type, freeze=True)
+        # tmp debugging
+        for n, p in model.model.decoder.layers[config.__dict__["reader_attn_position"]].named_parameters():
+            print(f'reader attn weights have grad = {n, p.requires_grad}')
+        # import sys
+        # sys.exit(0)
 
     ## fix data tensor format
     tensor_cols = ['source_ids', 'target_ids', 'attention_mask']
@@ -346,6 +349,43 @@ def main():
         resume_from_checkpoint=(pretrained_model_dir if pretrained_model is not None else None),
     )
     trainer.save_model()
+
+
+def sort_data_by_arg(config, sort_val, train_dataset):
+    if (sort_val == 'reader_token_str'):
+        train_dataset_pd = train_dataset.data.to_pandas()
+        reader_group_types = list(sorted(config['reader_group_types'],
+                                         key=lambda x: 1 if x == 'UNK' else 0,
+                                         reverse=True))
+        reader_token_val_lookup = list(
+            zip(reader_group_types, range(len(reader_group_types))))
+        train_dataset_pd = train_dataset_pd.assign(**{
+            'sort_val': train_dataset_pd.loc[:, 'reader_token_str'].apply(
+                lambda x: reader_token_val_lookup[x])
+        })
+        train_dataset_pd.sort_values('sort_val', inplace=True, ascending=True)
+        train_dataset_pd.drop('sort_val', axis=1, inplace=True)
+        train_dataset = Dataset.from_pandas(train_dataset_pd,
+                                            keep_in_memory=True,
+                                            load_from_cache_file=False)
+    else:
+        train_dataset = train_dataset.sort(sort_val)
+    return train_dataset
+
+
+def filter_data_by_arg(filter_data_args, train_dataset, val_dataset):
+    filter_arg_name, filter_arg_vals = filter_data_args.split('=')
+    filter_arg_vals = set(filter_arg_vals.split(','))
+    train_dataset_pd = train_dataset.data.to_pandas()
+    val_dataset_pd = val_dataset.data.to_pandas()
+    train_dataset_pd = train_dataset_pd[
+        train_dataset_pd.loc[:, filter_arg_name].isin(filter_arg_vals)]
+    val_dataset_pd = val_dataset_pd[
+        val_dataset_pd.loc[:, filter_arg_name].isin(filter_arg_vals)]
+    train_dataset = Dataset.from_pandas(train_dataset_pd)
+    val_dataset = Dataset.from_pandas(val_dataset_pd)
+    return train_dataset, val_dataset
+
 
 if __name__ == '__main__':
     main()

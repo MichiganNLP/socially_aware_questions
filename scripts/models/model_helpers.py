@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import torch
 from nltk.translate.bleu_score import sentence_bleu
+from sentence_transformers import SentenceTransformer
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from transformers import BatchEncoding, BartTokenizer, BartConfig, \
@@ -141,10 +142,10 @@ def generate_predictions(model, data, tokenizer,
             )
         elif(generation_method == 'sample'):
             # tmp debugging
-            if('author_embeds' in model_kwargs_i):
-                print(f'author embed data = {model_kwargs_i["author_embeds"].shape}')
-                print(f'input ids = {source_i.shape}')
-                print(f'input ids  {source_i}')
+            # if('author_embeds' in model_kwargs_i):
+            #     print(f'author embed data = {model_kwargs_i["author_embeds"].shape}')
+            #     print(f'input ids = {source_i.shape}')
+            #     print(f'input ids  {source_i}')
             num_return_sequences = 1
             num_beams = None
             if(generate_classify_tools is not None and batch_i['reader_token'] != 'UNK'):
@@ -354,3 +355,7 @@ def load_model(model_cache_dir, model_file, model_type, data_dir):
     device = torch.cuda.current_device()
     generation_model.to(device)
     return generation_model, model_tokenizer
+
+def load_sentence_embed_model():
+    sentence_embed_model = SentenceTransformer('paraphrase-distilroberta-base-v1')
+    return sentence_embed_model
