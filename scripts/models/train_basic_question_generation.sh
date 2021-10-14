@@ -78,7 +78,7 @@ VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 # author attention: hyperparameter tests
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_location=encoder_config=attnconcat/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_location=encoder_config=attnconcat/
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat/
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_location=decoder_config=attnconcat/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_location=decoder_config=attnconcat/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=decoder_config=attnconcat/
@@ -91,7 +91,7 @@ VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_weight=0.9_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.1_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.5_location=encoder/
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.9_location=encoder/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.9_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.1_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.5_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder/
@@ -102,9 +102,9 @@ OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_att
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.5_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.9_location=decoder/
 # author attention: LM head
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attentino_weight=0.1_location=lm_head/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.1_location=lm_head/
 # optional hyperparameters: for overriding config file
-MODEL_CONFIG_PARAMS="reader_attn_position=5,reader_attn_weight=0.9,reader_group_attention_location=encoder,reader_attn_config=attn_full_mean"
+#MODEL_CONFIG_PARAMS="reader_attn_position=5,reader_attn_weight=0.9,reader_group_attention_location=encoder,reader_attn_config=attn_full_mean"
 #MODEL_CONFIG_PARAMS="reader_attn_position=1,reader_attn_weight=0.1,reader_group_attention_location=lm_head,reader_attn_config=attn_full"
 MODEL_TYPE="bart_author_attention"
 MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
