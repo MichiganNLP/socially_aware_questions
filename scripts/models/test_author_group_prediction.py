@@ -673,7 +673,7 @@ QUESTION_TOKEN='[QUESTION]'
 EXTRA_PADDING_TOKENS=3
 def combine_post_question(data, tokenizer, max_length=1024, max_sents=0):
     post_txt = data.loc["post"]
-    # optional: limit post to initial K posts
+    # optional: limit post to initial K sentences
     if(max_sents > 0):
         sent_tokenizer = PunktSentenceTokenizer()
         post_sents = sent_tokenizer.tokenize(post_txt)[:max_sents]
