@@ -6,6 +6,8 @@ import pandas as pd
 import torch
 from nltk.translate.bleu_score import sentence_bleu
 from sentence_transformers import SentenceTransformer
+from sklearn.metrics import f1_score, roc_auc_score
+from sklearn.neural_network import MLPClassifier
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from transformers import BatchEncoding, BartTokenizer, BartConfig, \
@@ -359,3 +361,106 @@ def load_model(model_cache_dir, model_file, model_type, data_dir):
 def load_sentence_embed_model():
     sentence_embed_model = SentenceTransformer('paraphrase-distilroberta-base-v1')
     return sentence_embed_model
+
+def resample_by_class(data, class_var='author_group', class_count='min'):
+    """
+    Resample data by min/max of variable distribution.
+
+    :param data:
+    :param class_var:
+    :param class_count:
+    :return:
+    """
+    data_class_counts = data.loc[:, class_var].value_counts()
+    if(class_count == 'min'):
+        data_class_count_base = data_class_counts.min()
+        data_class = data_class_counts.sort_values(ascending=True).index[0]
+    elif(class_count == 'max'):
+        data_class_count_base = data_class_counts.max()
+        data_class = data_class_counts.sort_values(ascending=False).index[0]
+    data = pd.concat(
+        [data[data.loc[:, class_var]==data_class],
+         data[data.loc[:, class_var]!=data_class].sample(data_class_count_base, replace=(class_count=='max'), random_state=123)],
+    axis=0)
+    return data
+
+def train_test_reader_group_classification(data,
+                                           text_var='PCA_question_encoded', post_var='PCA_post_encoded'):
+    """
+    Train/test reader group classification based on encoding
+    of question and post data.
+
+    :param data:
+    :param text_var:
+    :param post_var:
+    :return:
+    """
+    # non_default_reader_group_class = list(set(Y) - {default_reader_group_class})[0]
+    # combine text and post var
+    if(post_var is not None):
+        X = np.hstack([np.vstack(data.loc[:, text_var].values), np.vstack(data.loc[:, post_var].values)])
+    else:
+        X = np.vstack(data.loc[:, text_var].values)
+    #     X = np.vstack(data.loc[:, text_var].values)
+    layer_size = X.shape[1]
+    # assume reader group var is already binarized etc.
+    Y = data.loc[:, 'reader_group_class'].values
+    # fit models across all folds
+    model_scores = []
+    subreddits = data.loc[:, 'subreddit'].unique()
+    data = data.assign(**{'idx': list(range(data.shape[0]))})
+    parent_id_i = data.loc[:, 'parent_id'].unique()
+    train_pct = 0.8
+    train_N_i = int(len(parent_id_i) * train_pct)
+    n_folds = 10
+    max_train_iter = 5000
+    for j in tqdm(range(n_folds)):
+        # split by parent ID
+        train_id_j = set(np.random.choice(parent_id_i, train_N_i, replace=False))
+        test_id_j = list(set(parent_id_i) - train_id_j)
+        train_idx = np.where(data.loc[:, 'parent_id'].isin(train_id_j))[0]
+        test_idx = np.where(data.loc[:, 'parent_id'].isin(test_id_j))[0]
+        # resample data to avoid class distribution imbalance
+        train_data = data.iloc[train_idx, :]
+        train_data = resample_by_class(train_data, class_var='author_group', class_count='max')
+        train_idx = train_data.loc[:, 'idx'].values
+        test_data = data.iloc[test_idx, :]
+        test_data = resample_by_class(test_data, class_var='author_group', class_count='max')
+        test_idx = test_data.loc[:, 'idx'].values
+        X_train, X_test = X[train_idx, :], X[test_idx, :]
+        Y_train, Y_test = Y[train_idx], Y[test_idx]
+        # fit model
+        model = MLPClassifier(hidden_layer_sizes=[layer_size, ],
+                              activation='relu', max_iter=max_train_iter,
+                              random_state=123)
+        model.fit(X_train, Y_train)
+        Y_pred = model.predict(X_test)
+        Y_prob = model.predict_proba(X_test)
+        model_acc = (Y_pred == Y_test).sum() / len(Y_test)
+        # get F1 for both classes...there must be a better way to do this
+        model_f1_class_1 = f1_score(Y_pred, Y_test)
+        model_f1_class_0 = f1_score((1 - Y_pred), (1 - Y_test))
+        model_f1_macro = f1_score(Y_pred, Y_test, average='macro')
+        model_auc = roc_auc_score(Y_test, Y_prob[:, 1])
+        model_scores_j = {
+            'model_acc': model_acc,
+            f'F1_class=1': model_f1_class_1,
+            f'F1_class=0': model_f1_class_0,
+            'F1_macro': model_f1_macro,
+            'AUC': model_auc,
+            'fold': j}
+        ## get scores per subreddit!!
+        if(len(subreddits) > 1):
+            for subreddit_k in subreddits:
+                idx_k = list(set(
+                    np.where(data.loc[:, 'subreddit'] == subreddit_k)[0]) & set(
+                    test_idx))
+                if (len(idx_k) > 0):
+                    Y_pred_k = model.predict(X[idx_k, :])
+                    model_acc_k = (Y[idx_k] == Y_pred_k).sum() / len(Y_pred_k)
+                    model_scores_j[f'model_acc_{subreddit_k}'] = model_acc_k
+            model_scores_j['model_acc_subreddit_mean'] = np.mean([model_scores_j[f'model_acc_{subreddit_k}'] for subreddit_k in subreddits])
+        #         print(f'model scores = {model_scores_j}')
+        model_scores.append(model_scores_j)
+    model_scores = pd.DataFrame(model_scores)
+    return model_scores
