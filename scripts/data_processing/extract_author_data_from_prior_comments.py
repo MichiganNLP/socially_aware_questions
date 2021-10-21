@@ -92,7 +92,7 @@ def collect_dynamic_author_data(author_data_dir, author_data_files, author_dynam
                         author_prior_comment_parent_data_j = author_prior_comment_data_j[~np.isnan(author_prior_comment_data_j.loc[:, 'reply_delay'])]
                         if(author_prior_comment_parent_data_j.shape[0] >= min_parent_comment_count):
                             relative_time_j = np.log(author_prior_comment_parent_data_j.loc[:, 'reply_delay']).mean()
-                    combined_author_data_j = [author_i, date_day_j, subreddit_j, expertise_pct_j, relative_time_j, author_prior_comment_data_j]
+                    combined_author_data_j = [author_i, date_day_j, subreddit_j, expertise_pct_j, relative_time_j, author_prior_comment_data_N_j]
                     dynamic_author_data.append(combined_author_data_j)
                     # combined_author_data_str_j = '\t'.join(list(map(str, combined_author_data_j)))
                     # author_data_out.write(combined_author_data_str_j + '\n')
