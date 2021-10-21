@@ -362,7 +362,25 @@ def load_sentence_embed_model():
     sentence_embed_model = SentenceTransformer('paraphrase-distilroberta-base-v1')
     return sentence_embed_model
 
-def resample_by_class(data, class_var='author_group', class_count='min'):
+
+def subsample_data_by_class(class_count, class_var, data):
+    data_class_counts = data.loc[:, class_var].value_counts()
+    if (class_count == 'min'):
+        data_class_count_base = data_class_counts.min()
+        data_class = data_class_counts.sort_values(ascending=True).index[0]
+    elif (class_count == 'max'):
+        data_class_count_base = data_class_counts.max()
+        data_class = data_class_counts.sort_values(ascending=False).index[0]
+    # tmp debugging
+    # print(f'data class counts = {data_class_counts}')
+    data = pd.concat(
+        [
+            data[data.loc[:, class_var] == data_class],
+            data[data.loc[:, class_var] != data_class].sample(data_class_count_base, replace=(class_count == 'max'), random_state=123)],
+        axis=0)
+    return data
+
+def resample_by_class(data, class_var='author_group', class_count='min', subgroup_var=None):
     """
     Resample data by min/max of variable distribution.
 
@@ -371,21 +389,20 @@ def resample_by_class(data, class_var='author_group', class_count='min'):
     :param class_count:
     :return:
     """
-    data_class_counts = data.loc[:, class_var].value_counts()
-    if(class_count == 'min'):
-        data_class_count_base = data_class_counts.min()
-        data_class = data_class_counts.sort_values(ascending=True).index[0]
-    elif(class_count == 'max'):
-        data_class_count_base = data_class_counts.max()
-        data_class = data_class_counts.sort_values(ascending=False).index[0]
-    data = pd.concat(
-        [data[data.loc[:, class_var]==data_class],
-         data[data.loc[:, class_var]!=data_class].sample(data_class_count_base, replace=(class_count=='max'), random_state=123)],
-    axis=0)
+    if(subgroup_var is not None):
+        subgroup_data = []
+        for subgroup_i, data_i in data.groupby(subgroup_var):
+            data_i = subsample_data_by_class(class_count, class_var, data_i)
+            subgroup_data.append(data_i)
+        data = pd.concat(subgroup_data, axis=0)
+    else:
+        data = subsample_data_by_class(class_count, class_var, data)
     return data
 
-def train_test_reader_group_classification(data,
-                                           text_var='PCA_question_encoded', post_var='PCA_post_encoded'):
+
+def train_test_reader_group_classification(data, class_var='reader_group_class',
+                                           text_var='PCA_question_encoded', post_var='PCA_post_encoded',
+                                           subgroup_var='subreddit'):
     """
     Train/test reader group classification based on encoding
     of question and post data.
@@ -404,16 +421,17 @@ def train_test_reader_group_classification(data,
     #     X = np.vstack(data.loc[:, text_var].values)
     layer_size = X.shape[1]
     # assume reader group var is already binarized etc.
-    Y = data.loc[:, 'reader_group_class'].values
+    Y = data.loc[:, class_var].values
     # fit models across all folds
     model_scores = []
-    subreddits = data.loc[:, 'subreddit'].unique()
+    if(subgroup_var is not None):
+        subgroups = data.loc[:, subgroup_var].unique()
     data = data.assign(**{'idx': list(range(data.shape[0]))})
     parent_id_i = data.loc[:, 'parent_id'].unique()
     train_pct = 0.8
     train_N_i = int(len(parent_id_i) * train_pct)
     n_folds = 10
-    max_train_iter = 5000
+    max_train_iter = 1000
     for j in tqdm(range(n_folds)):
         # split by parent ID
         train_id_j = set(np.random.choice(parent_id_i, train_N_i, replace=False))
@@ -422,13 +440,18 @@ def train_test_reader_group_classification(data,
         test_idx = np.where(data.loc[:, 'parent_id'].isin(test_id_j))[0]
         # resample data to avoid class distribution imbalance
         train_data = data.iloc[train_idx, :]
-        train_data = resample_by_class(train_data, class_var='author_group', class_count='max')
+        train_data = resample_by_class(train_data, class_var=class_var, class_count='max', subgroup_var=subgroup_var)
         train_idx = train_data.loc[:, 'idx'].values
+        # tmp debug
+        # print(f'train data has class distribution {train_data.loc[:, class_var].value_counts()}')
         test_data = data.iloc[test_idx, :]
-        test_data = resample_by_class(test_data, class_var='author_group', class_count='max')
+        test_data = resample_by_class(test_data, class_var=class_var, class_count='max', subgroup_var=subgroup_var)
         test_idx = test_data.loc[:, 'idx'].values
         X_train, X_test = X[train_idx, :], X[test_idx, :]
         Y_train, Y_test = Y[train_idx], Y[test_idx]
+        # tmp debug
+        # print(f'Y train has class distribution {pd.Series(Y_train).value_counts()}')
+        # print(f'Y test has class distribution {pd.Series(Y_test).value_counts()}')
         # fit model
         model = MLPClassifier(hidden_layer_sizes=[layer_size, ],
                               activation='relu', max_iter=max_train_iter,
@@ -450,15 +473,15 @@ def train_test_reader_group_classification(data,
             'AUC': model_auc,
             'fold': j}
         ## get scores per subreddit!!
-        if(len(subreddits) > 1):
-            for subreddit_k in subreddits:
-                idx_k = list(set(
-                    np.where(data.loc[:, 'subreddit'] == subreddit_k)[0]) & set(
-                    test_idx))
+        if(subgroup_var is not None and len(subgroups) > 1):
+            for subgroup_k in subgroups:
+                idx_k = list(set(np.where(data.loc[:, 'subreddit'] == subgroup_k)[0]) & set(test_idx))
                 if (len(idx_k) > 0):
                     Y_pred_k = model.predict(X[idx_k, :])
-                    model_acc_k = (Y[idx_k] == Y_pred_k).sum() / len(Y_pred_k)
-                    model_scores_j[f'model_acc_{subreddit_k}'] = model_acc_k
+                    # tmp debug
+                    print(f'subreddit {subgroup_k} has class distribution {pd.Series(Y_pred_k).value_counts()}')
+                    model_acc_k = (Y[idx_k] == Y_pred_k).sum() / len(idx_k)
+                    model_scores_j[f'model_acc_{subgroup_k}'] = model_acc_k
             model_scores_j['model_acc_subreddit_mean'] = np.mean([model_scores_j[f'model_acc_{subreddit_k}'] for subreddit_k in subreddits])
         #         print(f'model scores = {model_scores_j}')
         model_scores.append(model_scores_j)
