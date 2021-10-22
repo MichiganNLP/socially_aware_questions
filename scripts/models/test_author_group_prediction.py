@@ -32,6 +32,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import f1_score
 torch.manual_seed(123)
 np.random.seed(123)
+
 def sample_by_subreddit_author_group(data, group_var, sample_size=0):
     subreddit_group_counts = data.loc[:, ['subreddit', group_var]].value_counts()
     if(sample_size == 0):
@@ -481,7 +482,8 @@ def train_test_model_with_encoding(data, group_var, out_dir,
     layer_size = X.shape[1]
     Y = pred_data.loc[:, group_var].values
     group_category = pred_data.loc[:, 'group_category'].unique()[0]
-    Y_vals = list(set(Y))
+    # print(f'Y sample = {set(Y)}')
+    Y_vals = list(sorted(set(Y)))
     # convert to binary
     class_1 = Y_vals[0]
     Y = (Y==class_1).astype(int)
@@ -598,13 +600,18 @@ def train_test_basic_classifier(group_categories, sample_size, out_dir, sample_t
     for subreddit_i, data_i in post_question_data.groupby('subreddit'):
         for group_var_j in group_categories:
             data_j = data_i[data_i.loc[:, 'group_category'] == group_var_j]
+            # fix data format
+            if(group_var_j in {'expert_pct_bin', 'relative_time_bin'}):
+                data_j = data_j.assign(**{
+                    'author_group' : data_j.loc[:, 'author_group'].apply(lambda x: int(literal_eval(x)) if type(x) is str else int(x))
+                })
             # print(f'testing var = {group_var_j}')
             ## test both question-only, question+post model
             for post_var_k, out_dir_k in zip(post_vars, out_dirs):
                 out_dir_k_i = os.path.join(out_dir_k, subreddit_i)
                 if(not os.path.exists(out_dir_k_i)):
                     os.mkdir(out_dir_k_i)
-                full_model_i, class_var_1_i, model_scores = train_test_model_with_encoding(data_j, 'author_group', out_dir_k_i, text_var=text_var, post_var=post_var_k)
+                full_model_i, class_var_1_i, model_scores = train_test_model_with_encoding(data_j, 'author_group', out_dir_k_i, text_var=text_var, post_var=post_var_k, subgroup_var=None)
                 model_scores.loc['author_group'] = group_var_j
                 # write scores
                 author_group_score_out_file = os.path.join(out_dir_k_i, f'MLP_prediction_group={group_var_j}_class1={class_var_1_i}_scores.tsv')
