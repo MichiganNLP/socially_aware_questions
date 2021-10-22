@@ -13,8 +13,11 @@ from tqdm import tqdm
 from transformers import BatchEncoding, BartTokenizer, BartConfig, \
     AutoModelForSeq2SeqLM
 from transformers.training_args import TrainingArguments
+from rouge_score.rouge_scorer import RougeScorer
+from nltk.tokenize import WordPunctTokenizer
 from dataclasses import field
 from typing import Optional
+from sklearn.metrics.pairwise import cosine_distances
 
 from author_aware_model import AuthorTextGenerationModel
 from author_group_attention_model import AuthorGroupAttentionModelConditionalGeneration
@@ -254,6 +257,80 @@ def prepare_model_kwargs_for_generation(data, model_kwargs):
 def compute_text_bleu(txt_1, txt_2, weights):
     score = sentence_bleu([txt_1], txt_2, weights=weights)
     return score
+
+def compute_word_mover_dist(tokens_1, tokens_2, word_embeds):
+    embed_1 = word_embeds.loc[tokens_1, :]
+    embed_2 = word_embeds.loc[tokens_2, :]
+    # remove nan values
+    # embed_1.dropna(axis=0, how='any', inplace=True)
+    # embed_2.dropna(axis=0, how='any', inplace=True)
+    mean_embed_1 = embed_1.mean(axis=0).values.reshape(1, -1)
+    mean_embed_2 = embed_2.mean(axis=0).values.reshape(1, -1)
+    word_mover_dist_i = 1.
+    try:
+        word_mover_dist_i = cosine_distances(mean_embed_1, mean_embed_2)[0][0]
+    except Exception as e:
+        print(f'WMD exception {e}')
+        # print(f'bad tokens:\n1={tokens_1};\n2={tokens_2}')
+    return word_mover_dist_i
+
+def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words=[], tokenizer=None):
+    text_overlap_scores = []
+    bleu_weights = [1.0, 0., 0., 0.]  # 100% 1-grams, 0% 2-grams, etc.
+    rouge_scorer = RougeScorer(['rougeL'], use_stemmer=True)
+    sentence_embed_model = load_sentence_embed_model()
+    score_cols = ['BLEU-1', 'ROUGE-L', 'sentence_dist']
+    # answerability coefficients
+    # ner_weight, qt_weight, re_weight, delta, ngram_metric = (0.6, 0.2, 0.1, 0.7, 'Bleu_3') # default coefficients
+    ner_weight, qt_weight, re_weight, delta, ngram_metric = (0.41, 0.20, 0.36, 0.66, 'Bleu_1') # optimal coefficients for SQUAD
+    if(tokenizer is None):
+        tokenizer = WordPunctTokenizer()
+    # load embeddings for word mover distance
+    if(word_embed_file is not None):
+        word_embeds = load_vectors(word_embed_file)
+        score_cols.append('WMD')
+        word_embed_vocab = set(word_embeds.index) - stop_words
+    for test_data_i, pred_data_i in tqdm(zip(test_data['target_text'], pred_data)):
+        # get tokens first
+        pred_tokens_i = list(map(lambda x: x.lower(), tokenizer.tokenize(pred_data_i)))
+        test_tokens_i = list(map(lambda x: x.lower(), tokenizer.tokenize(test_data_i)))
+        bleu_score_i = compute_text_bleu(test_tokens_i, pred_tokens_i, weights=bleu_weights)
+        rouge_score_data_i = rouge_scorer.score(test_data_i, pred_data_i)
+        rouge_score_i = rouge_score_data_i['rougeL'].fmeasure
+        sentence_embeds_i = sentence_embed_model.encode([test_data_i, pred_data_i])
+        sentence_embed_dist_i = cosine_distances(sentence_embeds_i)[1][0]
+        generation_scores_i = [bleu_score_i, rouge_score_i, sentence_embed_dist_i]
+        if(word_embed_file is not None):
+            # tokenize/normalize data
+            clean_pred_tokens_i = list(filter(lambda x: x in word_embed_vocab, pred_tokens_i))
+            clean_test_tokens_i = list(filter(lambda x: x in word_embed_vocab, test_tokens_i))
+            word_mover_dist_i = 1.
+            if(len(clean_pred_tokens_i) > 0 and len(clean_test_tokens_i) > 0):
+                word_mover_dist_i = compute_word_mover_dist(clean_pred_tokens_i, clean_test_tokens_i, word_embeds)
+            # tmp debugging: which tokens do we drop from word embeddings?
+            else:
+                print(f'missing tokens: pred tokens={pred_tokens_i}; test tokens={test_tokens_i}')
+            generation_scores_i.append(word_mover_dist_i)
+        text_overlap_scores.append(generation_scores_i)
+    # tmp debugging
+    # print(f'generation score sample {generation_scores[:10]}')
+    generation_score_data = pd.DataFrame(text_overlap_scores, columns=score_cols)
+    ## also add answerability; we do it separately because it's bad to do in serial
+    # target_text = [x['target_text'] for x in test_data]
+    # tmp debugging
+    # print(f'target text N={len(target_text)}')
+    # print(f'pred data N={len(pred_data)}')
+    # question answerability scores
+    # answerability_scores, fluent_scores = get_answerability_scores(pred_data, ner_weight, qt_weight, re_weight, target_text, ngram_metric=ngram_metric, delta=delta, return_all_scores=False)
+    # output_dir = 'tmp/'
+    # answerability_scores, fluent_scores = get_answerability_scores(pred_data, ner_weight, qt_weight, re_weight, target_text, ngram_metric=ngram_metric, delta=delta, return_all_scores=False, output_dir=output_dir)
+    # tmp debugging
+    # print(f'answerability scores = {answerability_scores}')
+    ## TODO: how to get answerability scores for each Q separately??
+    # generation_score_data = generation_score_data.assign(**{
+    #     'answer_score' : answerability_scores,
+    # })
+    return generation_score_data
 
 def label_smoothed_nll_loss(lprobs, target, epsilon, ignore_index=-100):
     """From fairseq"""
