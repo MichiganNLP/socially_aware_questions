@@ -470,14 +470,15 @@ def train_test_model_with_encoding(data, group_var, out_dir,
                                    text_var='question_encoded', post_var='post_encoded',
                                    subgroup_var='subreddit',
                                    n_folds=10):
-    if(post_var is not None):
-        X = np.hstack([np.vstack(data.loc[:, text_var].values), np.vstack(data.loc[:, post_var].values)])
-    else:
-        X = np.vstack(data.loc[:, text_var].values)
-    layer_size = X.shape[1]
     # balance classes
     pred_data = data.copy()
     pred_data = resample_by_class(pred_data, group_var, class_count='max')
+    if (post_var is not None):
+        X = np.hstack([np.vstack(pred_data.loc[:, text_var].values),
+                       np.vstack(pred_data.loc[:, post_var].values)])
+    else:
+        X = np.vstack(pred_data.loc[:, text_var].values)
+    layer_size = X.shape[1]
     Y = pred_data.loc[:, group_var].values
     group_category = pred_data.loc[:, 'group_category'].unique()[0]
     Y_vals = list(set(Y))
@@ -597,7 +598,7 @@ def train_test_basic_classifier(group_categories, sample_size, out_dir, sample_t
     for subreddit_i, data_i in post_question_data.groupby('subreddit'):
         for group_var_j in group_categories:
             data_j = data_i[data_i.loc[:, 'group_category'] == group_var_j]
-            print(f'testing var = {group_var_j}')
+            # print(f'testing var = {group_var_j}')
             ## test both question-only, question+post model
             for post_var_k, out_dir_k in zip(post_vars, out_dirs):
                 out_dir_k_i = os.path.join(out_dir_k, subreddit_i)
@@ -608,6 +609,30 @@ def train_test_basic_classifier(group_categories, sample_size, out_dir, sample_t
                 # write scores
                 author_group_score_out_file = os.path.join(out_dir_k_i, f'MLP_prediction_group={group_var_j}_class1={class_var_1_i}_scores.tsv')
                 model_scores.to_csv(author_group_score_out_file, sep='\t', index=True)
+    # compute aggregate scores for all subreddits
+    for post_var_i, out_dir_i in zip(post_vars, out_dirs):
+        combined_score_data_i = []
+        for group_var_j in group_categories:
+            model_score_data_j = []
+            for subreddit_k in post_question_data.loc[:, 'subreddit'].unique():
+                out_dir_k = os.path.join(out_dir_i, subreddit_k)
+                score_file_matcher_k = re.compile(f'.*group={group_var_j}.*_scores.tsv')
+                score_file_k = list(filter(lambda x: score_file_matcher_k.match(x) is not None, os.listdir(out_dir_k)))[0]
+                score_file_k = os.path.join(out_dir_k, score_file_k)
+                model_scores_k = pd.read_csv(score_file_k, sep='\t', header=0, names=['score_type', 'score'])
+                score_k = model_scores_k[model_scores_k.loc[:, 'score_type']=='model_acc_mean'].loc[:, 'score'].astype(float).iloc[0]
+                model_score_data_j.append([subreddit_k, group_var_j, score_k])
+            model_score_data_j = pd.DataFrame(model_score_data_j, columns=['subreddit', 'reader_group_var', 'score'])
+            mean_score = model_score_data_j.loc[:, 'score'].mean()
+            std_score = model_score_data_j.loc[:, 'score'].std()
+            model_score_data_j = model_score_data_j.append(pd.DataFrame([
+                ['overall_mean', group_var_j, mean_score],
+                ['overall_std', group_var_j, std_score],
+            ], columns=['subreddit', 'reader_group_var', 'score']))
+            combined_score_data_i.append(model_score_data_j)
+        combined_score_data_i = pd.concat(combined_score_data_i, axis=0)
+        score_data_file_i = os.path.join(out_dir_i, 'combined_score_data.tsv')
+        combined_score_data_i.to_csv(score_data_file_i, sep='\t', index=False)
 
 def train_test_transformer_classification(group_categories, group_var,
                                           max_length, n_gpu, num_labels,
