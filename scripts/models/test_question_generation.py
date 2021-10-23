@@ -8,12 +8,11 @@ import json
 import os
 import pickle
 from argparse import ArgumentParser
-from sklearn.metrics.pairwise import cosine_distances
 from stop_words import get_stop_words
 from torch import Tensor
 from tqdm import tqdm
 
-from model_helpers import generate_predictions, compute_text_bleu, load_vectors, load_model, compute_word_mover_dist
+from model_helpers import generate_predictions, load_model, compute_word_mover_dist, test_question_overlap
 import sys
 if('answerability_metric' not in sys.path):
     sys.path.append('answerability_metric')
