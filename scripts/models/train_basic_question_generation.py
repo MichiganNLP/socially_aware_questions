@@ -5,6 +5,7 @@ pre-trained language models (e.g. BART).
 # import sys
 # if ('question_generation' not in sys.path):
 #     sys.path.append('question_generation')
+import sys
 from ast import literal_eval
 
 from torch import distributed
@@ -212,9 +213,7 @@ def main():
     # arg format = "ARG"
     if('sort_data' in config.__dict__.keys() and config.__dict__['sort_data']!='NA'):
         sort_val = config.__dict__['sort_data']
-        ## assign tmp value for reader tokens => "UNK" is lowest
         train_dataset = sort_data_by_arg(config, sort_val, train_dataset)
-
 
     ## initialize model
     if(model_cache_dir is None):
@@ -352,22 +351,22 @@ def main():
 
 
 def sort_data_by_arg(config, sort_val, train_dataset):
+    ## assign tmp value for reader tokens => "UNK" is lowest; i.e. "UNK" : 0, etc.
     if (sort_val == 'reader_token_str'):
         train_dataset_pd = train_dataset.data.to_pandas()
-        reader_group_types = list(sorted(config['reader_group_types'],
-                                         key=lambda x: 1 if x == 'UNK' else 0,
-                                         reverse=True))
-        reader_token_val_lookup = list(
-            zip(reader_group_types, range(len(reader_group_types))))
+        reader_token_val_lookup = {k : 0 for k in config.__dict__['reader_group_types']}
+        reader_token_val_lookup['UNK'] = 1
+        # reader_token_val_lookup = dict(zip(reader_group_types, range(len(reader_group_types))))
         train_dataset_pd = train_dataset_pd.assign(**{
             'sort_val': train_dataset_pd.loc[:, 'reader_token_str'].apply(
                 lambda x: reader_token_val_lookup[x])
         })
-        train_dataset_pd.sort_values('sort_val', inplace=True, ascending=True)
+        train_dataset_pd.sort_values('sort_val', inplace=True, ascending=False)
         train_dataset_pd.drop('sort_val', axis=1, inplace=True)
-        train_dataset = Dataset.from_pandas(train_dataset_pd,
-                                            keep_in_memory=True,
-                                            load_from_cache_file=False)
+        train_dataset = Dataset.from_pandas(train_dataset_pd)
+        # tmp debugging
+        # print(f'sorted dataset sample = {train_dataset["reader_token_str"][:100]}')
+        # sys.exit(0)
     else:
         train_dataset = train_dataset.sort(sort_val)
     return train_dataset
