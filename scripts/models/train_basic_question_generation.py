@@ -119,6 +119,42 @@ def update_model_config(config, model_config_params):
             pass
         config.__dict__[param_i] = val_i
 
+def sort_data_by_arg(config, sort_val, train_dataset):
+    ## assign tmp value for reader tokens => "UNK" is lowest; i.e. "UNK" : 0, etc.
+    if (sort_val == 'reader_token_str'):
+        train_dataset_pd = train_dataset.data.to_pandas()
+        reader_token_val_lookup = {k : 0 for k in config.__dict__['reader_group_types']}
+        reader_token_val_lookup['UNK'] = 1
+        # reader_token_val_lookup = dict(zip(reader_group_types, range(len(reader_group_types))))
+        train_dataset_pd = train_dataset_pd.assign(**{
+            'sort_val': train_dataset_pd.loc[:, 'reader_token_str'].apply(
+                lambda x: reader_token_val_lookup[x])
+        })
+        train_dataset_pd.sort_values('sort_val', inplace=True, ascending=False)
+        train_dataset_pd.drop('sort_val', axis=1, inplace=True)
+        train_dataset = Dataset.from_pandas(train_dataset_pd)
+        # tmp debugging
+        # print(f'sorted dataset sample = {train_dataset["reader_token_str"][:100]}')
+        # sys.exit(0)
+    else:
+        train_dataset = train_dataset.sort(sort_val)
+    return train_dataset
+
+def filter_data_by_arg(filter_data_args, train_dataset, val_dataset):
+    filter_arg_name, filter_arg_vals = filter_data_args.split('=')
+    filter_arg_vals = set(filter_arg_vals.split(','))
+    N_pre_filter_train = len(train_dataset)
+    train_dataset_pd = train_dataset.data.to_pandas()
+    val_dataset_pd = val_dataset.data.to_pandas()
+    train_dataset_pd = train_dataset_pd[train_dataset_pd.loc[:, filter_arg_name].isin(filter_arg_vals)]
+    val_dataset_pd = val_dataset_pd[val_dataset_pd.loc[:, filter_arg_name].isin(filter_arg_vals)]
+    train_dataset = Dataset.from_pandas(train_dataset_pd)
+    val_dataset = Dataset.from_pandas(val_dataset_pd)
+    N_post_filter_train = len(train_dataset)
+    # tmp debugging
+    print(f'pre-filter N_train={N_pre_filter_train}; post-filter N_train={N_post_filter_train}')
+    return train_dataset, val_dataset
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('train_data')
@@ -348,43 +384,6 @@ def main():
         resume_from_checkpoint=(pretrained_model_dir if pretrained_model is not None else None),
     )
     trainer.save_model()
-
-
-def sort_data_by_arg(config, sort_val, train_dataset):
-    ## assign tmp value for reader tokens => "UNK" is lowest; i.e. "UNK" : 0, etc.
-    if (sort_val == 'reader_token_str'):
-        train_dataset_pd = train_dataset.data.to_pandas()
-        reader_token_val_lookup = {k : 0 for k in config.__dict__['reader_group_types']}
-        reader_token_val_lookup['UNK'] = 1
-        # reader_token_val_lookup = dict(zip(reader_group_types, range(len(reader_group_types))))
-        train_dataset_pd = train_dataset_pd.assign(**{
-            'sort_val': train_dataset_pd.loc[:, 'reader_token_str'].apply(
-                lambda x: reader_token_val_lookup[x])
-        })
-        train_dataset_pd.sort_values('sort_val', inplace=True, ascending=False)
-        train_dataset_pd.drop('sort_val', axis=1, inplace=True)
-        train_dataset = Dataset.from_pandas(train_dataset_pd)
-        # tmp debugging
-        # print(f'sorted dataset sample = {train_dataset["reader_token_str"][:100]}')
-        # sys.exit(0)
-    else:
-        train_dataset = train_dataset.sort(sort_val)
-    return train_dataset
-
-
-def filter_data_by_arg(filter_data_args, train_dataset, val_dataset):
-    filter_arg_name, filter_arg_vals = filter_data_args.split('=')
-    filter_arg_vals = set(filter_arg_vals.split(','))
-    train_dataset_pd = train_dataset.data.to_pandas()
-    val_dataset_pd = val_dataset.data.to_pandas()
-    train_dataset_pd = train_dataset_pd[
-        train_dataset_pd.loc[:, filter_arg_name].isin(filter_arg_vals)]
-    val_dataset_pd = val_dataset_pd[
-        val_dataset_pd.loc[:, filter_arg_name].isin(filter_arg_vals)]
-    train_dataset = Dataset.from_pandas(train_dataset_pd)
-    val_dataset = Dataset.from_pandas(val_dataset_pd)
-    return train_dataset, val_dataset
-
 
 if __name__ == '__main__':
     main()
