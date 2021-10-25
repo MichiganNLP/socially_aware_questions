@@ -95,7 +95,7 @@ VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.9_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.1_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.5_location=decoder/
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_weight=0.1_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_weight=0.5_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_weight=0.9_location=decoder/
@@ -106,6 +106,9 @@ OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_att
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.1_location=lm_head/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.5_location=lm_head/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.9_location=lm_head/
+# author attention: fine-tuning
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder_freezeweights=general/
+
 # optional hyperparameters: for overriding config file
 #MODEL_CONFIG_PARAMS="reader_attn_position=5,reader_group_attention_location=encoder,reader_attn_config=attn_full_concat"
 #MODEL_CONFIG_PARAMS="reader_attn_weight=0.9,reader_group_attention_location=lm_head,reader_attn_config=attn_lm"
@@ -137,12 +140,12 @@ N_GPU=1
 #N_GPU=2
 #python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU
 # override model parameters
-python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --model_config_params $MODEL_CONFIG_PARAMS
+#python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --model_config_params $MODEL_CONFIG_PARAMS
 # pretrained model
 #python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --pretrained_model $PRETRAINED_MODEL
 ## normal process
 ## use device for single-GPU processes
-#export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=3
 (python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU)&
 PID=$!
 MAX_MEMORY=50000000000 # 50G

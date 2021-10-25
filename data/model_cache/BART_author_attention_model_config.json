@@ -77,6 +77,6 @@
   "reader_group_attention_location":"decoder",
   "reader_attn_config" : "attn_full_mean",
   "filter_data" : "NA",
-  "freeze_weights" : "NA",
-  "sort_data" : "reader_token_str"
+  "freeze_weights" : "reader",
+  "sort_data" : "NA"
 }
