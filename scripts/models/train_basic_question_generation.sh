@@ -9,6 +9,7 @@
 #SBATCH --time=20:00:00
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
+#SBATCH --account=mihalcea0
 
 ###SBATCH --gres=gpu:1
 
@@ -106,7 +107,7 @@ OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_att
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.5_location=lm_head/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.9_location=lm_head/
 # optional hyperparameters: for overriding config file
-#MODEL_CONFIG_PARAMS="reader_attn_position=1,reader_attn_weight=0.1,reader_group_attention_location=decoder,reader_attn_config=attn_full_mean"
+#MODEL_CONFIG_PARAMS="reader_attn_position=5,reader_group_attention_location=encoder,reader_attn_config=attn_full_concat"
 #MODEL_CONFIG_PARAMS="reader_attn_weight=0.9,reader_group_attention_location=lm_head,reader_attn_config=attn_lm"
 MODEL_TYPE="bart_author_attention"
 MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
@@ -130,13 +131,13 @@ MODEL_CACHE_DIR=../../data/model_cache/
 # optional: pretrained model
 #PRETRAINED_MODEL=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight\=0.9_location\=lm_head/question_generation_model/checkpoint-1000/pytorch_model.bin
 
-## queue process
+## queue proces
 # optional: multiple GPUs
 N_GPU=1
 #N_GPU=2
 #python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU
 # override model parameters
-#python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --model_config_params $MODEL_CONFIG_PARAMS
+python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --model_config_params $MODEL_CONFIG_PARAMS
 # pretrained model
 #python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --pretrained_model $PRETRAINED_MODEL
 ## normal process
