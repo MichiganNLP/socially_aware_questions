@@ -143,16 +143,16 @@ def sort_data_by_arg(config, sort_val, train_dataset):
 def filter_data_by_arg(filter_data_args, train_dataset, val_dataset):
     filter_arg_name, filter_arg_vals = filter_data_args.split('=')
     filter_arg_vals = set(filter_arg_vals.split(','))
-    N_pre_filter_train = len(train_dataset)
+    # N_pre_filter_train = len(train_dataset)
     train_dataset_pd = train_dataset.data.to_pandas()
     val_dataset_pd = val_dataset.data.to_pandas()
     train_dataset_pd = train_dataset_pd[train_dataset_pd.loc[:, filter_arg_name].isin(filter_arg_vals)]
     val_dataset_pd = val_dataset_pd[val_dataset_pd.loc[:, filter_arg_name].isin(filter_arg_vals)]
     train_dataset = Dataset.from_pandas(train_dataset_pd)
     val_dataset = Dataset.from_pandas(val_dataset_pd)
-    N_post_filter_train = len(train_dataset)
+    # N_post_filter_train = len(train_dataset)
     # tmp debugging
-    print(f'pre-filter N_train={N_pre_filter_train}; post-filter N_train={N_post_filter_train}')
+    # print(f'pre-filter N_train={N_pre_filter_train}; post-filter N_train={N_post_filter_train}')
     return train_dataset, val_dataset
 
 def main():
@@ -245,11 +245,11 @@ def main():
         filter_data_args = config.__dict__['filter_data']
         print(f'filter data args = {filter_data_args}')
         # tmp debugging
-        print(f'train data before filter = {len(train_dataset)}')
+        # print(f'train data before filter = {len(train_dataset)}')
         train_dataset, val_dataset = filter_data_by_arg(filter_data_args, train_dataset, val_dataset)
-        print(f'train data after filter = {len(train_dataset)}')
+        # print(f'train data after filter = {len(train_dataset)}')
     # tmp debugging
-    sys.exit(0)
+    # sys.exit(0)
     # optional: sort data by value
     # arg format = "ARG"
     if('sort_data' in config.__dict__.keys() and config.__dict__['sort_data']!='NA'):
