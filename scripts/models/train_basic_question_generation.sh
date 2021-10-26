@@ -107,14 +107,15 @@ VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.5_location=lm_head/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.9_location=lm_head/
 # author attention: fine-tuning
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder_config=attnconcat_sortdata=readergroup/
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat_sortdata=readergroup/
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder_sortdata=readergroup/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat_sortdata=readergroup/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder_freezeweights=general/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat_freezeweights=general/
 
 # optional hyperparameters: for overriding config file
-#MODEL_CONFIG_PARAMS="reader_attn_position=5,reader_group_attention_location=encoder,reader_attn_config=attn_full_concat"
-#MODEL_CONFIG_PARAMS="reader_attn_weight=0.9,reader_group_attention_location=lm_head,reader_attn_config=attn_lm"
+MODEL_CONFIG_PARAMS="freeze_weights=general;filter_data=<US_AUTHOR>,<NONUS_AUTHOR>,<EXPERT_PCT_0_AUTHOR>,<EXPERT_PCT_1_AUTHOR>,<RESPONSE_TIME_0_AUTHOR>,<RESPONSE_TIME_1_AUTHOR>"
+#MODEL_CONFIG_PARAMS="reader_attn_position=1;reader_attn_weight=0.9;reader_group_attention_location=decoder;reader_attn_config=attn_full_mean"
+#MODEL_CONFIG_PARAMS="reader_attn_weight=0.9;reader_group_attention_location=lm_head;reader_attn_config=attn_lm"
 MODEL_TYPE="bart_author_attention"
 MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
 ## author embed

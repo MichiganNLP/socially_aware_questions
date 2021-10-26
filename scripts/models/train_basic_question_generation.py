@@ -110,7 +110,7 @@ def get_optimizer(model, args):
     return optimizer
 
 def update_model_config(config, model_config_params):
-    for pair_i in model_config_params.split(','):
+    for pair_i in model_config_params.split(';'):
         param_i, val_i = pair_i.split('=')
         # try to parse number values
         try:
@@ -243,8 +243,12 @@ def main():
     # arg format = "ARG=FILTERVAL1,FILTERVAL2"
     if('filter_data' in config.__dict__.keys() and config.__dict__['filter_data']!='NA'):
         filter_data_args = config.__dict__['filter_data']
+        # tmp debugging
+        print(f'train data before filter = {len(train_dataset)}')
         train_dataset, val_dataset = filter_data_by_arg(filter_data_args, train_dataset, val_dataset)
-        # print(f'train data before filter = {len(train_dataset)}')
+        print(f'train data after filter = {len(train_dataset)}')
+    # tmp debugging
+    sys.exit(0)
     # optional: sort data by value
     # arg format = "ARG"
     if('sort_data' in config.__dict__.keys() and config.__dict__['sort_data']!='NA'):
