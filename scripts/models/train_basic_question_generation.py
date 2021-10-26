@@ -226,14 +226,14 @@ def main():
     tokenizer = torch.load(tokenizer_file)
 	# load config first (hyperparameter tests)
     config = BartConfig.from_json_file(model_config_file)
-    # optional: override config file w/ custom params
-    if(model_config_params is not None):
-        update_model_config(config, model_config_params)
     # optional: override config file w/ existing config
     if (pretrained_model is not None):
         pretrained_model_dir = os.path.dirname(pretrained_model)
         model_config_file = os.path.join(pretrained_model_dir, 'config.json')
         config = BartConfig.from_json_file(model_config_file)
+    # optional: override config file w/ custom params
+    if (model_config_params is not None):
+        update_model_config(config, model_config_params)
     ## load data
     # train_data_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
     # val_data_file = os.path.join(out_dir, f'{data_name}_val_data.pt')

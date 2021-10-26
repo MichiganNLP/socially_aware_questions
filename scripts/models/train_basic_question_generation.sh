@@ -107,6 +107,7 @@ VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.5_location=lm_head/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.9_location=lm_head/
 # author attention: fine-tuning
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder_config=attnconcat_sortdata=readergroup/
 OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat_sortdata=readergroup/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder_freezeweights=general/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat_freezeweights=general/
