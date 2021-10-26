@@ -111,7 +111,7 @@ def get_optimizer(model, args):
 
 def update_model_config(config, model_config_params):
     for pair_i in model_config_params.split(';'):
-        param_i, val_i = pair_i.split('=')
+        param_i, val_i = pair_i.split(':')
         # try to parse number values
         try:
             val_i = literal_eval(val_i)
