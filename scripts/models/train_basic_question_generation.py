@@ -243,6 +243,7 @@ def main():
     # arg format = "ARG=FILTERVAL1,FILTERVAL2"
     if('filter_data' in config.__dict__.keys() and config.__dict__['filter_data']!='NA'):
         filter_data_args = config.__dict__['filter_data']
+        print(f'filter data args = {filter_data_args}')
         # tmp debugging
         print(f'train data before filter = {len(train_dataset)}')
         train_dataset, val_dataset = filter_data_by_arg(filter_data_args, train_dataset, val_dataset)

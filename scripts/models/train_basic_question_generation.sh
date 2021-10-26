@@ -107,9 +107,9 @@ VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.5_location=lm_head/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight=0.9_location=lm_head/
 # author attention: fine-tuning
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder_sortdata=readergroup/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder_sortdata=readergroup/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat_sortdata=readergroup/
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder_freezeweights=general/
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder_freezeweights=general/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat_freezeweights=general/
 
 # optional hyperparameters: for overriding config file
@@ -137,16 +137,18 @@ MODEL_CACHE_DIR=../../data/model_cache/
 #MODEL_CACHE_DIR=../../data/longformer_cache/
 # optional: pretrained model
 #PRETRAINED_MODEL=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight\=0.9_location\=lm_head/question_generation_model/checkpoint-1000/pytorch_model.bin
+PRETRAINED_MODEL=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_weight\=0.9_location\=decoder_freezeweights\=general/question_generation_model/checkpoint-129000/pytorch_model.bin
+
 
 ## queue proces
 # optional: multiple GPUs
 N_GPU=1
 #N_GPU=2
-python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU
+#python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU
 # override model parameters
 #python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --model_config_params $MODEL_CONFIG_PARAMS
 # pretrained model
-#python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --pretrained_model $PRETRAINED_MODEL
+python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --pretrained_model $PRETRAINED_MODEL --model_config_params $MODEL_CONFIG_PARAMS
 ## normal process
 ## use device for single-GPU processes
 #export CUDA_VISIBLE_DEVICES=3
