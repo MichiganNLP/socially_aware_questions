@@ -1349,3 +1349,16 @@ def load_sample_data(sample_type='all', sample_size=0):
     post_question_data = pd.merge(post_data, question_author_data, on='parent_id', how='right')
     # print(f'post/question data has label distribution = {post_question_data.loc[:, "author_group"].value_counts()}')
     return post_question_data
+
+def str2array(s):
+    """
+    Convert string to numpy array.
+
+    :param s:
+    :return:
+    """
+    # Remove space after [
+    s=re.sub('\[ +', '[', s.strip())
+    # Replace commas and spaces
+    s=re.sub('[,\s]+', ', ', s)
+    return np.array(literal_eval(s))

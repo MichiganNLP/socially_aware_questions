@@ -1,5 +1,8 @@
 import gzip
 import os
+import pickle
+import re
+from ast import literal_eval
 
 import numpy as np
 import pandas as pd
@@ -564,3 +567,40 @@ def train_test_reader_group_classification(data, class_var='reader_group_class',
         model_scores.append(model_scores_j)
     model_scores = pd.DataFrame(model_scores)
     return model_scores
+
+def load_reader_group_classifiers(model_dir, reader_groups, subreddits):
+    subreddit_group_model_lookup = {}
+    default_class_matcher = re.compile('(?<=class1\=).*(?=\.pkl)')
+    for subreddit_i in subreddits:
+        model_dir_i = os.path.join(model_dir, subreddit_i)
+        # load model
+        for group_var_j in reader_groups:
+            model_file_matcher_i = re.compile(f'.*group={group_var_j}.*\.pkl')
+            model_file_i = list(filter(lambda x: model_file_matcher_i.match(x) is not None, os.listdir(model_dir_i)))
+            if (len(model_file_i) > 0):
+                model_file_i = model_file_i[0]
+                model_file_i = os.path.join(model_dir_i, model_file_i)
+                # get default class
+                default_class_i = default_class_matcher.search(
+                    model_file_i).group(0)
+                if (default_class_i.isdigit()):
+                    default_class_i = literal_eval(default_class_i)
+                model_i = pickle.load(open(model_file_i, 'rb'))
+                subreddit_group_model_lookup[f'{subreddit_i};{group_var_j}'] = (
+                model_i, default_class_i)
+    return subreddit_group_model_lookup
+
+def get_model_class_prob(data, models,
+                         reader_group_other_class_lookup,
+                         pred_var='PCA_question_post_encoded'):
+    subreddit = data.loc["subreddit"]
+    group_category = data.loc["group_category"]
+    model, default_class = models[f'{subreddit};{group_category}']
+    model_prob = model.predict_proba(data.loc[pred_var].reshape(1,-1))[0, :]
+    max_class_idx = model_prob.argmax()
+    max_class_prob = model_prob.max()
+    if(max_class_idx == 1):
+        max_class = default_class
+    else:
+        max_class = reader_group_other_class_lookup.loc[group_category][default_class]
+    return max_class, max_class_prob
