@@ -71,17 +71,21 @@ def main():
             if (data_j.loc[:, 'author_group'].nunique() == num_groups_per_category):
                 data_j_1 = data_j[data_j.loc[:, 'author_group'] == author_groups_i[0]]
                 data_j_2 = data_j[data_j.loc[:, 'author_group'] == author_groups_i[1]]
-                max_group_count_j = data_j.loc[:, 'author_group'].value_counts().max()
-                data_j_1 = data_j_1.loc[np.random.choice(data_j_1.index, max_group_count_j, replace=(data_j_1.shape[0] < max_group_count_j))]
-                data_j_2 = data_j_2.loc[np.random.choice(data_j_2.index, max_group_count_j, replace=(data_j_2.shape[0] < max_group_count_j))]
+                min_group_count_j = data_j.loc[:, 'author_group'].value_counts().min()
+                # data_j_1 = data_j_1.loc[np.random.choice(data_j_1.index, max_group_count_j, replace=(data_j_1.shape[0] < max_group_count_j))]
+                # data_j_2 = data_j_2.loc[np.random.choice(data_j_2.index, max_group_count_j, replace=(data_j_2.shape[0] < max_group_count_j))]
+                data_j_1 = data_j_1.loc[np.random.choice(data_j_1.index, min_group_count_j, replace=False)]
+                data_j_2 = data_j_2.loc[np.random.choice(data_j_2.index, min_group_count_j, replace=False)]
                 paired_group_question_data.extend([data_j_1, data_j_2])
     paired_group_question_data = pd.concat(paired_group_question_data, axis=0)
     ## reorganize data
-    paired_sample_size = 500
+    paired_sample_size = 1000
     paired_sample_data = []
     pair_data_cols = ['question', 'author_group', 'id', 'question_id', 'author']
     for (subreddit_i, group_i), data_i in paired_group_question_data.groupby(['subreddit', 'group_category']):
-        sample_ids_i = np.random.choice(data_i.loc[:, 'parent_id'].unique(), paired_sample_size, replace=(data_i.loc[:, 'parent_id'].nunique() < paired_sample_size))
+        paired_sample_size_i = min(data_i.loc[:, 'parent_id'].unique(), paired_sample_size)
+        # sample_ids_i = np.random.choice(data_i.loc[:, 'parent_id'].unique(), paired_sample_size, replace=(data_i.loc[:, 'parent_id'].nunique() < paired_sample_size))
+        sample_ids_i = np.random.choice(data_i.loc[:, 'parent_id'].unique(), paired_sample_size_i, replace=False)
         group_vals = data_i.loc[:, 'author_group'].unique()
         for id_j in sample_ids_i:
             data_j = data_i[data_i.loc[:, 'parent_id'] == id_j]
