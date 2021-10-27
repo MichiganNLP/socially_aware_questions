@@ -83,7 +83,7 @@ def main():
     paired_sample_data = []
     pair_data_cols = ['question', 'author_group', 'id', 'question_id', 'author']
     for (subreddit_i, group_i), data_i in paired_group_question_data.groupby(['subreddit', 'group_category']):
-        paired_sample_size_i = min(data_i.loc[:, 'parent_id'].unique(), paired_sample_size)
+        paired_sample_size_i = min(data_i.loc[:, 'parent_id'].nunique(), paired_sample_size)
         # sample_ids_i = np.random.choice(data_i.loc[:, 'parent_id'].unique(), paired_sample_size, replace=(data_i.loc[:, 'parent_id'].nunique() < paired_sample_size))
         sample_ids_i = np.random.choice(data_i.loc[:, 'parent_id'].unique(), paired_sample_size_i, replace=False)
         group_vals = data_i.loc[:, 'author_group'].unique()
