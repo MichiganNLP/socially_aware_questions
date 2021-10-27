@@ -5,6 +5,7 @@ import gzip
 import json
 import logging
 import shutil
+import sys
 from ast import literal_eval
 from functools import reduce
 from itertools import product

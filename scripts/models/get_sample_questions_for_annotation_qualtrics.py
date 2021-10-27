@@ -144,6 +144,48 @@ def convert_question_data_to_txt_frame(data, block_name=None):
     question_data_txt = '\n'.join([block_txt, question_data_txt])
     return question_data_txt
 
+def generate_opposite_group_questions(data_dir, model_cache_dir, model_type,
+                                      paired_group_data, reader_model_file):
+    """
+    Generate questions from the opposite reader group: e.g.
+    for a question written by "US" reader, generate question by "NONUS" reader.
+
+    :param data_dir:
+    :param model_cache_dir:
+    :param model_type:
+    :param paired_group_data:
+    :param reader_model_file:
+    :return:
+    """
+    if('reader_group_2' not in paired_group_data.columns):
+        reader_group_category_lookup = {
+            'expert': ['<EXPERT_PCT_0_AUTHOR>', '<EXPERT_PCT_1_AUTHOR>'],
+            'time': ['<RESPONSE_TIME_0_AUTHOR>', '<RESPONSE_TIME_1_AUTHOR>'],
+            'location': ['<US_AUTHOR>', '<NONUS_AUTHOR>'],
+        }
+        reader_group_pair_lookup = {x: y for vs in reader_group_category_lookup.values()
+                                    for (x, y) in zip(vs, list(reversed(vs)))}
+        paired_group_data = paired_group_data.assign(**{
+            'reader_group_2': paired_group_data.loc[:, 'reader_group_1'].apply(reader_group_pair_lookup.get)
+        })
+    paired_group_test_data = paired_group_data.loc[:, ['reader_group_2', 'source_ids', 'attention_mask']]
+    inv_test_data = Dataset.from_pandas(paired_group_test_data)
+    inv_test_data.rename_column_('reader_group_2', 'reader_token_str')
+    model, model_tokenizer = load_model(model_cache_dir, reader_model_file,
+                                        model_type, data_dir)
+    model.to(torch.cuda.current_device())
+    model_kwargs = prepare_test_data_for_generation(model.config, model_type, inv_test_data)
+    generation_param_file = os.path.join(model_cache_dir, 'sample_generation_params.json')
+    generation_params = json.load(open(generation_param_file))
+    inv_test_data_pred = generate_predictions(model, inv_test_data,
+                                              model_tokenizer,
+                                              generation_params=generation_params,
+                                              model_kwargs=model_kwargs)
+    # paired_group_data = paired_group_data.assign(**{
+    #     'reader_model_group_2': inv_test_data_pred,
+    # })
+    return inv_test_data_pred
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('test_data_file')
@@ -310,49 +352,6 @@ def main():
     # })
     # paired_group_data = paired_group_data[paired_group_data.loc[:, 'post_len'] <= max_post_word_count]
     # print(paired_group_data.loc[:, 'subreddit'].value_counts())
-
-
-def generate_opposite_group_questions(data_dir, model_cache_dir, model_type,
-                                      paired_group_data, reader_model_file):
-    """
-    Generate questions from the opposite reader group: e.g.
-    for a question written by "US" reader, generate question by "NONUS" reader.
-
-    :param data_dir:
-    :param model_cache_dir:
-    :param model_type:
-    :param paired_group_data:
-    :param reader_model_file:
-    :return:
-    """
-    if('reader_group_2' not in paired_group_data.columns):
-        reader_group_category_lookup = {
-            'expert': ['<EXPERT_PCT_0_AUTHOR>', '<EXPERT_PCT_1_AUTHOR>'],
-            'time': ['<RESPONSE_TIME_0_AUTHOR>', '<RESPONSE_TIME_1_AUTHOR>'],
-            'location': ['<US_AUTHOR>', '<NONUS_AUTHOR>'],
-        }
-        reader_group_pair_lookup = {x: y for vs in reader_group_category_lookup.values()
-                                    for (x, y) in zip(vs, list(reversed(vs)))}
-        paired_group_data = paired_group_data.assign(**{
-            'reader_group_2': paired_group_data.loc[:, 'reader_group_1'].apply(reader_group_pair_lookup.get)
-        })
-    paired_group_test_data = paired_group_data.loc[:, ['reader_group_2', 'source_ids', 'attention_mask']]
-    inv_test_data = Dataset.from_pandas(paired_group_test_data)
-    inv_test_data.rename_column_('reader_group_2', 'reader_token_str')
-    model, model_tokenizer = load_model(model_cache_dir, reader_model_file,
-                                        model_type, data_dir)
-    model.to(torch.cuda.current_device())
-    model_kwargs = prepare_test_data_for_generation(model.config, model_type, inv_test_data)
-    generation_param_file = os.path.join(model_cache_dir, 'sample_generation_params.json')
-    generation_params = json.load(open(generation_param_file))
-    inv_test_data_pred = generate_predictions(model, inv_test_data,
-                                              model_tokenizer,
-                                              generation_params=generation_params,
-                                              model_kwargs=model_kwargs)
-    # paired_group_data = paired_group_data.assign(**{
-    #     'reader_model_group_2': inv_test_data_pred,
-    # })
-    return inv_test_data_pred
 
 
 if __name__ == '__main__':
