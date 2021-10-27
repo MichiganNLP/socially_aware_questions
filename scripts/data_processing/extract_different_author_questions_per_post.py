@@ -128,11 +128,21 @@ def main():
     similarity_cutoff_sample_data = pd.concat(similarity_cutoff_sample_data, axis=0)
     # flatten ID data
     # tmp debugging
-    similarity_cutoff_sample_data.to_csv('sim_cutoff_data_tmp.gz', sep='\t', compression='gzip')
-    flat_sample_data = pd.melt(similarity_cutoff_sample_data, id_vars=['parent_id', 'question_id_1', 'question_id_2', 'author_1', 'author_2', 'group_category'], value_vars=['id_1', 'id_2'], var_name='id_type', value_name='id')
-    flat_sample_data = pd.melt(flat_sample_data, id_vars=['parent_id', 'author_1', 'author_2', 'id', 'group_category'], value_vars=['question_id_1', 'question_id_2'], var_name='question_id_type', value_name='question_id')
-    flat_sample_data = pd.melt(flat_sample_data, id_vars=['parent_id', 'id', 'question_id', 'group_category'], value_vars=['author_1', 'author_2'], var_name='author_id_type', value_name='author_id')
-    flat_sample_data.drop('author_id_type', axis=1, inplace=True)
+    # similarity_cutoff_sample_data.to_csv('sim_cutoff_data_tmp.gz', sep='\t', compression='gzip')
+    sample_id_vars = ['parent_id', 'group_category']
+    author_vars = ['question_id', 'id', 'author', 'author_group']
+    flat_sample_data = []
+    author_count = 2
+    for idx_i, row_i in similarity_cutoff_sample_data.iterrows():
+        for j in range(1, author_count+1):
+            row_j = row_i.loc[sample_id_vars + [f'{v}_{j}' for v in author_vars]]
+            row_j.rename({f'{v}_{j}' : v for v in author_vars}, inplace=True)
+            flat_sample_data.append(row_j)
+    flat_sample_data = pd.concat(flat_sample_data, axis=1).transpose()
+    # flat_sample_data = pd.melt(similarity_cutoff_sample_data, id_vars=['parent_id', 'question_id_1', 'question_id_2', 'author_1', 'author_2', 'group_category'], value_vars=['id_1', 'id_2'], var_name='id_type', value_name='id')
+    # flat_sample_data = pd.melt(flat_sample_data, id_vars=['parent_id', 'author_1', 'author_2', 'id', 'group_category'], value_vars=['question_id_1', 'question_id_2'], var_name='question_id_type', value_name='question_id')
+    # flat_sample_data = pd.melt(flat_sample_data, id_vars=['parent_id', 'id', 'question_id', 'group_category'], value_vars=['author_1', 'author_2'], var_name='author_id_type', value_name='author_id')
+    # flat_sample_data.drop('author_id_type', axis=1, inplace=True)
     ## save to file
     out_file = os.path.join(out_dir, f'paired_question_low_sim_simpct={max_sim_pct}_data.gz')
     flat_sample_data.to_csv(out_file, sep='\t', index=False, compression='gzip')
