@@ -11,4 +11,4 @@
 
 OUT_DIR=../../data/reddit_data/
 TRAIN_DATA_FILE=../../data/reddit_data/combined_data_train_data.pt
-python extract_different_author_questions_per_post.py $OUT_DIR --train_data_file $TRAIN_DATA_FILE --filter_data
+python extract_different_author_questions_per_post.py $OUT_DIR --filter_data_file $TRAIN_DATA_FILE --remove_data

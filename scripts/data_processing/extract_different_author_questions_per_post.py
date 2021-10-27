@@ -20,39 +20,39 @@ from sklearn.metrics.pairwise import cosine_similarity
 def main():
     parser = ArgumentParser()
     parser.add_argument('out_dir')
-    parser.add_argument('--train_data_file', default=None)
-    parser.add_argument('--filter_data', dest='filter_data', action='store_true')
+    parser.add_argument('--filter_data_file', default=None)
+    parser.add_argument('--remove_data', dest='remove_data', action='store_true')
     args = vars(parser.parse_args())
     out_dir = args['out_dir']
-    train_data_file = args['train_data_file']
-    filter_data = args['filter_data']
+    filter_data_file = args['filter_data_file']
+    remove_data = args['remove_data']
 
     ## load all data
-    train_data = None
-    if(train_data_file is not None):
-        train_data = torch.load(train_data_file).data.to_pandas()
-        train_data.rename(columns={'article_id' : 'parent_id'}, inplace=True)
+    filter_data = None
+    if(filter_data_file is not None):
+        filter_data = torch.load(filter_data_file).data.to_pandas()
+        filter_data.rename(columns={'article_id' : 'parent_id'}, inplace=True)
     sample_type = None
     post_question_data = load_sample_data(sample_type=sample_type)
     # optional: filter for test_data
     # optional filter
-    if (train_data is not None):
+    if (filter_data is not None):
         # tmp debugging
-        N_pre_filter = post_question_data.shape[0]
-        # if filter, then *remove* all data in test_data
-        if(filter_data):
+        # N_pre_filter = post_question_data.shape[0]
+        # *remove* all data in test_data
+        if(remove_data):
             post_question_data = pd.merge(post_question_data,
-                                          train_data.loc[:, ['id', 'parent_id', 'question_id', 'author']],
+                                          filter_data.loc[:, ['id', 'parent_id', 'question_id', 'author']],
                                           on=['id', 'parent_id', 'question_id', 'author'],
                                           how='outer', indicator=True).query('_merge == "left_only"').drop('_merge', axis=1)
+        # otherwise, keep all data in filter_data
         else:
             post_question_data = pd.merge(post_question_data,
-                                          train_data.loc[:, ['id', 'parent_id', 'question_id', 'author']],
+                                          filter_data.loc[:, ['id', 'parent_id', 'question_id', 'author']],
                                           on=['id', 'parent_id', 'question_id', 'author'], how='inner')
-        N_post_filter = post_question_data.shape[0]
-        print(
-            f'N={N_pre_filter} before filtering sample data; N={N_post_filter} after filtering')
-        sys.exit(0)
+        # N_post_filter = post_question_data.shape[0]
+        # print(f'N={N_pre_filter} before filtering sample data; N={N_post_filter} after filtering')
+        # sys.exit(0)
         # pass
     author_vars = ['expert_pct_bin', 'relative_time_bin', 'location_region']
     flat_question_data = pd.melt(post_question_data,
