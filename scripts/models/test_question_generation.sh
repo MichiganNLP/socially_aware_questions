@@ -8,6 +8,7 @@
 #SBATCH --time=10:00:00
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
+#SBATCH --account=mihalcea0
 
 # test question generation
 # data params
@@ -104,10 +105,10 @@ TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
 # author attention: fine-tuning
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_location\=decoder_finetune\=AUTHORS/question_generation_model/checkpoint-56500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_location\=decoder_finetune\=AUTHORS/
-MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_location\=encoder_config\=attnconcat_sortdata\=readergroup/question_generation_model/checkpoint-129000/pytorch_model.bin
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_location\=encoder_config\=attnconcat_sortdata\=readergroup/
-#MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_weight\=0.9_location\=decoder_sortdata\=readergroup/question_generation_model/checkpoint-129000/pytorch_model.bin
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_weight\=0.9_location\=decoder_sortdata\=readergroup/
+#MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_location\=encoder_config\=attnconcat_sortdata\=readergroup/question_generation_model/checkpoint-129000/pytorch_model.bin
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_location\=encoder_config\=attnconcat_sortdata\=readergroup/
+MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_weight\=0.9_location\=decoder_sortdata\=readergroup/question_generation_model/checkpoint-129000/pytorch_model.bin
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_weight\=0.9_location\=decoder_sortdata\=readergroup/
 # author attention: LM head
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight\=0.1_location\=lm_head/question_generation_model/checkpoint-97000/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight\=0.1_location\=lm_head/
