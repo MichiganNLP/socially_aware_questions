@@ -83,7 +83,7 @@ def main():
     paired_sample_data = []
     pair_data_cols = ['question', 'author_group', 'id', 'question_id', 'author']
     for (subreddit_i, group_i), data_i in paired_group_question_data.groupby(['subreddit', 'group_category']):
-        paired_sample_size_i = min(data_i.loc[:, 'parent_id'].unique(), paired_sample_size)
+        paired_sample_size_i = min(data_i.loc[:, 'parent_id'].nunique(), paired_sample_size)
         # sample_ids_i = np.random.choice(data_i.loc[:, 'parent_id'].unique(), paired_sample_size, replace=(data_i.loc[:, 'parent_id'].nunique() < paired_sample_size))
         sample_ids_i = np.random.choice(data_i.loc[:, 'parent_id'].unique(), paired_sample_size_i, replace=False)
         group_vals = data_i.loc[:, 'author_group'].unique()
@@ -127,9 +127,11 @@ def main():
         similarity_cutoff_sample_data.append(valid_data_i)
     similarity_cutoff_sample_data = pd.concat(similarity_cutoff_sample_data, axis=0)
     # flatten ID data
-    flat_sample_data = pd.melt(similarity_cutoff_sample_data, id_vars=['parent_id', 'question_id_1', 'question_id_2', 'author_1', 'author_2'], value_vars=['id_1', 'id_2'], var_name='id_type', value_name='id')
-    flat_sample_data = pd.melt(flat_sample_data, id_vars=['parent_id', 'author_1', 'author_2', 'id'], value_vars=['question_id_1', 'question_id_2'], var_name='question_id_type', value_name='question_id')
-    flat_sample_data = pd.melt(flat_sample_data, id_vars=['parent_id', 'id', 'question_id'], value_vars=['author_1', 'author_2'], var_name='author_id_type', value_name='author_id')
+    # tmp debugging
+    similarity_cutoff_sample_data.to_csv('sim_cutoff_data_tmp.gz', sep='\t', compression='gzip')
+    flat_sample_data = pd.melt(similarity_cutoff_sample_data, id_vars=['parent_id', 'question_id_1', 'question_id_2', 'author_1', 'author_2', 'group_category'], value_vars=['id_1', 'id_2'], var_name='id_type', value_name='id')
+    flat_sample_data = pd.melt(flat_sample_data, id_vars=['parent_id', 'author_1', 'author_2', 'id', 'group_category'], value_vars=['question_id_1', 'question_id_2'], var_name='question_id_type', value_name='question_id')
+    flat_sample_data = pd.melt(flat_sample_data, id_vars=['parent_id', 'id', 'question_id', 'group_category'], value_vars=['author_1', 'author_2'], var_name='author_id_type', value_name='author_id')
     flat_sample_data.drop('author_id_type', axis=1, inplace=True)
     ## save to file
     out_file = os.path.join(out_dir, f'paired_question_low_sim_simpct={max_sim_pct}_data.gz')
