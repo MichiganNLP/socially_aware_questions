@@ -139,7 +139,7 @@ MODEL_CACHE_DIR=../../data/model_cache/
 # NOTE: to make this work! you have to (1) modify the trainer_state.json file => "epoch":0.0,"global_step":0,"total_flos":0; (2) delete optimizer.pt, scheduler.pt
 #PRETRAINED_MODEL=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight\=0.9_location\=lm_head/question_generation_model/checkpoint-1000/pytorch_model.bin
 #PRETRAINED_MODEL=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_weight\=0.9_location\=decoder_freezeweights\=general/question_generation_model/checkpoint-129000/pytorch_model.bin
-PRETRAINED_MODEL=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat_freezeweights=general/checkpoint-129000/pytorch_model.bin
+PRETRAINED_MODEL=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat_freezeweights=general/question_generation_model/checkpoint-129000/pytorch_model.bin
 
 ## queue proces
 # optional: multiple GPUs

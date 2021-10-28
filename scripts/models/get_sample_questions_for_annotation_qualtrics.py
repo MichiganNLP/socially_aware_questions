@@ -170,9 +170,9 @@ def generate_opposite_group_questions(data_dir, model_cache_dir, model_type,
         })
     paired_group_test_data = paired_group_data.loc[:, ['reader_group_2', 'source_ids', 'attention_mask']]
     inv_test_data = Dataset.from_pandas(paired_group_test_data)
+    # fix column name, for generation
     inv_test_data.rename_column_('reader_group_2', 'reader_token_str')
-    model, model_tokenizer = load_model(model_cache_dir, reader_model_file,
-                                        model_type, data_dir)
+    model, model_tokenizer = load_model(model_cache_dir, reader_model_file, model_type, data_dir)
     model.to(torch.cuda.current_device())
     model_kwargs = prepare_test_data_for_generation(model.config, model_type, inv_test_data)
     generation_param_file = os.path.join(model_cache_dir, 'sample_generation_params.json')
@@ -201,7 +201,7 @@ def main():
     out_dir = args['out_dir']
 
     ## load data
-    sample_question_data = load_sample_data(sample_type='all')
+    # sample_question_data = load_sample_data(sample_type='all')
     # load generated data
     test_data = torch.load(test_data_file)
     test_data_df = test_data.data.to_pandas()
@@ -216,7 +216,7 @@ def main():
     # copy reader token to separate column for later
     test_data_df = test_data_df.assign(**{'reader_group' : test_data_df.loc[:, 'reader_token_str']})
     ## get N questions per reader group, generate questions for other reader group from reader-aware model
-    N_questions_per_group = 20 # need > 5 because we might generate the same text
+    N_questions_per_group = 20 # need > 5 because some models could generate the same text
     reader_group_category_lookup  = {
         'expert' : ['<EXPERT_PCT_0_AUTHOR>', '<EXPERT_PCT_1_AUTHOR>'],
         'time' : ['<RESPONSE_TIME_0_AUTHOR>', '<RESPONSE_TIME_1_AUTHOR>'],

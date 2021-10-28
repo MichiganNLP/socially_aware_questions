@@ -8,6 +8,7 @@
 #SBATCH --time=10:00:00
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
+#SBATCH --account=mihalcea0
 
 # test question generation
 # data params
