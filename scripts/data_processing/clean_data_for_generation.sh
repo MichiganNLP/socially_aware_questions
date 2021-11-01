@@ -24,8 +24,8 @@
 DATA_FILE=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
 COMMENT_DATA=../../data/reddit_data/advice_subreddit_filter_comment_question_data.gz
 # combined data (sample)
-DATA_NAME=combined_data
-OUT_DIR=../../data/reddit_data/
+#DATA_NAME=combined_data
+#OUT_DIR=../../data/reddit_data/
 # combined data (full)
 DATA_NAME=combined_data_full
 OUT_DIR=/scratch/mihalcea_root/mihalcea0/ianbstew/
@@ -49,8 +49,8 @@ MODEL_TYPE=bart
 SAMPLE_PCT=1.0
 
 # queue server (server can't get online data)
-#HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
-#python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT
+HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT
 
 # regular server
 # CNN
@@ -58,7 +58,7 @@ SAMPLE_PCT=1.0
 # reddit
 #python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --sample_pct $SAMPLE_PCT
 # reddit + author
-(python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT)&
-PID=$!
-MAX_MEMORY=120000000000 # 100G
-prlimit --pid $PID --as=$MAX_MEMORY
+#(python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT)&
+#PID=$!
+#MAX_MEMORY=120000000000 # 100G
+#prlimit --pid $PID --as=$MAX_MEMORY
