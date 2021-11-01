@@ -21,6 +21,8 @@
 # regular training reddit data
 TRAIN_DATA=../../data/reddit_data/combined_data_train_data.pt
 TEST_DATA=../../data/reddit_data/combined_data_test_data.pt
+# load full data, then subtract training data
+TEST_DATA=FULL
 # mini train/val data for parameter tuning
 #TRAIN_DATA=../../data/reddit_data/combined_data_train_train_data.pt
 #TEST_DATA=../../data/reddit_data/combined_data_train_val_data.pt

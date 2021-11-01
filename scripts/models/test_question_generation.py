@@ -256,7 +256,7 @@ def main():
         os.mkdir(out_dir)
 
     ## load model, data
-    data_dir = os.path.dirname(test_data)
+    data_dir = os.path.dirname(train_data)
     generation_model, model_tokenizer = load_model(model_cache_dir, model_file, model_type, data_dir)
     generation_model.to(torch.cuda.current_device())
     test_data = torch.load(test_data)

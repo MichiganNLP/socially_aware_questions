@@ -19,6 +19,7 @@ import pytz
 import requests
 from rouge_score.rouge_scorer import RougeScorer
 from sklearn.metrics.pairwise import cosine_similarity
+from torch.utils.data import ConcatDataset
 from transformers import BartTokenizer, LongformerTokenizer
 import torch
 from tqdm import tqdm
@@ -407,7 +408,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
                           train_pct=0.8,
                           max_source_length=1024, max_target_length=64,
                           article_question_NE_overlap=False,
-                          NE_data_dir=None):
+                          NE_data_dir=None, write_to_file=True):
     """
     Convert raw article/question pairs to source/target pairs
     in matrix format.
@@ -603,6 +604,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # columns = ["source_ids", "target_ids", "attention_mask", "source_text", "target_text"]
     train_data.set_format(type='torch', columns=tensor_data_columns, output_all_columns=True)
     test_data.set_format(type='torch', columns=tensor_data_columns, output_all_columns=True)
+    full_data = ConcatDataset([train_data, test_data])
     # tmp debugging
     # print(f'after processing: train data has columns {train_data.column_names}')
     # tmp debugging
@@ -610,12 +612,13 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     #     print(f'post-cleaned train data sample: {data_i}')
     #     break
     #     logging.debug(f'train data {train_data}')
-    train_data_out_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
-    test_data_out_file = os.path.join(out_dir, f'{data_name}_test_data.pt')
-    # tmp debugging
-    # print(f'writing val data to file = {val_data_out_file}')
-    torch.save(train_data, train_data_out_file)
-    torch.save(test_data, test_data_out_file)
+    if(write_to_file):
+        train_data_out_file = os.path.join(out_dir, f'{data_name}_train_data.pt')
+        test_data_out_file = os.path.join(out_dir, f'{data_name}_test_data.pt')
+        # tmp debugging
+        # print(f'writing val data to file = {val_data_out_file}')
+        torch.save(train_data, train_data_out_file)
+        torch.save(test_data, test_data_out_file)
     # save tokenizer because we will need to post-process other data
     tokenizer_name_lookup = {
         BartTokenizer : 'BART',
@@ -639,11 +642,12 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # train_val_idx = list(range(train_data_count))[-int(val_data_pct * train_data_count):]
     train_train_data = train_data.select(train_train_idx, keep_in_memory=True, load_from_cache_file=False)
     train_val_data = train_data.select(train_val_idx, keep_in_memory=True, load_from_cache_file=False)
-    train_train_data_out_file = os.path.join(out_dir, f'{data_name}_train_train_data.pt')
-    train_val_data_out_file = os.path.join(out_dir, f'{data_name}_train_val_data.pt')
-    torch.save(train_train_data, train_train_data_out_file)
-    torch.save(train_val_data, train_val_data_out_file)
-    return clean_data
+    if(write_to_file):
+        train_train_data_out_file = os.path.join(out_dir, f'{data_name}_train_train_data.pt')
+        train_val_data_out_file = os.path.join(out_dir, f'{data_name}_train_val_data.pt')
+        torch.save(train_train_data, train_train_data_out_file)
+        torch.save(train_val_data, train_val_data_out_file)
+    return full_data
 
 def add_subreddit_token(data, max_source_length, tokenizer):
     data_with_subreddit_token = []
@@ -1249,7 +1253,6 @@ def load_sample_data(sample_type='all', sample_size=0):
     ## load author data
     author_data = pd.read_csv('../../data/reddit_data/author_data/combined_author_prior_comment_data.gz', sep='\t', compression='gzip', index_col=False)
     ## add date info
-    from datetime import datetime
     question_data = question_data.assign(**{
         'date': question_data.loc[:, 'created_utc'].apply(
             lambda x: datetime.fromtimestamp(x))
@@ -1348,6 +1351,16 @@ def load_sample_data(sample_type='all', sample_size=0):
     # tmp debugging
     # print(f'question data has subreddit distribution = {question_author_data.loc[:, "subreddit"].value_counts()}')
     post_question_data = pd.merge(post_data, question_author_data, on='parent_id', how='right')
+    # fix group category name
+    group_category_lookup = {
+        'expert_pct_bin' : 'expert',
+        'relative_time_bin' : 'time',
+        'location_region' : 'location',
+        'UNK' : 'UNK',
+    }
+    post_question_data = post_question_data.assign(**{
+        'group_category' : post_question_data.loc[:, 'group_category'].apply(group_category_lookup.get)
+    })
     # print(f'post/question data has label distribution = {post_question_data.loc[:, "author_group"].value_counts()}')
     return post_question_data
 

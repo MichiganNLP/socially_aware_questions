@@ -23,9 +23,12 @@
 ## reddit data
 DATA_FILE=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
 COMMENT_DATA=../../data/reddit_data/advice_subreddit_filter_comment_question_data.gz
-# combined data
+# combined data (sample)
 DATA_NAME=combined_data
 OUT_DIR=../../data/reddit_data/
+# combined data (full)
+DATA_NAME=combined_data_full
+OUT_DIR=/scratch/mihalcea_root/mihalcea0/ianbstew/
 # text-only
 #DATA_NAME=advice_subreddit
 #OUT_DIR=../../data/reddit_data/
@@ -42,7 +45,8 @@ MODEL_TYPE=bart
 # enforce named entity overlap between article and question (>=1 NE overlap per question/article)
 #NE_overlap=False
 #SAMPLE_PCT=0.5
-SAMPLE_PCT=0.25
+#SAMPLE_PCT=0.25
+SAMPLE_PCT=1.0
 
 # queue server (server can't get online data)
 #HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
