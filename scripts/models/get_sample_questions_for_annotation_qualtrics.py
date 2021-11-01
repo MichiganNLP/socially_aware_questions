@@ -203,7 +203,21 @@ def main():
     filter_data_file = args['filter_data_file']
 
     ## load data
-    # sample_question_data = load_sample_data(sample_type='all')
+    if(filter_data_file is not None):
+        sample_question_data = load_sample_data(sample_type='all')
+        print(f'sample data group categories = {sample_question_data.loc[:, "group_category"].unique()}')
+        filter_data = pd.read_csv(filter_data_file, sep='\t', compression='gzip')
+        filter_vars = ['parent_id', 'question_id', 'author', 'group_category']
+        N_data_pre_filter = filter_data.shape[0]
+        filter_data = pd.merge(sample_question_data, filter_data.loc[:, filter_vars],
+                               on=filter_vars, how='inner')
+        N_data_post_filter = filter_data.shape[0]
+        print(f'N={N_data_pre_filter} pre-filter; N={N_data_post_filter} post-filter')
+        filter_data.to_csv('tmp.gz', sep='\t', compression='gzip', index=False)
+        # convert to usable format
+        import sys
+        sys.exit(0)
+    #     # merge etc.
     # load generated data
     test_data = torch.load(test_data_file)
     test_data_df = test_data.data.to_pandas()
