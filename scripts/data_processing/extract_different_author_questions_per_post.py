@@ -22,10 +22,12 @@ def main():
     parser.add_argument('out_dir')
     parser.add_argument('--filter_data_file', default=None)
     parser.add_argument('--remove_data', dest='remove_data', action='store_true')
+    parser.add_argument('--max_sim_pct', type=int, default=25)
     args = vars(parser.parse_args())
     out_dir = args['out_dir']
     filter_data_file = args['filter_data_file']
     remove_data = args['remove_data']
+    max_sim_pct = args['max_sim_pct']
 
     ## load all data
     filter_data = None
@@ -118,10 +120,9 @@ def main():
             x.loc['question_1_embed'].reshape(1, -1),
             x.loc['question_2_embed'].reshape(1, -1))[0][0], axis=1)
     })
-    ## compute similarity cutoff (per subreddit)
-    max_sim_pct = 25
+    ## compute similarity cutoff (per group, subreddit)
     similarity_cutoff_sample_data = []
-    for subreddit_i, data_i in paired_sample_data.groupby('subreddit'):
+    for (subreddit_i, group_i), data_i in paired_sample_data.groupby(['subreddit', 'group_category']):
         similarity_cutoff_i = np.percentile(data_i.loc[:, 'question_sim'], max_sim_pct)
         valid_data_i = data_i[data_i.loc[:, 'question_sim'] <= similarity_cutoff_i]
         similarity_cutoff_sample_data.append(valid_data_i)

@@ -8,6 +8,8 @@ import json
 import os
 import pickle
 from argparse import ArgumentParser
+from itertools import product
+
 from stop_words import get_stop_words
 from torch import Tensor
 from tqdm import tqdm
@@ -73,6 +75,26 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
     generation_score_data = generation_score_data.reset_index().rename(columns={'index': 'stat'})
     return full_generation_score_data, generation_score_data
 
+def get_subreddit_group_generation_scores(pred_data, test_data,
+                                          model, model_type='bart',
+                                          word_embed_file=None, sample_size=5000,
+                                          train_data=None):
+    subreddit_group_combos = list(product(test_data.loc[:, 'subreddit'].unique(), test_data.loc[:, 'group_category'].unique()))
+    per_subreddit_group_scores = []
+    for (subreddit_i, group_i) in subreddit_group_combos:
+        idx_i = np.where((test_data.loc[:, 'subreddit']==subreddit_i) & (test_data.loc[:, 'group_category']==group_i))[0]
+        pred_data_i = pred_data[idx_i]
+        test_data_i = test_data.select(idx_i, keep_in_memory=True, load_from_cache_file=False)
+        _, score_data_i = get_generation_scores(pred_data_i, test_data_i, model,
+                                                model_type=model_type, word_embed_file=word_embed_file,
+                                                sample_size=sample_size, train_data=train_data)
+        score_data_i = score_data_i.assign(**{
+            'subreddit' : subreddit_i,
+            'group_category' : group_i,
+        })
+        per_subreddit_group_scores.append(score_data_i)
+    per_subreddit_group_scores = pd.concat(per_subreddit_group_scores, axis=0)
+    return per_subreddit_group_scores
 
 def compute_perplexity(model, model_type, sample_size, test_data, return_log_likelihoods=False):
     log_likelihoods = []
@@ -243,6 +265,8 @@ def main():
     model_kwargs = prepare_test_data_for_generation(generation_model.config, model_type, test_data)
     if(train_data is not None):
         train_data = torch.load(train_data)
+    ## add group category to test data
+    test_data = add_reader_group_category(test_data)
     # tmp debugging: shuffle test data
     # test_data = test_data.shuffle(seed=123, keep_in_memory=True, cache_file_name=None)
     # tmp debugging: less test data
@@ -391,6 +415,32 @@ def main():
         full_subgroup_generation_score_data, subgroup_generation_score_data = get_generation_scores(subgroup_pred_data, subgroup_test_data, generation_model, model_type=model_type, word_embed_file=word_embed_file, train_data=train_data)
         full_subgroup_generation_score_data.to_csv(full_post_subgroup_score_out_file, sep='\t', index=False, compression='gzip')
         subgroup_generation_score_data.to_csv(post_subgroup_score_out_file, sep='\t', index=False)
+        # same thing but with data subgroups
+        subgroup_per_subreddit_group_scores = get_subreddit_group_generation_scores(post_subgroup_data, subgroup_test_data,
+                                                                                    generation_model, model_type=model_type,
+                                                                                    word_embed_file=None, sample_size=5000,
+                                                                                    train_data=None)
+        subgroup_per_subreddit_group_score_file = os.path.join(out_dir, f'{output_name}_scores_subgroup={post_subgroup_name}_subreddit_readergroup.tsv')
+        subgroup_per_subreddit_group_scores.to_csv(subgroup_per_subreddit_group_score_file, sep='\t', index=False)
+
+
+def add_reader_group_category(test_data):
+    reader_group_lookup = {
+        'expert': ['<EXPERT_PCT_0_AUTHOR>', '<EXPERT_PCT_1_AUTHOR>'],
+        'time': ['<RESPONSE_TIME_0_AUTHOR>', '<RESPONSE_TIME_1_AUTHOR>'],
+        'location': ['<US_AUTHOR>', '<NONUS_AUTHOR>'],
+        'UNK': ['UNK'],
+    }
+    reader_group_lookup = {
+        v1: k for k, v in reader_group_lookup.items() for v1 in v
+    }
+    test_data = test_data.data.to_pandas()
+    test_data = test_data.assign(**{
+        'group_category': test_data.loc[:, 'reader_token'].apply(
+            lambda x: reader_group_lookup[x])
+    })
+    test_data = Dataset.from_pandas(test_data)
+    return test_data
 
 
 if __name__ == '__main__':
