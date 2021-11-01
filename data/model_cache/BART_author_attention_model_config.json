@@ -78,5 +78,5 @@
   "reader_attn_config" : "attn_full_concat",
   "filter_data" : "NA",
   "freeze_weights" : "NA",
-  "sort_data" : "reader_token_str"
+  "sort_data" : "NA"
 }
