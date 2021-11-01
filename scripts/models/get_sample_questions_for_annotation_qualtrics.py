@@ -234,8 +234,6 @@ def main():
     post_data.rename(columns={'id' : 'parent_id'}, inplace=True)
     # print(f'test data columns = {list(sorted(test_data_df.columns))}')
     test_data_df = pd.merge(post_data, test_data_df, on='parent_id', how='right')
-    # tmp debugging
-    # test_data_df.to_csv('tmp1.gz', sep='\t', index=False, compression='gzip')
     # optional: filter for questions provided in sample data (ex. divisive posts)
     if(filter_data_file is not None):
         filter_data = pd.read_csv(filter_data_file, sep='\t', compression='gzip')
