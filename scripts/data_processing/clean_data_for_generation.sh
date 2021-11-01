@@ -3,7 +3,7 @@
 #SBATCH --mail-user=ianbstew@umich.edu
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --time=10:00:00
-#SBATCH --account=mihalcea1
+#SBATCH --account=mihalcea0
 #SBATCH --output=/home/%u/logs/%x-%j.log
 #SBATCH --nodes=1
 #SBATCH --partition=standard

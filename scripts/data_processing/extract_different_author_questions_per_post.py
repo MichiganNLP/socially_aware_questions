@@ -56,7 +56,7 @@ def main():
         # print(f'N={N_pre_filter} before filtering sample data; N={N_post_filter} after filtering')
         # sys.exit(0)
         # pass
-    author_vars = ['expert', 'time', 'location']
+    author_vars = ['expert', 'time', 'location'] 
     # fix group category names
     group_category_lookup = {
         'expert_pct_bin' : 'expert',

@@ -95,7 +95,7 @@ VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_weight=0.9_location=encoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.1_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.5_location=decoder/
-#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder/
+OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_weight=0.1_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_weight=0.5_location=decoder/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=3_weight=0.9_location=decoder/
@@ -110,11 +110,11 @@ VAL_DATA=../../data/reddit_data/combined_data_test_data.pt
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder_sortdata=readergroup/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat_sortdata=readergroup/
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=1_weight=0.9_location=decoder_freezeweights=general/
-OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat_freezeweights=general/
+#OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat_freezeweights=general/
 
 # optional hyperparameters: for overriding config file
-MODEL_CONFIG_PARAMS="freeze_weights:general;filter_data:reader_token_str=<US_AUTHOR>,<NONUS_AUTHOR>,<EXPERT_PCT_0_AUTHOR>,<EXPERT_PCT_1_AUTHOR>,<RESPONSE_TIME_0_AUTHOR>,<RESPONSE_TIME_1_AUTHOR>"
-#MODEL_CONFIG_PARAMS="reader_attn_position:1;reader_attn_weight:0.9;reader_group_attention_location:decoder;reader_attn_config:attn_full_mean"
+#MODEL_CONFIG_PARAMS="freeze_weights:general;filter_data:reader_token_str=<US_AUTHOR>,<NONUS_AUTHOR>,<EXPERT_PCT_0_AUTHOR>,<EXPERT_PCT_1_AUTHOR>,<RESPONSE_TIME_0_AUTHOR>,<RESPONSE_TIME_1_AUTHOR>"
+MODEL_CONFIG_PARAMS="reader_attn_position:1;reader_attn_weight:0.9;reader_group_attention_location:decoder;reader_attn_config:attn_full_mean"
 #MODEL_CONFIG_PARAMS="reader_attn_weight:0.9;reader_group_attention_location:lm_head;reader_attn_config:attn_lm"
 MODEL_TYPE="bart_author_attention"
 MODEL_CONFIG_FILE=../../data/model_cache/BART_author_attention_model_config.json
@@ -139,7 +139,7 @@ MODEL_CACHE_DIR=../../data/model_cache/
 # NOTE: to make this work! you have to (1) modify the trainer_state.json file => "epoch":0.0,"global_step":0,"total_flos":0; (2) delete optimizer.pt, scheduler.pt
 #PRETRAINED_MODEL=../../data/reddit_data/author_text_data/author_attention_data/author_attention_weight\=0.9_location\=lm_head/question_generation_model/checkpoint-1000/pytorch_model.bin
 #PRETRAINED_MODEL=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_weight\=0.9_location\=decoder_freezeweights\=general/question_generation_model/checkpoint-129000/pytorch_model.bin
-PRETRAINED_MODEL=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat_freezeweights=general/question_generation_model/checkpoint-129000/pytorch_model.bin
+#PRETRAINED_MODEL=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer=5_location=encoder_config=attnconcat_freezeweights=general/question_generation_model/checkpoint-129000/pytorch_model.bin
 
 ## queue proces
 # optional: multiple GPUs
@@ -147,9 +147,9 @@ N_GPU=1
 #N_GPU=2
 #python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU
 # override model parameters
-#python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --model_config_params $MODEL_CONFIG_PARAMS
+python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --model_config_params $MODEL_CONFIG_PARAMS
 # pretrained model
-python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --pretrained_model $PRETRAINED_MODEL --model_config_params $MODEL_CONFIG_PARAMS
+#python train_basic_question_generation.py $TRAIN_DATA $VAL_DATA $OUT_DIR --model_type $MODEL_TYPE --model_cache_dir $MODEL_CACHE_DIR --model_config_file $MODEL_CONFIG_FILE --n_gpu $N_GPU --pretrained_model $PRETRAINED_MODEL --model_config_params $MODEL_CONFIG_PARAMS
 ## normal process
 ## use device for single-GPU processes
 #export CUDA_VISIBLE_DEVICES=3
