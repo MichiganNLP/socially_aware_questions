@@ -57,6 +57,13 @@ def main():
         # sys.exit(0)
         # pass
     author_vars = ['expert_pct_bin', 'relative_time_bin', 'location_region']
+    # fix group category names
+    group_category_lookup = {
+        'expert_pct_bin' : 'expert',
+        'relative_time_bin' : 'time',
+        'location_region' : 'location',
+    }
+    post_question_data.rename(columns=group_category_lookup, inplace=True)
     flat_question_data = pd.melt(post_question_data,
                                  id_vars=['author', 'parent_id', 'id', 'question_id', 'question', 'created_utc', 'subreddit'],
                                  value_vars=author_vars, var_name='group_category', value_name='author_group')

@@ -193,12 +193,14 @@ def main():
     parser.add_argument('reader_model_data_file')
     parser.add_argument('reader_model_file')
     parser.add_argument('out_dir')
+    parser.add_argument('--filter_data_file', default=None)
     args = vars(parser.parse_args())
     test_data_file = args['test_data_file']
     text_model_data_file = args['text_model_data_file']
     reader_model_data_file = args['reader_model_data_file']
     reader_model_file = args['reader_model_file']
     out_dir = args['out_dir']
+    filter_data_file = args['filter_data_file']
 
     ## load data
     # sample_question_data = load_sample_data(sample_type='all')
@@ -216,7 +218,6 @@ def main():
     # copy reader token to separate column for later
     test_data_df = test_data_df.assign(**{'reader_group' : test_data_df.loc[:, 'reader_token_str']})
     ## get N questions per reader group, generate questions for other reader group from reader-aware model
-    N_questions_per_group = 20 # need > 5 because some models could generate the same text
     reader_group_category_lookup  = {
         'expert' : ['<EXPERT_PCT_0_AUTHOR>', '<EXPERT_PCT_1_AUTHOR>'],
         'time' : ['<RESPONSE_TIME_0_AUTHOR>', '<RESPONSE_TIME_1_AUTHOR>'],
@@ -233,7 +234,21 @@ def main():
     post_data.rename(columns={'id' : 'parent_id'}, inplace=True)
     # print(f'test data columns = {list(sorted(test_data_df.columns))}')
     test_data_df = pd.merge(post_data, test_data_df, on='parent_id', how='right')
+    # tmp debugging
+    # test_data_df.to_csv('tmp1.gz', sep='\t', index=False, compression='gzip')
+    # optional: filter for questions provided in sample data (ex. divisive posts)
+    if(filter_data_file is not None):
+        filter_data = pd.read_csv(filter_data_file, sep='\t', compression='gzip')
+        filter_cols = ['parent_id', 'group_category', 'question_id', 'id', 'author']
+        N_pre_filter = test_data_df.shape[0]
+        test_data_df = pd.merge(test_data_df, filter_data.loc[:, filter_cols],
+                                on=filter_cols, how='inner')
+        N_post_filter = test_data_df.shape[0]
+        print(f'pre-filter for sample data: N={N_pre_filter}; post-filter: N={N_post_filter}')
+
+    ## sample!!
     sample_test_data = []
+    N_questions_per_group = 20  # need > 5 because we may have to drop duplicate generated questions
     for (group_category_i, subreddit_i), data_i in test_data_df.groupby(['group_category', 'subreddit']):
         for group_j, data_i in data_i.groupby('reader_group'):
             sample_data_i = data_i.loc[np.random.choice(data_i.index, N_questions_per_group, replace=False), :]
