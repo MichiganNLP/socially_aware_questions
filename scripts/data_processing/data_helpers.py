@@ -1350,7 +1350,7 @@ def load_sample_data(sample_type='all', sample_size=0):
     # tmp debugging
     # print(f'question data has subreddit distribution = {question_author_data.loc[:, "subreddit"].value_counts()}')
     post_question_data = pd.merge(post_data, question_author_data, on='parent_id', how='right')
-    print(f'post question data cols = {post_question_data.columns}')
+    # print(f'post question data cols = {post_question_data.columns}')
     # fix group category name
     group_category_lookup = {
         'expert_pct_bin' : 'expert',
@@ -1358,10 +1358,13 @@ def load_sample_data(sample_type='all', sample_size=0):
         'location_region' : 'location',
         'UNK' : 'UNK',
     }
-    post_question_data = post_question_data.assign(**{
-        'group_category' : post_question_data.loc[:, 'group_category'].apply(group_category_lookup.get)
-    })
-    # print(f'post/question data has label distribution = {post_question_data.loc[:, "author_group"].value_counts()}')
+    if('group_category' in post_question_data.columns):
+        post_question_data = post_question_data.assign(**{
+            'group_category' : post_question_data.loc[:, 'group_category'].apply(group_category_lookup.get)
+        })
+        print(f'post/question data has label distribution = {post_question_data.loc[:, "author_group"].value_counts()}')
+    else:
+        post_question_data.rename(columns=group_category_lookup, inplace=True)
     return post_question_data
 
 def str2array(s):
