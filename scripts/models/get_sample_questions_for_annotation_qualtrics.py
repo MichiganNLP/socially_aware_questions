@@ -203,7 +203,7 @@ def main():
     filter_data_file = args['filter_data_file']
 
     ## load data
-    if(filter_data_file is not None):
+    if(filter_data_file is not None and False):
         sample_question_data = load_sample_data(sample_type='all')
         print(f'sample data group categories = {sample_question_data.loc[:, "group_category"].unique()}')
         filter_data = pd.read_csv(filter_data_file, sep='\t', compression='gzip')
@@ -214,7 +214,20 @@ def main():
         N_data_post_filter = filter_data.shape[0]
         print(f'N={N_data_pre_filter} pre-filter; N={N_data_post_filter} post-filter')
         filter_data.to_csv('tmp.gz', sep='\t', compression='gzip', index=False)
-        # convert to usable format
+        ## TODO: convert sample data to tensor etc. format for generation
+        max_source_length = 1024
+        model_dir = '../../data/reddit_data/'
+        tokenizer = torch.load(os.path.join(model_dir, 'BART_tokenizer.pt'))
+        author_vars = ['expert_pct_bin', 'relative_time_bin', 'location_region']
+        author_var_name_lookup = {'expert_pct_bin' : 'expert', 'relative_time_bin' : 'time', 'location_region' : 'location'}
+        # re-add author vars to columns
+        flat_sample_data = flat_sample_data.assign(**{
+            v : flat_sample_data.apply(lambda x: x.loc['reader_group'] if x.loc['group_category']==author_var_name_lookup[v] else np.nan, axis=1)
+            for v in author_vars
+        })
+        flat_sample_data = add_author_tokens(author_vars, flat_sample_data,
+                                             max_source_length, tokenizer)
+
         import sys
         sys.exit(0)
     #     # merge etc.
@@ -257,7 +270,8 @@ def main():
                                 on=filter_cols, how='inner')
         N_post_filter = test_data_df.shape[0]
         print(f'pre-filter for sample data: N={N_pre_filter}; post-filter: N={N_post_filter}')
-
+        import sys
+        sys.exit(0)
     ## sample!!
     sample_test_data = []
     N_questions_per_group = 20  # need > 5 because we may have to drop duplicate generated questions

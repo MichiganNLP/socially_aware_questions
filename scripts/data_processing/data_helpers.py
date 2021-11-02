@@ -522,8 +522,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # tmp debugging
     # print(f'after merging author data: data vars = {data_vars}')
     # print(f'after adding author data, data has columns = {data.columns} with missing vars {set(data_vars) - set(data.columns)}')
-    clean_data = data.loc[:, data_vars].rename(
-        columns={'article_text': 'source_text', 'question': 'target_text'})
+    clean_data = data.loc[:, data_vars].rename(columns={'article_text': 'source_text', 'question': 'target_text'})
     # deduplicate article/answer pairs
     clean_data.drop_duplicates(['source_text', 'target_text'], inplace=True)
     clean_data = clean_data[(clean_data.loc[:, 'source_text'].apply(lambda x: type(x) is str)) &
@@ -571,7 +570,7 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     clean_data = clean_data.sample(frac=1., replace=False, random_state=123)
     clean_data_train = clean_data[clean_data.loc[:, 'article_id'].isin(train_article_ids)]
     clean_data_test = clean_data[clean_data.loc[:, 'article_id'].isin(test_article_ids)]
-    dataset_columns = ['source_text', 'target_text', 'article_id', 'id', 'author', 'question_id']
+    dataset_columns = ['source_text', 'target_text', 'article_id', 'id', 'author', 'question_id', 'subreddit']
     # if(author_data_type == 'embeds'):
     if(author_data is not None):
         dataset_columns.extend(['subreddit_embed', 'text_embed', 'author_has_subreddit_embed', 'author_has_text_embed'])
@@ -722,7 +721,7 @@ def filter_data_NE_overlap(NE_data_dir, clean_data, data_name):
 
 def add_author_tokens(author_vars, data, max_source_length, tokenizer):
     author_tokens = [
-        '<US_AUTHOR>', '<NONUS_AUTHOR>',
+        '<US_AUTHOR>', '<NONS_AUTHOR>',
         '<EXPERT_PCT_0_AUTHOR>', '<EXPERT_PCT_1_AUTHOR>',  # prior comment activity in subreddit
         '<RESPONSE_TIME_0_AUTHOR>', '<RESPONSE_TIME_1_AUTHOR>',  # question response time
     ]
@@ -1351,6 +1350,7 @@ def load_sample_data(sample_type='all', sample_size=0):
     # tmp debugging
     # print(f'question data has subreddit distribution = {question_author_data.loc[:, "subreddit"].value_counts()}')
     post_question_data = pd.merge(post_data, question_author_data, on='parent_id', how='right')
+    print(f'post question data cols = {post_question_data.columns}')
     # fix group category name
     group_category_lookup = {
         'expert_pct_bin' : 'expert',
