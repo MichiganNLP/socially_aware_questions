@@ -9,7 +9,7 @@ from argparse import ArgumentParser
 
 import torch
 
-from data_helpers import load_sample_data
+from data_helpers import load_sample_data, add_author_tokens
 import pandas as pd
 import numpy as np
 np.random.seed(123)
@@ -56,7 +56,14 @@ def main():
         # print(f'N={N_pre_filter} before filtering sample data; N={N_post_filter} after filtering')
         # sys.exit(0)
         # pass
-    author_vars = ['expert_pct_bin', 'relative_time_bin', 'location_region']
+    author_vars = ['expert', 'time', 'location'] 
+    # fix group category names
+    group_category_lookup = {
+        'expert_pct_bin' : 'expert',
+        'relative_time_bin' : 'time',
+        'location_region' : 'location',
+    }
+    post_question_data.rename(columns=group_category_lookup, inplace=True)
     flat_question_data = pd.melt(post_question_data,
                                  id_vars=['author', 'parent_id', 'id', 'question_id', 'question', 'created_utc', 'subreddit'],
                                  value_vars=author_vars, var_name='group_category', value_name='author_group')

@@ -3,11 +3,11 @@
 #SBATCH --mail-user=ianbstew@umich.edu
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --time=10:00:00
-#SBATCH --account=mihalcea1
+#SBATCH --account=mihalcea0
 #SBATCH --output=/home/%u/logs/%x-%j.log
 #SBATCH --nodes=1
 #SBATCH --partition=standard
-#SBATCH --mem-per-cpu=120g
+#SBATCH --mem-per-cpu=150g
 
 ## NYT data
 #DATA_DIR=../../data/NYT_scrape/
@@ -23,9 +23,12 @@
 ## reddit data
 DATA_FILE=../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz
 COMMENT_DATA=../../data/reddit_data/advice_subreddit_filter_comment_question_data.gz
-# combined data
-DATA_NAME=combined_data
-OUT_DIR=../../data/reddit_data/
+# combined data (sample)
+#DATA_NAME=combined_data
+#OUT_DIR=../../data/reddit_data/
+# combined data (full)
+DATA_NAME=combined_data_full
+OUT_DIR=/scratch/mihalcea_root/mihalcea0/ianbstew/
 # text-only
 #DATA_NAME=advice_subreddit
 #OUT_DIR=../../data/reddit_data/
@@ -42,11 +45,12 @@ MODEL_TYPE=bart
 # enforce named entity overlap between article and question (>=1 NE overlap per question/article)
 #NE_overlap=False
 #SAMPLE_PCT=0.5
-SAMPLE_PCT=0.25
+#SAMPLE_PCT=0.25
+SAMPLE_PCT=1.0
 
 # queue server (server can't get online data)
-#HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
-#python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT
+HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT
 
 # regular server
 # CNN
@@ -54,7 +58,7 @@ SAMPLE_PCT=0.25
 # reddit
 #python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --sample_pct $SAMPLE_PCT
 # reddit + author
-(python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT)&
-PID=$!
-MAX_MEMORY=120000000000 # 100G
-prlimit --pid $PID --as=$MAX_MEMORY
+#(python clean_data_for_generation.py $OUT_DIR --data_file $DATA_FILE --data_name $DATA_NAME --model_type $MODEL_TYPE --comment_data $COMMENT_DATA --author_data $AUTHOR_DATA --sample_pct $SAMPLE_PCT)&
+#PID=$!
+#MAX_MEMORY=120000000000 # 100G
+#prlimit --pid $PID --as=$MAX_MEMORY
