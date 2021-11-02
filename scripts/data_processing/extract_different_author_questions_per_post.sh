@@ -10,6 +10,6 @@
 #SBATCH --mem-per-cpu=80g
 
 OUT_DIR=../../data/reddit_data/
-FILTER_DATA_FILE=../../data/reddit_data/combined_data_train_data.pt
-MAX_SIM_PCT=10
-python extract_different_author_questions_per_post.py $OUT_DIR --filter_data_file FILTER_DATA_FILE --remove_data --max_sim_pct $MAX_SIM_PCT
+TRAIN_DATA_FILE=../../data/reddit_data/combined_data_train_data.pt
+MAX_SIM_PCT=25
+python extract_different_author_questions_per_post.py $OUT_DIR --filter_data_file $TRAIN_DATA_FILE --remove_data --max_sim_pct $MAX_SIM_PCT

@@ -7,7 +7,7 @@
 #SBATCH --output=/home/%u/logs/%x-%j.log
 #SBATCH --nodes=1
 #SBATCH --partition=standard
-#SBATCH --mem-per-cpu=120g
+#SBATCH --mem-per-cpu=150g
 
 ## NYT data
 #DATA_DIR=../../data/NYT_scrape/
