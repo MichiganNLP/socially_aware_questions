@@ -11,5 +11,5 @@
 
 OUT_DIR=../../data/reddit_data/
 TRAIN_DATA_FILE=../../data/reddit_data/combined_data_train_data.pt
-MAX_SIM_PCT=10
+MAX_SIM_PCT=25
 python extract_different_author_questions_per_post.py $OUT_DIR --filter_data_file $TRAIN_DATA_FILE --remove_data --max_sim_pct $MAX_SIM_PCT
