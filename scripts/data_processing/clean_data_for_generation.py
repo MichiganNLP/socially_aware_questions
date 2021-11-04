@@ -128,6 +128,10 @@ def read_clean_author_data(author_data):
     embed_cols = list(filter(lambda x: x.endswith('embed'), author_data.columns))
     for embed_col in embed_cols:
         author_data = author_data.assign(**{embed_col: author_data.loc[:, embed_col].apply(lambda x: literal_eval(x) if type(x) is not float else x)})
+    # fix location "UNK" value
+    author_data = author_data.assign(**{
+        'location_region' : author_data.loc[:, 'location_region'].replace('UNK', np.nan)
+    })
     return author_data
 
 def main():
