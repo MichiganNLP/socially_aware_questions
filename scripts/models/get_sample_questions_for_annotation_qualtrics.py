@@ -111,7 +111,7 @@ def convert_question_data_to_txt(data, question_vals=['Q1.1', 'Q1.2', 'Q1.3'], q
     Next, please read the following two questions that were asked about the post.</br>
     One of the following questions was written by a <b>{group_val_names[0]}</b> reader and the other question was written by a <b>{group_val_names[1]}</b> reader.
     {group_explanation}</br></br>
-    Which question do you think was written by a <b>{default_group_val_name}</b>?
+    Which question do you think was written by a <b>{default_group_val_name}</b> reader?
 
     [[Choices]]
     """
@@ -171,7 +171,10 @@ def generate_opposite_group_questions(data_dir, model_cache_dir, model_type,
         paired_group_data = paired_group_data.assign(**{
             'reader_group_2': paired_group_data.loc[:, 'reader_group_1'].apply(reader_group_pair_lookup.get)
         })
-    paired_group_test_data = paired_group_data.loc[:, ['reader_group_2', 'source_ids', 'attention_mask']]
+    test_data_cols = ['reader_group_2', 'source_ids', 'attention_mask']
+    if(model_type == 'bart_author_token'):
+        test_data_cols.append('source_ids_reader_token')
+    paired_group_test_data = paired_group_data.loc[:, test_data_cols]
     inv_test_data = Dataset.from_pandas(paired_group_test_data)
     # fix column name, for generation
     inv_test_data.rename_column_('reader_group_2', 'reader_token_str')
@@ -193,19 +196,19 @@ def generate_opposite_group_questions(data_dir, model_cache_dir, model_type,
     return inv_test_data_pred
 
 def generate_output_for_custom_data(filter_data_file, generation_param_file,
-                                    reader_model_file, reader_model_type,
-                                    text_model_file):
+                                    reader_model_files, reader_model_types,
+                                    text_model_file, out_dir):
     """
     Generate text model + reader model output for custom data.
 
     :param filter_data_file:
     :param generation_param_file:
-    :param reader_model_file:
-    :param reader_model_type:
+    :param reader_model_files:
+    :param reader_model_types:
     :param text_model_file:
     :return:
     """
-    combined_filter_data_file = 'tmp.gz'
+    combined_filter_data_file = os.path.join(out_dir, 'tmp.gz')
     if (not os.path.exists(combined_filter_data_file)):
         sample_question_data = load_sample_data(sample_type=None)
         # sample_question_data.to_csv('tmp.gz', sep='\t', compression='gzip', index=False)
@@ -221,7 +224,7 @@ def generate_output_for_custom_data(filter_data_file, generation_param_file,
         filter_data.to_csv(combined_filter_data_file, sep='\t', compression='gzip', index=False)
     else:
         filter_data = pd.read_csv(combined_filter_data_file, sep='\t', compression='gzip')
-    gen_data_file = 'tmp_gen_results.gz'
+    gen_data_file = os.path.join(out_dir, 'tmp_gen_results.gz')
     if (not os.path.exists(gen_data_file)):
         # fix column names etc. for cleaning
         author_cols = ['subreddit_embed', 'text_embed', 'author_has_subreddit_embed', 'author_has_text_embed', 'group_category', 'author_group']
@@ -246,11 +249,17 @@ def generate_output_for_custom_data(filter_data_file, generation_param_file,
         model_cache_dir = '../../data/model_cache/'
         text_model_type = 'bart'
         text_model, _ = load_model(model_cache_dir, text_model_file, text_model_type, data_dir)
-        reader_model, _ = load_model(model_cache_dir, reader_model_file, reader_model_type, data_dir)
+        reader_models = []
+        for reader_model_file_i, reader_model_type_i in zip(reader_model_files, reader_model_types):
+            # print(f'reader model file = {reader_model_file_i}')
+            reader_model_i, _ = load_model(model_cache_dir, reader_model_file_i, reader_model_type_i, data_dir)
+            reader_models.append(reader_model_i)
         # generate!!
-        generation_models = [text_model, reader_model]
-        generation_model_types = [text_model_type, reader_model_type]
-        generation_model_names = ['text_model', 'reader_model']
+        generation_models = [text_model] + reader_models
+        generation_model_types = [text_model_type] + reader_model_types
+
+        reader_model_type_names = [f'reader_model_type={x}' for x in reader_model_types]
+        generation_model_names = ['text_model'] + reader_model_type_names
         generation_params = json.load(open(generation_param_file, 'r'))
         test_data_df = test_data.data.to_pandas()
         for generation_model_i, model_type_i, model_name_i in zip(generation_models, generation_model_types, generation_model_names):
@@ -273,50 +282,65 @@ def generate_output_for_custom_data(filter_data_file, generation_param_file,
             })
     return test_data_df
 
-
 def main():
     parser = ArgumentParser()
     parser.add_argument('test_data_file')
     parser.add_argument('text_model_data_file')
-    parser.add_argument('reader_model_data_file')
-    parser.add_argument('reader_model_file')
     parser.add_argument('out_dir')
     parser.add_argument('--filter_data_file', default=None)
     parser.add_argument('--text_model_file', default=None)
-    parser.add_argument('--reader_model_type', default=None)
+    parser.add_argument('--reader_model_types', nargs='+', default=None)
+    parser.add_argument('--reader_model_data_files', nargs='+', default=None)
+    parser.add_argument('--reader_model_files', nargs='+', default=None)
     parser.add_argument('--generation_params', default='../../data/model_cache/beam_search_generation_params.json')
     args = vars(parser.parse_args())
     test_data_file = args['test_data_file']
     text_model_data_file = args['text_model_data_file']
-    reader_model_data_file = args['reader_model_data_file']
-    reader_model_file = args['reader_model_file']
     out_dir = args['out_dir']
     filter_data_file = args['filter_data_file']
     text_model_file = args['text_model_file']
-    reader_model_type = args['reader_model_type']
+    reader_model_data_files = args['reader_model_data_files']
+    reader_model_files = args['reader_model_files']
+    reader_model_types = args['reader_model_types']
     generation_param_file = args['generation_params']
 
+    if(not os.path.exists(out_dir)):
+        os.mkdir(out_dir)
     ## if using filtered data: generate customized
     ## output for text and reader-aware models!
     if(filter_data_file is not None):
         test_data_df = generate_output_for_custom_data(filter_data_file, generation_param_file,
-                                                       reader_model_file, reader_model_type, text_model_file)
+                                                       reader_model_files, reader_model_types,
+                                                       text_model_file,
+                                                       out_dir)
+        # tmp debugging
+        # print(f'test data cols = {test_data_df.columns}')
         # import sys
         # sys.exit(0)
     else:
         # load generated data
         test_data = torch.load(test_data_file)
         test_data_df = test_data.data.to_pandas()
-        test_data_df = test_data_df.loc[:, ['article_id', 'question_id', 'author', 'id', 'reader_token_str', 'reader_token', 'source_ids', 'source_text', 'attention_mask', 'target_text']]
+        test_data_df = test_data_df.loc[:, ['article_id', 'question_id', 'author', 'id', 'reader_token_str', 'reader_token', 'source_ids', 'source_ids_reader_token', 'source_text', 'attention_mask', 'target_text']]
         text_only_model_data = list(map(lambda x: x.strip(), gzip.open(text_model_data_file, 'rt')))
-        reader_model_data = list(map(lambda x: x.strip(), gzip.open(reader_model_data_file,'rt')))
         test_data_df = test_data_df.assign(**{
             'text_model': text_only_model_data,
-            'reader_model': reader_model_data,
         })
+        for reader_model_type_i, reader_model_data_file_i in zip(reader_model_types, reader_model_data_files):
+            reader_model_data_i = list(map(lambda x: x.strip(), gzip.open(reader_model_data_file_i,'rt')))
+            test_data_df = test_data_df.assign(**{
+                f'reader_model_type={reader_model_type_i}': reader_model_data_i,
+            })
     test_data_df.rename(columns={'article_id': 'parent_id', 'source_text' : 'post_text'}, inplace=True)
     # copy reader token to separate column for later
     test_data_df = test_data_df.assign(**{'reader_group' : test_data_df.loc[:, 'reader_token_str']})
+    ## TODO: figure out how to handle multiple reader models per question => alternate models? include 2x the questions?
+    # keep the first reader model, etc.
+    reader_model_type = reader_model_types[0]
+    reader_model_file = reader_model_files[0]
+    test_data_df.rename(columns={f'reader_model_type={reader_model_type}' : 'reader_model'}, inplace=True)
+    test_data_df.drop(f'reader_model_type={reader_model_types[1]}', axis=1, inplace=True)
+    print(f'using reader model = {reader_model_type} for generation')
     ## get N questions per reader group, generate questions for other reader group from reader-aware model
     reader_group_category_lookup  = {
         'expert' : ['<EXPERT_PCT_0_AUTHOR>', '<EXPERT_PCT_1_AUTHOR>'],
@@ -335,6 +359,15 @@ def main():
         post_data.rename(columns={'id' : 'parent_id'}, inplace=True)
         # print(f'test data columns = {list(sorted(test_data_df.columns))}')
         test_data_df = pd.merge(post_data, test_data_df, on='parent_id', how='right')
+    # filter long posts
+    tokenizer = WordPunctTokenizer()
+    min_post_word_count = 50
+    max_post_word_count = 300
+    test_data_df = test_data_df.assign(**{
+        'post_len': test_data_df.loc[:, 'post_text'].apply(lambda x: len(tokenizer.tokenize(x)))
+    })
+    test_data_df = test_data_df[(test_data_df.loc[:, 'post_len'] >= min_post_word_count) &
+                                (test_data_df.loc[:, 'post_len'] <= max_post_word_count)]
     # optional: filter for questions provided in sample data (ex. divisive posts)
     # if(filter_data_file is not None):
     #     filter_data = pd.read_csv(filter_data_file, sep='\t', compression='gzip')
@@ -368,24 +401,17 @@ def main():
     ## generate text for the other reader group
     # get inverted text data: e.g. "US" => "NONUS"
     model_cache_dir = '../../data/model_cache'
-    model_type = 'bart_author_attention'
     data_dir = '../../data/reddit_data/'
     # tmp debugging
-    paired_group_data.to_csv('tmp_paired_group_data.gz', sep='\t', compression='gzip')
+    # paired_group_data.to_csv('tmp_paired_group_data.gz', sep='\t', compression='gzip')
     inv_pred_text = generate_opposite_group_questions(data_dir, model_cache_dir,
-                                                      model_type, paired_group_data,
+                                                      reader_model_type, paired_group_data,
                                                       reader_model_file)
     paired_group_data = paired_group_data.assign(**{
         'reader_model_group_2' : inv_pred_text
     })
+    # remove identical questions for different reader groups
     paired_group_data = paired_group_data[paired_group_data.loc[:, 'reader_model_group_1']!=paired_group_data.loc[:, 'reader_model_group_2']]
-    # filter long posts
-    tokenizer = WordPunctTokenizer()
-    max_post_word_count = 500
-    paired_group_data = paired_group_data.assign(**{
-        'post_len': paired_group_data.loc[:, 'post_text'].apply(lambda x: len(tokenizer.tokenize(x)))
-    })
-    paired_group_data = paired_group_data[paired_group_data.loc[:, 'post_len']<=max_post_word_count]
     ## convert to standard format
     ## one file per reader group per subreddit
     Q1_vars = ['target_text', 'text_model', 'reader_model']
