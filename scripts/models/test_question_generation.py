@@ -193,6 +193,16 @@ def prepare_data_for_model_forward_pass(data, device, model_config, model_data_c
     return data_dict
 
 def prepare_test_data_for_generation(model_config, model_type, test_data):
+    """
+    Prepare test data for specific model,
+     i.e. rename columns as needed and get
+     model-specific keyword args.
+
+    :param model_config:
+    :param model_type:
+    :param test_data:
+    :return:
+    """
     ## fix metadata for reader-aware models
     # fix reader token for all models! because we need to
     # compare performance between reader groups

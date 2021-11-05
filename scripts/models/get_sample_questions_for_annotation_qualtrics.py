@@ -10,15 +10,18 @@ import re
 from argparse import ArgumentParser
 
 import numpy as np
+import sys
+np.set_printoptions(threshold=sys.maxsize)
 import pandas as pd
 import torch
 from nltk import WordPunctTokenizer
 from nlp.arrow_dataset import Dataset
 
-import sys
 if('..' not in sys.path):
     sys.path.append('..')
-from data_processing.data_helpers import load_sample_data
+    sys.path.append('../data_processing/') # need this because of internal import
+from data_processing.data_helpers import load_sample_data, str2array, prepare_question_data
+from data_processing.clean_data_for_generation import read_clean_author_data
 import random
 random.seed(123)
 from test_question_generation import prepare_test_data_for_generation
@@ -108,7 +111,7 @@ def convert_question_data_to_txt(data, question_vals=['Q1.1', 'Q1.2', 'Q1.3'], q
     Next, please read the following two questions that were asked about the post.</br>
     One of the following questions was written by a <b>{group_val_names[0]}</b> reader and the other question was written by a <b>{group_val_names[1]}</b> reader.
     {group_explanation}</br></br>
-    Which question do you think was written by a <b>{default_group_val_name}</b>?
+    Which question do you think was written by a <b>{default_group_val_name}</b> reader?
 
     [[Choices]]
     """
@@ -168,13 +171,19 @@ def generate_opposite_group_questions(data_dir, model_cache_dir, model_type,
         paired_group_data = paired_group_data.assign(**{
             'reader_group_2': paired_group_data.loc[:, 'reader_group_1'].apply(reader_group_pair_lookup.get)
         })
-    paired_group_test_data = paired_group_data.loc[:, ['reader_group_2', 'source_ids', 'attention_mask']]
+    test_data_cols = ['reader_group_2', 'source_ids', 'attention_mask']
+    if(model_type == 'bart_author_token'):
+        test_data_cols.append('source_ids_reader_token')
+    paired_group_test_data = paired_group_data.loc[:, test_data_cols]
     inv_test_data = Dataset.from_pandas(paired_group_test_data)
     # fix column name, for generation
     inv_test_data.rename_column_('reader_group_2', 'reader_token_str')
     model, model_tokenizer = load_model(model_cache_dir, reader_model_file, model_type, data_dir)
     model.to(torch.cuda.current_device())
     model_kwargs = prepare_test_data_for_generation(model.config, model_type, inv_test_data)
+    # tmp debug
+    # print(f'model kwargs = {model_kwargs}')
+    torch.save(inv_test_data, 'inv_test_data.pt')
     generation_param_file = os.path.join(model_cache_dir, 'sample_generation_params.json')
     generation_params = json.load(open(generation_param_file))
     inv_test_data_pred = generate_predictions(model, inv_test_data,
@@ -186,26 +195,24 @@ def generate_opposite_group_questions(data_dir, model_cache_dir, model_type,
     # })
     return inv_test_data_pred
 
-def main():
-    parser = ArgumentParser()
-    parser.add_argument('test_data_file')
-    parser.add_argument('text_model_data_file')
-    parser.add_argument('reader_model_data_file')
-    parser.add_argument('reader_model_file')
-    parser.add_argument('out_dir')
-    parser.add_argument('--filter_data_file', default=None)
-    args = vars(parser.parse_args())
-    test_data_file = args['test_data_file']
-    text_model_data_file = args['text_model_data_file']
-    reader_model_data_file = args['reader_model_data_file']
-    reader_model_file = args['reader_model_file']
-    out_dir = args['out_dir']
-    filter_data_file = args['filter_data_file']
+def generate_output_for_custom_data(filter_data_file, generation_param_file,
+                                    reader_model_files, reader_model_types,
+                                    text_model_file, out_dir):
+    """
+    Generate text model + reader model output for custom data.
 
-    ## load data
-    if(filter_data_file is not None and False):
-        sample_question_data = load_sample_data(sample_type='all')
-        print(f'sample data group categories = {sample_question_data.loc[:, "group_category"].unique()}')
+    :param filter_data_file:
+    :param generation_param_file:
+    :param reader_model_files:
+    :param reader_model_types:
+    :param text_model_file:
+    :return:
+    """
+    combined_filter_data_file = os.path.join(out_dir, 'tmp.gz')
+    if (not os.path.exists(combined_filter_data_file)):
+        sample_question_data = load_sample_data(sample_type=None)
+        # sample_question_data.to_csv('tmp.gz', sep='\t', compression='gzip', index=False)
+        # print(f'sample data group categories = {sample_question_data.loc[:, "group_category"].unique()}')
         filter_data = pd.read_csv(filter_data_file, sep='\t', compression='gzip')
         filter_vars = ['parent_id', 'question_id', 'author', 'group_category']
         N_data_pre_filter = filter_data.shape[0]
@@ -213,37 +220,127 @@ def main():
                                on=filter_vars, how='inner')
         N_data_post_filter = filter_data.shape[0]
         print(f'N={N_data_pre_filter} pre-filter; N={N_data_post_filter} post-filter')
-        filter_data.to_csv('tmp.gz', sep='\t', compression='gzip', index=False)
-        ## TODO: convert sample data to tensor etc. format for generation
-        max_source_length = 1024
-        model_dir = '../../data/reddit_data/'
-        tokenizer = torch.load(os.path.join(model_dir, 'BART_tokenizer.pt'))
-        author_vars = ['expert_pct_bin', 'relative_time_bin', 'location_region']
-        author_var_name_lookup = {'expert_pct_bin' : 'expert', 'relative_time_bin' : 'time', 'location_region' : 'location'}
-        # re-add author vars to columns
-        flat_sample_data = flat_sample_data.assign(**{
-            v : flat_sample_data.apply(lambda x: x.loc['reader_group'] if x.loc['group_category']==author_var_name_lookup[v] else np.nan, axis=1)
-            for v in author_vars
-        })
-        flat_sample_data = add_author_tokens(author_vars, flat_sample_data,
-                                             max_source_length, tokenizer)
+        print(f'group counts = {filter_data.loc[:, ["subreddit", "group_category"]].value_counts()}')
+        filter_data.to_csv(combined_filter_data_file, sep='\t', compression='gzip', index=False)
+    else:
+        filter_data = pd.read_csv(combined_filter_data_file, sep='\t', compression='gzip')
+    gen_data_file = os.path.join(out_dir, 'tmp_gen_results.gz')
+    if (not os.path.exists(gen_data_file)):
+        # fix column names etc. for cleaning
+        author_cols = ['subreddit_embed', 'text_embed', 'author_has_subreddit_embed', 'author_has_text_embed', 'group_category', 'author_group']
+        filter_data.drop(author_cols, axis=1,inplace=True)
+        filter_data.rename(columns={'parent_id': 'article_id', 'post': 'article_text'}, inplace=True)
+        # prepare data
+        author_data_file = '../../data/reddit_data/author_data/combined_author_prior_comment_data.gz'
+        author_data = read_clean_author_data(author_data_file)
+        tokenizer_file = '../../data/reddit_data/BART_tokenizer.pt'
+        tokenizer = torch.load(tokenizer_file)
+        filter_dataset = prepare_question_data(filter_data, None, None,
+                                               tokenizer, author_data=author_data,
+                                               data_vars=['article_text', 'question', 'article_id', 'subreddit', 'author', 'question_id', 'id'],
+                                               max_source_length=1024, max_target_length=64,
+                                               write_to_file=False)
+        # dump duplicate authors for some reason
+        filter_dataset = filter_dataset.data.to_pandas().drop_duplicates(['article_id', 'id', 'author', 'question_id'])
+        # print(f'N={filter_dataset.shape[0]} after removing duplicate authors')
+        test_data = Dataset.from_pandas(filter_dataset)
+        # load models
+        data_dir = os.path.dirname(filter_data_file)
+        model_cache_dir = '../../data/model_cache/'
+        text_model_type = 'bart'
+        text_model, _ = load_model(model_cache_dir, text_model_file, text_model_type, data_dir)
+        reader_models = []
+        for reader_model_file_i, reader_model_type_i in zip(reader_model_files, reader_model_types):
+            # print(f'reader model file = {reader_model_file_i}')
+            reader_model_i, _ = load_model(model_cache_dir, reader_model_file_i, reader_model_type_i, data_dir)
+            reader_models.append(reader_model_i)
+        # generate!!
+        generation_models = [text_model] + reader_models
+        generation_model_types = [text_model_type] + reader_model_types
 
-        import sys
-        sys.exit(0)
-    #     # merge etc.
-    # load generated data
-    test_data = torch.load(test_data_file)
-    test_data_df = test_data.data.to_pandas()
-    test_data_df = test_data_df.loc[:, ['article_id', 'question_id', 'author', 'id', 'reader_token_str', 'reader_token', 'source_ids', 'source_text', 'attention_mask', 'target_text']]
-    text_only_model_data = list(map(lambda x: x.strip(), gzip.open(text_model_data_file, 'rt')))
-    reader_model_data = list(map(lambda x: x.strip(), gzip.open(reader_model_data_file,'rt')))
-    test_data_df = test_data_df.assign(**{
-        'text_model': text_only_model_data,
-        'reader_model': reader_model_data,
-    })
+        reader_model_type_names = [f'reader_model_type={x}' for x in reader_model_types]
+        generation_model_names = ['text_model'] + reader_model_type_names
+        generation_params = json.load(open(generation_param_file, 'r'))
+        test_data_df = test_data.data.to_pandas()
+        for generation_model_i, model_type_i, model_name_i in zip(generation_models, generation_model_types, generation_model_names):
+            test_data_i = Dataset.from_pandas(test_data_df)
+            model_kwargs_i = prepare_test_data_for_generation(generation_model_i.config, model_type_i, test_data_i)
+            pred_data_i = generate_predictions(generation_model_i, test_data_i,
+                                               tokenizer,
+                                               generation_params=generation_params,
+                                               model_kwargs=model_kwargs_i)
+            test_data_df = test_data_df.assign(**{model_name_i: pred_data_i})
+        # debug
+        test_data_df.to_csv(gen_data_file, sep='\t', compression='gzip')
+    else:
+        test_data_df = pd.read_csv(gen_data_file, sep='\t', compression='gzip')
+        # fix source IDs etc.
+        array_vars = ['source_ids', 'source_ids_reader_token', 'attention_mask', 'target_ids']
+        for v_i in array_vars:
+            test_data_df = test_data_df.assign(**{
+                v_i: test_data_df.loc[:, v_i].apply( lambda x: str2array(x).astype(int))
+            })
+    return test_data_df
+
+def main():
+    parser = ArgumentParser()
+    parser.add_argument('test_data_file')
+    parser.add_argument('text_model_data_file')
+    parser.add_argument('out_dir')
+    parser.add_argument('--filter_data_file', default=None)
+    parser.add_argument('--text_model_file', default=None)
+    parser.add_argument('--reader_model_types', nargs='+', default=None)
+    parser.add_argument('--reader_model_data_files', nargs='+', default=None)
+    parser.add_argument('--reader_model_files', nargs='+', default=None)
+    parser.add_argument('--generation_params', default='../../data/model_cache/beam_search_generation_params.json')
+    args = vars(parser.parse_args())
+    test_data_file = args['test_data_file']
+    text_model_data_file = args['text_model_data_file']
+    out_dir = args['out_dir']
+    filter_data_file = args['filter_data_file']
+    text_model_file = args['text_model_file']
+    reader_model_data_files = args['reader_model_data_files']
+    reader_model_files = args['reader_model_files']
+    reader_model_types = args['reader_model_types']
+    generation_param_file = args['generation_params']
+
+    if(not os.path.exists(out_dir)):
+        os.mkdir(out_dir)
+    ## if using filtered data: generate customized
+    ## output for text and reader-aware models!
+    if(filter_data_file is not None):
+        test_data_df = generate_output_for_custom_data(filter_data_file, generation_param_file,
+                                                       reader_model_files, reader_model_types,
+                                                       text_model_file,
+                                                       out_dir)
+        # tmp debugging
+        # print(f'test data cols = {test_data_df.columns}')
+        # import sys
+        # sys.exit(0)
+    else:
+        # load generated data
+        test_data = torch.load(test_data_file)
+        test_data_df = test_data.data.to_pandas()
+        test_data_df = test_data_df.loc[:, ['article_id', 'question_id', 'author', 'id', 'reader_token_str', 'reader_token', 'source_ids', 'source_ids_reader_token', 'source_text', 'attention_mask', 'target_text']]
+        text_only_model_data = list(map(lambda x: x.strip(), gzip.open(text_model_data_file, 'rt')))
+        test_data_df = test_data_df.assign(**{
+            'text_model': text_only_model_data,
+        })
+        for reader_model_type_i, reader_model_data_file_i in zip(reader_model_types, reader_model_data_files):
+            reader_model_data_i = list(map(lambda x: x.strip(), gzip.open(reader_model_data_file_i,'rt')))
+            test_data_df = test_data_df.assign(**{
+                f'reader_model_type={reader_model_type_i}': reader_model_data_i,
+            })
     test_data_df.rename(columns={'article_id': 'parent_id', 'source_text' : 'post_text'}, inplace=True)
     # copy reader token to separate column for later
     test_data_df = test_data_df.assign(**{'reader_group' : test_data_df.loc[:, 'reader_token_str']})
+    ## TODO: figure out how to handle multiple reader models per question => alternate models? include 2x the questions?
+    # keep the first reader model, etc.
+    reader_model_type = reader_model_types[0]
+    reader_model_file = reader_model_files[0]
+    test_data_df.rename(columns={f'reader_model_type={reader_model_type}' : 'reader_model'}, inplace=True)
+    test_data_df.drop(f'reader_model_type={reader_model_types[1]}', axis=1, inplace=True)
+    print(f'using reader model = {reader_model_type} for generation')
     ## get N questions per reader group, generate questions for other reader group from reader-aware model
     reader_group_category_lookup  = {
         'expert' : ['<EXPERT_PCT_0_AUTHOR>', '<EXPERT_PCT_1_AUTHOR>'],
@@ -257,27 +354,41 @@ def main():
         'group_category' : test_data_df.loc[:, 'reader_group'].apply(reader_group_category_lookup.get)
     })
     # add subreddit data
-    post_data = pd.read_csv('../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz', sep='\t', compression='gzip', usecols=['id', 'subreddit'])
-    post_data.rename(columns={'id' : 'parent_id'}, inplace=True)
-    # print(f'test data columns = {list(sorted(test_data_df.columns))}')
-    test_data_df = pd.merge(post_data, test_data_df, on='parent_id', how='right')
+    if('subreddit' not in test_data_df.columns):
+        post_data = pd.read_csv('../../data/reddit_data/subreddit_submissions_2018-01_2019-12.gz', sep='\t', compression='gzip', usecols=['id', 'subreddit'])
+        post_data.rename(columns={'id' : 'parent_id'}, inplace=True)
+        # print(f'test data columns = {list(sorted(test_data_df.columns))}')
+        test_data_df = pd.merge(post_data, test_data_df, on='parent_id', how='right')
+    # filter long posts
+    tokenizer = WordPunctTokenizer()
+    min_post_word_count = 50
+    max_post_word_count = 300
+    test_data_df = test_data_df.assign(**{
+        'post_len': test_data_df.loc[:, 'post_text'].apply(lambda x: len(tokenizer.tokenize(x)))
+    })
+    test_data_df = test_data_df[(test_data_df.loc[:, 'post_len'] >= min_post_word_count) &
+                                (test_data_df.loc[:, 'post_len'] <= max_post_word_count)]
     # optional: filter for questions provided in sample data (ex. divisive posts)
-    if(filter_data_file is not None):
-        filter_data = pd.read_csv(filter_data_file, sep='\t', compression='gzip')
-        filter_cols = ['parent_id', 'group_category', 'question_id', 'id', 'author']
-        N_pre_filter = test_data_df.shape[0]
-        test_data_df = pd.merge(test_data_df, filter_data.loc[:, filter_cols],
-                                on=filter_cols, how='inner')
-        N_post_filter = test_data_df.shape[0]
-        print(f'pre-filter for sample data: N={N_pre_filter}; post-filter: N={N_post_filter}')
-        import sys
-        sys.exit(0)
+    # if(filter_data_file is not None):
+    #     filter_data = pd.read_csv(filter_data_file, sep='\t', compression='gzip')
+    #     filter_cols = ['parent_id', 'group_category', 'question_id', 'id', 'author']
+    #     N_pre_filter = test_data_df.shape[0]
+    #     test_data_df = pd.merge(test_data_df, filter_data.loc[:, filter_cols],
+    #                             on=filter_cols, how='inner')
+    #     N_post_filter = test_data_df.shape[0]
+    #     print(f'pre-filter for sample data: N={N_pre_filter}; post-filter: N={N_post_filter}')
+    #     test_data_df.to_csv('tmp.gz', sep='\t', compression='gzip', index=False)
+    #     import sys
+    #     sys.exit(0)
     ## sample!!
     sample_test_data = []
     N_questions_per_group = 20  # need > 5 because we may have to drop duplicate generated questions
+    # tmp debugging
+    # test_data_df.to_csv('tmp_gen_results_clean.gz', sep='\t', compression='gzip', index=False)
     for (group_category_i, subreddit_i), data_i in test_data_df.groupby(['group_category', 'subreddit']):
-        for group_j, data_i in data_i.groupby('reader_group'):
-            sample_data_i = data_i.loc[np.random.choice(data_i.index, N_questions_per_group, replace=False), :]
+        for group_j, data_j in data_i.groupby('reader_group'):
+            N_questions_per_group_j = min(N_questions_per_group, data_j.shape[0])
+            sample_data_i = data_j.sample(N_questions_per_group_j, replace=False, random_state=123)
             sample_test_data.append(sample_data_i)
     paired_group_data = pd.concat(sample_test_data, axis=0)
     paired_group_data.rename(columns={'reader_group':'reader_group_1'}, inplace=True)
@@ -290,19 +401,17 @@ def main():
     ## generate text for the other reader group
     # get inverted text data: e.g. "US" => "NONUS"
     model_cache_dir = '../../data/model_cache'
-    model_type = 'bart_author_attention'
     data_dir = '../../data/reddit_data/'
-    paired_group_data = generate_opposite_group_questions(data_dir, model_cache_dir,
-                                                          model_type, paired_group_data,
-                                                          reader_model_file)
-    paired_group_data = paired_group_data[paired_group_data.loc[:, 'reader_model_group_1']!=paired_group_data.loc[:, 'reader_model_group_2']]
-    # filter long posts
-    tokenizer = WordPunctTokenizer()
-    max_post_word_count = 500
+    # tmp debugging
+    # paired_group_data.to_csv('tmp_paired_group_data.gz', sep='\t', compression='gzip')
+    inv_pred_text = generate_opposite_group_questions(data_dir, model_cache_dir,
+                                                      reader_model_type, paired_group_data,
+                                                      reader_model_file)
     paired_group_data = paired_group_data.assign(**{
-        'post_len': paired_group_data.loc[:, 'post_text'].apply(lambda x: len(tokenizer.tokenize(x)))
+        'reader_model_group_2' : inv_pred_text
     })
-    paired_group_data = paired_group_data[paired_group_data.loc[:, 'post_len']<=max_post_word_count]
+    # remove identical questions for different reader groups
+    paired_group_data = paired_group_data[paired_group_data.loc[:, 'reader_model_group_1']!=paired_group_data.loc[:, 'reader_model_group_2']]
     ## convert to standard format
     ## one file per reader group per subreddit
     Q1_vars = ['target_text', 'text_model', 'reader_model']
@@ -314,7 +423,8 @@ def main():
         ## organize
         # parent_id | subreddit | reader_group_category | Q1.1 | Q1.2 | Q1.3 | type.1 | type.2 | type.3 | Q1.reader_group | Q2.1 | Q2.2 | Q2.1.reader_group | Q2.2.reader_group
         annotation_data_i = []
-        data_i = data_i.loc[np.random.choice(data_i.index, annotation_sample_size, replace=False)]
+        annotation_sample_size_i = min(annotation_sample_size, data_i.shape[0])
+        data_i = data_i.sample(annotation_sample_size_i, replace=False, random_state=123)
         for idx_j, data_j in data_i.iterrows():
             random.shuffle(Q1_vars)
             random.shuffle(Q2_group_idx)
@@ -393,7 +503,6 @@ def main():
     # })
     # paired_group_data = paired_group_data[paired_group_data.loc[:, 'post_len'] <= max_post_word_count]
     # print(paired_group_data.loc[:, 'subreddit'].value_counts())
-
 
 if __name__ == '__main__':
     main()

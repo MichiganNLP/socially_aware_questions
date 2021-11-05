@@ -478,37 +478,11 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
         #     (~author_data.loc[:, 'subreddit_embed'].isna())
         #     ]
         # print(f'sample embed: {type(author_data[author_data.loc[:, "subreddit_embed"].apply(lambda x: type(x) is not float and x is not None)].loc[:, "subreddit_embed"].iloc[0])}')
-        embed_data_vars = ['subreddit_embed', 'text_embed']
         embed_author_data = author_data.copy()
-        embed_author_data.dropna(axis=0, how='all', subset=embed_data_vars, inplace=True)
-        # tmp debugging
-        # print(f'author data has {dynamic_author_data.shape[0]} author-date embeddings; {dynamic_author_data.loc[:, "author"].nunique()} authors')
-        # print(f'author data has sample authors {dynamic_author_data.loc[:, "author"].unique()[:50]}')
-        # print(f'author data and post data have {len(set(embed_author_data.loc[:, "author"].unique()) & set(data.loc[:, "author"].unique()))} shared authors')
-        # merge with author-date pairs
-        # data = pd.merge(data, dynamic_author_data.loc[:, ['author', 'date_bin', 'subreddit_embed']], on=['author', 'date_bin'], how='left')
-        # tmp debugging
-        # tmp debugging: merge with author regardless of date
-        data = pd.merge(data, embed_author_data.loc[:, ['author']+embed_data_vars].drop_duplicates('author'), on='author', how='left')
-        # author_embed_var = 'author_embeds'
-        # data.rename(columns={'subreddit_embed' : author_embed_var}, inplace=True)
+        embed_data_vars = ['subreddit_embed', 'text_embed']
+        data = add_author_embeddings_to_data(data, embed_data_vars, embed_author_data)
         data_vars.extend(embed_data_vars)
-        # add null embed for all data with missing embed
-        for embed_data_var in embed_data_vars:
-            embed_dim = len(embed_author_data.loc[:, embed_data_var].iloc[0])
-            # print(f'{data[data.loc[:, embed_data_var].apply(lambda x: type(x) is not float and x is not None)].shape[0]}/{data.shape[0]} data with author embeds')
-            # null_embed = [0,]*embed_dim
-            # data.fillna(value={author_embed_var : null_embed}, inplace=True)
-            has_embed_var = f'author_has_{embed_data_var}'
-            data = data.assign(**{
-                has_embed_var : data.loc[:, embed_data_var].apply(lambda x: type(x) is not float)
-            })
-            # generate_null_embed = lambda : list(np.random.randn(embed_dim))
-            generate_null_embed = lambda : [0.,]*embed_dim
-            data = data.assign(**{
-                embed_data_var : data.loc[:, embed_data_var].apply(lambda x: generate_null_embed() if type(x) is float or x is None else x)
-            })
-            data_vars.append(has_embed_var)
+        data_vars.extend([f'author_has_{x}' for x in embed_data_vars])
         # data_with_author_embeds = data[data.loc[:, author_embed_var].apply(lambda x: not all(np.array(x)==0))]
 
         # tmp debugging
@@ -603,7 +577,9 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
     # columns = ["source_ids", "target_ids", "attention_mask", "source_text", "target_text"]
     train_data.set_format(type='torch', columns=tensor_data_columns, output_all_columns=True)
     test_data.set_format(type='torch', columns=tensor_data_columns, output_all_columns=True)
-    full_data = ConcatDataset([train_data, test_data])
+    full_data = Dataset.from_pandas(
+        pd.concat([train_data.data.to_pandas(), test_data.data.to_pandas()], axis=0)
+    )
     # tmp debugging
     # print(f'after processing: train data has columns {train_data.column_names}')
     # tmp debugging
@@ -624,8 +600,9 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
         LongformerTokenizer : 'LongFormer'
     }
     tokenizer_name = tokenizer_name_lookup[type(tokenizer)]
-    tokenizer_out_file = os.path.join(out_dir, f'{tokenizer_name}_tokenizer.pt')
-    torch.save(tokenizer, tokenizer_out_file)
+    if(write_to_file):
+        tokenizer_out_file = os.path.join(out_dir, f'{tokenizer_name}_tokenizer.pt')
+        torch.save(tokenizer, tokenizer_out_file)
 
     ## extra step: split train into "train_train" and "train_val"
     # for parameter tuning UGH
@@ -647,6 +624,42 @@ def prepare_question_data(data, out_dir, data_name, tokenizer,
         torch.save(train_train_data, train_train_data_out_file)
         torch.save(train_val_data, train_val_data_out_file)
     return full_data
+
+
+def add_author_embeddings_to_data(data, embed_author_vars, embed_author_data):
+    embed_author_data.dropna(axis=0, how='all', subset=embed_author_vars,
+                             inplace=True)
+    # tmp debugging
+    # print(f'author data has {dynamic_author_data.shape[0]} author-date embeddings; {dynamic_author_data.loc[:, "author"].nunique()} authors')
+    # print(f'author data has sample authors {dynamic_author_data.loc[:, "author"].unique()[:50]}')
+    # print(f'author data and post data have {len(set(embed_author_data.loc[:, "author"].unique()) & set(data.loc[:, "author"].unique()))} shared authors')
+    # merge with author-date pairs
+    # data = pd.merge(data, dynamic_author_data.loc[:, ['author', 'date_bin', 'subreddit_embed']], on=['author', 'date_bin'], how='left')
+    # tmp debugging
+    # tmp debugging: merge with author regardless of date
+    data = pd.merge(data, embed_author_data.loc[:, ['author'] + embed_author_vars].drop_duplicates('author'), on='author', how='left')
+    # author_embed_var = 'author_embeds'
+    # data.rename(columns={'subreddit_embed' : author_embed_var}, inplace=True)
+    # add null embed for all data with missing embed
+    for embed_data_var in embed_author_vars:
+        embed_dim = len(embed_author_data.loc[:, embed_data_var].iloc[0])
+        # print(f'{data[data.loc[:, embed_data_var].apply(lambda x: type(x) is not float and x is not None)].shape[0]}/{data.shape[0]} data with author embeds')
+        # null_embed = [0,]*embed_dim
+        # data.fillna(value={author_embed_var : null_embed}, inplace=True)
+        has_embed_var = f'author_has_{embed_data_var}'
+        data = data.assign(**{
+            has_embed_var: data.loc[:, embed_data_var].apply(
+                lambda x: type(x) is not float)
+        })
+        # generate_null_embed = lambda : list(np.random.randn(embed_dim))
+        generate_null_embed = lambda: [0., ] * embed_dim
+        data = data.assign(**{
+            embed_data_var: data.loc[:, embed_data_var].apply(
+                lambda x: generate_null_embed() if type(
+                    x) is float or x is None else x)
+        })
+    return data
+
 
 def add_subreddit_token(data, max_source_length, tokenizer):
     data_with_subreddit_token = []
@@ -721,7 +734,7 @@ def filter_data_NE_overlap(NE_data_dir, clean_data, data_name):
 
 def add_author_tokens(author_vars, data, max_source_length, tokenizer):
     author_tokens = [
-        '<US_AUTHOR>', '<NONS_AUTHOR>',
+        '<US_AUTHOR>', '<NONUS_AUTHOR>',
         '<EXPERT_PCT_0_AUTHOR>', '<EXPERT_PCT_1_AUTHOR>',  # prior comment activity in subreddit
         '<RESPONSE_TIME_0_AUTHOR>', '<RESPONSE_TIME_1_AUTHOR>',  # question response time
     ]
@@ -1266,6 +1279,7 @@ def load_sample_data(sample_type='all', sample_size=0):
         'date_day': pd.Series(clean_author_data.loc[:, 'date_day'].apply(
             lambda x: datetime.strptime(x, '%Y-%m-%d')).values, dtype='object')
     })
+    ## add author data to question data
     dynamic_author_vars = ['expert_pct_bin', 'relative_time_bin']
     static_author_vars = ['location_region']
     question_author_data = question_data.copy()
@@ -1276,9 +1290,11 @@ def load_sample_data(sample_type='all', sample_size=0):
         question_author_data, clean_author_data.dropna(subset=static_author_vars, how='all').loc[:, ['author', ] + static_author_vars],
         on='author', how='left',
     )
+    embed_data_vars = ['subreddit_embed', 'text_embed']
+    question_author_data = add_author_embeddings_to_data(question_author_data, embed_data_vars, author_data)
     # drop null rows
-    question_author_data.dropna(subset=dynamic_author_vars + static_author_vars,
-                                how='all', inplace=True)
+    combined_author_vars = dynamic_author_vars + static_author_vars
+    question_author_data.dropna(subset=combined_author_vars, how='all', inplace=True)
     for dynamic_author_var in dynamic_author_vars:
         question_author_data.drop_duplicates(['author', 'date_day', dynamic_author_var], inplace=True)
     # add question ID?
@@ -1355,16 +1371,34 @@ def load_sample_data(sample_type='all', sample_size=0):
     group_category_lookup = {
         'expert_pct_bin' : 'expert',
         'relative_time_bin' : 'time',
-        'location_region' : 'location',
-        'UNK' : 'UNK',
+        'location_region' : 'location'
     }
     if('group_category' in post_question_data.columns):
         post_question_data = post_question_data.assign(**{
             'group_category' : post_question_data.loc[:, 'group_category'].apply(group_category_lookup.get)
         })
-        print(f'post/question data has label distribution = {post_question_data.loc[:, "author_group"].value_counts()}')
+        # print(f'post/question data has label distribution = {post_question_data.loc[:, "author_group"].value_counts()}')
     else:
         post_question_data.rename(columns=group_category_lookup, inplace=True)
+        # flatten data to (author, group, question) format
+        author_vars = ['expert', 'time', 'location']
+        post_question_data.fillna({k : 'UNK' for k in author_vars}, inplace=True)
+        flat_post_question_data = []
+        for idx_i, row_i in tqdm(post_question_data.iterrows()):
+            if(row_i.loc[author_vars].nunique()==1 and row_i.loc[author_vars].unique()[0]=='UNK'):
+                row_i.loc['group_category'] = 'UNK'
+                row_i.loc['author_group'] = 'UNK'
+                row_i.drop(author_vars, inplace=True)
+                flat_post_question_data.append(row_i)
+            else:
+                valid_vars_i = row_i.loc[author_vars][row_i.loc[author_vars]!='UNK'].index.tolist()
+                for var_j in valid_vars_i:
+                    row_j = row_i.copy()
+                    row_j.loc['group_category'] = var_j
+                    row_j.loc['author_group'] = row_i.loc[var_j]
+                    row_j.drop(author_vars, inplace=True)
+                    flat_post_question_data.append(row_j)
+        post_question_data = pd.concat(flat_post_question_data, axis=1).transpose()
     return post_question_data
 
 def str2array(s):

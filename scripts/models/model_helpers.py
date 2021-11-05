@@ -385,6 +385,15 @@ def select_from_dataset(dataset, idx):
 
 
 def load_model(model_cache_dir, model_file, model_type, data_dir):
+    """
+    Load model and tokenizer from file; need this for generation!
+
+    :param model_cache_dir:
+    :param model_file:
+    :param model_type:
+    :param data_dir:
+    :return:
+    """
     if (model_type.startswith('bart_')):
         base_model_type = 'bart'
     else:
