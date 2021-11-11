@@ -23,6 +23,8 @@ def get_model_compare_scores(model_names, model_output_data, model_output_files,
     ## overlap scores => BLEU, ROUGE, WMD, sentence distance
     generation_score_data = []
     for model_name_i in model_names:
+        # tmp debugging
+        # print(f'testing model={model_name_i} with sample data = ({model_output_data.loc[:, model_name_i].values[:5]}) with type = {type(model_output_data.loc[:, model_name_i].iloc[0])}')
         generation_score_data_i = test_question_overlap(model_output_data.loc[:, model_name_i].values, test_data, word_embed_file=word_embed_file, stop_words=STOP_WORDS)
         generation_score_data_i = generation_score_data_i.assign(**{'model_name': model_name_i})
         generation_score_data.append(generation_score_data_i)
@@ -37,11 +39,11 @@ def get_model_compare_scores(model_names, model_output_data, model_output_files,
     train_data_text = train_data['target_text']
     model_cache_dir = '../../data/model_cache/'
     model_type_lookup = {
-        'text': 'bart',
-        'reader_token': 'bart_author_token',
-        'reader_attention': 'bart_author_attention',
-        'reader_subreddit_embed': 'bart_author_embeds',
-        'reader_text_embed': 'bart_author_embeds',
+        'text_model': 'bart',
+        'reader_token_model': 'bart_author_token',
+        'reader_attention_model': 'bart_author_attention',
+        'reader_subreddit_embed_model': 'bart_author_embeds',
+        'reader_text_embed_model': 'bart_author_embeds',
     }
     test_data_dir = os.path.dirname(test_data_file)
     perplexity_sample_size = 5000
@@ -165,6 +167,10 @@ def main():
     model_output_data = model_output_data.assign(**{
         'target_text' : test_text_data,
     })
+    model_output_data.to_csv('tmp.gz', sep='\t', compression='gzip', index=False)
+    # tmp debugging
+    # print(f'initial test data')
+    # print(model_output_data.loc[:, 'reader_token'])
     # add extra test data info to handle post-subgroups
     test_data_cols = ['article_id', 'id', 'question_id', 'source_ids', 'source_ids_reader_token', 'reader_token_str', 'reader_token', 'attention_mask', 'target_ids', 'target_text']
     model_output_data = model_output_data.assign(**{k : test_data[k] for k in test_data_cols})

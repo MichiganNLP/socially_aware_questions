@@ -293,6 +293,15 @@ def test_question_overlap(pred_data, test_data, word_embed_file=None, stop_words
         word_embeds = load_vectors(word_embed_file)
         score_cols.append('WMD')
         word_embed_vocab = set(word_embeds.index) - stop_words
+        # tmp debugging
+    # print(f'mid pred data sample = ({pred_data[:10]}):({pred_data[-10:]})')
+    for i, x in enumerate(pred_data):
+        try:
+            tokenizer.tokenize(x)
+        except Exception as e:
+            print(f'bad pred data (i={i}) = {x}')
+            break
+    # print(f'late pred data sample = ({pred_data[:10]}):({pred_data[-10:]})')
     for test_data_i, pred_data_i in tqdm(zip(test_data['target_text'], pred_data)):
         # get tokens first
         pred_tokens_i = list(map(lambda x: x.lower(), tokenizer.tokenize(pred_data_i)))
