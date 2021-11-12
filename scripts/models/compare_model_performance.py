@@ -110,10 +110,12 @@ def get_model_compare_scores(model_names, model_output_data, model_output_files,
             redundancy_data_2_i = redundancy_data_2.iloc[bootstrap_idx_i, :]
             # redundancy_diff_i = redundancy_data_1_i.loc[:, 'redundancy'].mean() - redundancy_data_2_i.loc[:, 'redundancy'].mean()
             # redundancy_diffs.append(redundancy_diff_i)
+            # screen nan values!!
             redundancy_diffs.append((redundancy_data_1_i.loc[:,'redundancy'].mean(), redundancy_data_2_i.loc[:,'redundancy'].mean()))
         # redundancy_diff = np.mean(redundancy_diffs)
         # test_stat, p_val = sign_test(redundancy_diff, mu0=0.)
-        redundancy_1, redundancy_2 = list(zip(*redundancy_diffs))
+        # filter nan values
+        redundancy_1, redundancy_2 = list(filter(lambda x: not (np.isnan(x[0]) or np.isnan(x[1])), redundancy_diffs))
         redundancy_diff = np.mean(redundancy_1) - np.mean(redundancy_2)
         test_stat, p_val = mannwhitneyu(redundancy_1, redundancy_2)
         model_score_data.append([model_1, model_2, 'redundancy', redundancy_diff, test_stat, p_val])
