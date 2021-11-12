@@ -134,11 +134,15 @@ def get_model_compare_scores(model_names, model_output_data, model_output_files,
         test_stat, p_val = mannwhitneyu(diversity_1, diversity_2)
         model_score_data.append([model_1, model_2, 'diversity', diversity_diff, test_stat, p_val])
     model_score_data = pd.DataFrame(model_score_data, columns=['model_1', 'model_2', 'score', 'mean_diff', 'test_stat', 'p'])
+    # tmp debugging
+    print(f'model score sample\n{model_score_data.head()}')
     ## write to file
     if(data_name is not None):
         model_score_data_file = os.path.join(out_dir, f'model_output_compare_scores_data={data_name}.tsv')
     else:
         model_score_data_file = os.path.join(out_dir, 'model_output_compare_scores.tsv')
+    # tmp debugging
+    print(f'writing data to file = {model_score_data_file}')
     model_score_data.to_csv(model_score_data_file, sep='\t', index=False)
 
 def main():
