@@ -23,6 +23,8 @@ def get_model_compare_scores(model_names, model_output_data, model_output_files,
     ## overlap scores => BLEU, ROUGE, WMD, sentence distance
     generation_score_data = []
     for model_name_i in model_names:
+        # tmp debugging
+        # print(f'testing model={model_name_i} with sample data = ({model_output_data.loc[:, model_name_i].values[:5]}) with type = {type(model_output_data.loc[:, model_name_i].iloc[0])}')
         generation_score_data_i = test_question_overlap(model_output_data.loc[:, model_name_i].values, test_data, word_embed_file=word_embed_file, stop_words=STOP_WORDS)
         generation_score_data_i = generation_score_data_i.assign(**{'model_name': model_name_i})
         generation_score_data.append(generation_score_data_i)
@@ -37,11 +39,11 @@ def get_model_compare_scores(model_names, model_output_data, model_output_files,
     train_data_text = train_data['target_text']
     model_cache_dir = '../../data/model_cache/'
     model_type_lookup = {
-        'text': 'bart',
-        'reader_token': 'bart_author_token',
-        'reader_attention': 'bart_author_attention',
-        'reader_subreddit_embed': 'bart_author_embeds',
-        'reader_text_embed': 'bart_author_embeds',
+        'text_model': 'bart',
+        'reader_token_model': 'bart_author_token',
+        'reader_attention_model': 'bart_author_attention',
+        'reader_subreddit_embed_model': 'bart_author_embeds',
+        'reader_text_embed_model': 'bart_author_embeds',
     }
     test_data_dir = os.path.dirname(test_data_file)
     perplexity_sample_size = 5000
@@ -108,10 +110,12 @@ def get_model_compare_scores(model_names, model_output_data, model_output_files,
             redundancy_data_2_i = redundancy_data_2.iloc[bootstrap_idx_i, :]
             # redundancy_diff_i = redundancy_data_1_i.loc[:, 'redundancy'].mean() - redundancy_data_2_i.loc[:, 'redundancy'].mean()
             # redundancy_diffs.append(redundancy_diff_i)
+            # screen nan values!!
             redundancy_diffs.append((redundancy_data_1_i.loc[:,'redundancy'].mean(), redundancy_data_2_i.loc[:,'redundancy'].mean()))
         # redundancy_diff = np.mean(redundancy_diffs)
         # test_stat, p_val = sign_test(redundancy_diff, mu0=0.)
-        redundancy_1, redundancy_2 = list(zip(*redundancy_diffs))
+        # filter nan values
+        redundancy_1, redundancy_2 = list(zip(*list(filter(lambda x: not (np.isnan(x[0]) or np.isnan(x[1])), redundancy_diffs))))
         redundancy_diff = np.mean(redundancy_1) - np.mean(redundancy_2)
         test_stat, p_val = mannwhitneyu(redundancy_1, redundancy_2)
         model_score_data.append([model_1, model_2, 'redundancy', redundancy_diff, test_stat, p_val])
@@ -132,11 +136,15 @@ def get_model_compare_scores(model_names, model_output_data, model_output_files,
         test_stat, p_val = mannwhitneyu(diversity_1, diversity_2)
         model_score_data.append([model_1, model_2, 'diversity', diversity_diff, test_stat, p_val])
     model_score_data = pd.DataFrame(model_score_data, columns=['model_1', 'model_2', 'score', 'mean_diff', 'test_stat', 'p'])
+    # tmp debugging
+    print(f'model score sample\n{model_score_data.head()}')
     ## write to file
     if(data_name is not None):
         model_score_data_file = os.path.join(out_dir, f'model_output_compare_scores_data={data_name}.tsv')
     else:
         model_score_data_file = os.path.join(out_dir, 'model_output_compare_scores.tsv')
+    # tmp debugging
+    print(f'writing data to file = {model_score_data_file}')
     model_score_data.to_csv(model_score_data_file, sep='\t', index=False)
 
 def main():
@@ -165,6 +173,10 @@ def main():
     model_output_data = model_output_data.assign(**{
         'target_text' : test_text_data,
     })
+    model_output_data.to_csv('tmp.gz', sep='\t', compression='gzip', index=False)
+    # tmp debugging
+    # print(f'initial test data')
+    # print(model_output_data.loc[:, 'reader_token'])
     # add extra test data info to handle post-subgroups
     test_data_cols = ['article_id', 'id', 'question_id', 'source_ids', 'source_ids_reader_token', 'reader_token_str', 'reader_token', 'attention_mask', 'target_ids', 'target_text']
     model_output_data = model_output_data.assign(**{k : test_data[k] for k in test_data_cols})
