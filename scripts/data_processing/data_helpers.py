@@ -1187,7 +1187,7 @@ def assign_date_bin(date, date_bins, convert_timezone=True):
 
 def collect_subreddit_embed_neighbors(author_data_dir, subreddits_to_query):
     subreddit_neighbor_file = os.path.join(author_data_dir, 'advice_subreddit_neighbors.tsv')
-    if (not os.path.exists(subreddit_neighbor_file)):
+    if (not os.path.exists(subreddit_neighbor_file)):a
         subreddit_embed_file_matcher = re.compile('subreddit_embeddings_.*gz')
         subreddit_embed_files = list(filter(lambda x: subreddit_embed_file_matcher.match(x) is not None, os.listdir(author_data_dir)))
         subreddit_embed_files = list(map(lambda x: os.path.join(author_data_dir, x), subreddit_embed_files))
