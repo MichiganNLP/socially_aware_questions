@@ -30,10 +30,53 @@ def main():
     max_sim_pct = args['max_sim_pct']
 
     ## load all data
+    paired_sample_data_file = os.path.join(out_dir, 'paired_question_sim_score_data.gz')
+    if(not os.path.exists(paired_sample_data_file)):
+        paired_sample_data = generate_paired_sample_data(filter_data_file, remove_data)
+        ## save for future use!
+        # limit cols
+        paired_sample_data_cols = ['question_1', 'author_group_1', 'id_1', 'question_id_1', 'author_1',
+                                   'question_2', 'author_group_2', 'id_2', 'question_id_2', 'author_2',
+                                   'parent_id', 'subreddit', 'group_category', 'post',
+                                   'question_sim']
+        paired_sample_data = paired_sample_data.loc[:, paired_sample_data_cols]
+        paired_sample_data.to_csv(paired_sample_data_file, sep='\t', compression='gzip', index=False)
+    else:
+        paired_sample_data = pd.read_csv(paired_sample_data_file, sep='\t', compression='gzip')
+    ## compute similarity cutoff (per group, subreddit)
+    similarity_cutoff_sample_data = []
+    for (subreddit_i, group_i), data_i in paired_sample_data.groupby(['subreddit', 'group_category']):
+        similarity_cutoff_i = np.percentile(data_i.loc[:, 'question_sim'], max_sim_pct)
+        valid_data_i = data_i[data_i.loc[:, 'question_sim'] <= similarity_cutoff_i]
+        similarity_cutoff_sample_data.append(valid_data_i)
+    similarity_cutoff_sample_data = pd.concat(similarity_cutoff_sample_data, axis=0)
+    # flatten ID data
+    # tmp debugging
+    # similarity_cutoff_sample_data.to_csv('sim_cutoff_data_tmp.gz', sep='\t', compression='gzip')
+    sample_id_vars = ['parent_id', 'group_category']
+    author_vars = ['question_id', 'id', 'author', 'author_group']
+    flat_sample_data = []
+    author_count = 2
+    for idx_i, row_i in similarity_cutoff_sample_data.iterrows():
+        for j in range(1, author_count+1):
+            row_j = row_i.loc[sample_id_vars + [f'{v}_{j}' for v in author_vars]]
+            row_j.rename({f'{v}_{j}' : v for v in author_vars}, inplace=True)
+            flat_sample_data.append(row_j)
+    flat_sample_data = pd.concat(flat_sample_data, axis=1).transpose()
+    # flat_sample_data = pd.melt(similarity_cutoff_sample_data, id_vars=['parent_id', 'question_id_1', 'question_id_2', 'author_1', 'author_2', 'group_category'], value_vars=['id_1', 'id_2'], var_name='id_type', value_name='id')
+    # flat_sample_data = pd.melt(flat_sample_data, id_vars=['parent_id', 'author_1', 'author_2', 'id', 'group_category'], value_vars=['question_id_1', 'question_id_2'], var_name='question_id_type', value_name='question_id')
+    # flat_sample_data = pd.melt(flat_sample_data, id_vars=['parent_id', 'id', 'question_id', 'group_category'], value_vars=['author_1', 'author_2'], var_name='author_id_type', value_name='author_id')
+    # flat_sample_data.drop('author_id_type', axis=1, inplace=True)
+    ## save to file
+    out_file = os.path.join(out_dir, f'paired_question_low_sim_simpct={max_sim_pct}_data.gz')
+    flat_sample_data.to_csv(out_file, sep='\t', index=False, compression='gzip')
+
+
+def generate_paired_sample_data(filter_data_file, remove_data):
     filter_data = None
-    if(filter_data_file is not None):
+    if (filter_data_file is not None):
         filter_data = torch.load(filter_data_file).data.to_pandas()
-        filter_data.rename(columns={'article_id' : 'parent_id'}, inplace=True)
+        filter_data.rename(columns={'article_id': 'parent_id'}, inplace=True)
     sample_type = None
     post_question_data = load_sample_data(sample_type=sample_type)
     # optional: filter for test_data
@@ -42,7 +85,7 @@ def main():
         # tmp debugging
         # N_pre_filter = post_question_data.shape[0]
         # *remove* all data in test_data
-        if(remove_data):
+        if (remove_data):
             post_question_data = pd.merge(post_question_data,
                                           filter_data.loc[:, ['id', 'parent_id', 'question_id', 'author']],
                                           on=['id', 'parent_id', 'question_id', 'author'],
@@ -56,17 +99,20 @@ def main():
         # print(f'N={N_pre_filter} before filtering sample data; N={N_post_filter} after filtering')
         # sys.exit(0)
         # pass
-    author_vars = ['expert', 'time', 'location'] 
+    # author_vars = ['expert', 'time', 'location']
     # fix group category names
-    group_category_lookup = {
-        'expert_pct_bin' : 'expert',
-        'relative_time_bin' : 'time',
-        'location_region' : 'location',
-    }
-    post_question_data.rename(columns=group_category_lookup, inplace=True)
-    flat_question_data = pd.melt(post_question_data,
-                                 id_vars=['author', 'parent_id', 'id', 'question_id', 'question', 'created_utc', 'subreddit'],
-                                 value_vars=author_vars, var_name='group_category', value_name='author_group')
+    # group_category_lookup = {
+    #     'expert_pct_bin': 'expert',
+    #     'relative_time_bin': 'time',
+    #     'location_region': 'location',
+    # }
+    # post_question_data.rename(columns=group_category_lookup, inplace=True)
+    flat_question_data = post_question_data.copy()
+    # tmp debugging
+    # print(f'post question data cols = {post_question_data.columns}')
+    # flat_question_data = pd.melt(post_question_data,
+    #                              id_vars=['author', 'parent_id', 'id', 'question_id', 'question', 'created_utc', 'subreddit'],
+    #                              value_vars=author_vars, var_name='group_category', value_name='author_group')
     flat_question_data.dropna(subset=['author_group'], inplace=True)
     flat_question_data = flat_question_data[flat_question_data.loc[:, 'author_group'] != 'UNK']
     ## get paired data
@@ -112,7 +158,6 @@ def main():
     # add post text
     paired_sample_data = pd.merge(paired_sample_data, post_question_data.loc[:, ['parent_id', 'post']], on='parent_id', how='left')
     paired_sample_data.drop_duplicates(['parent_id', 'group_category'], inplace=True)
-
     ## compute sentence representations
     sentence_encoder = SentenceTransformer('paraphrase-distilroberta-base-v1')
     question_vars = ['question_1', 'question_2']
@@ -127,33 +172,8 @@ def main():
             x.loc['question_1_embed'].reshape(1, -1),
             x.loc['question_2_embed'].reshape(1, -1))[0][0], axis=1)
     })
-    ## compute similarity cutoff (per group, subreddit)
-    similarity_cutoff_sample_data = []
-    for (subreddit_i, group_i), data_i in paired_sample_data.groupby(['subreddit', 'group_category']):
-        similarity_cutoff_i = np.percentile(data_i.loc[:, 'question_sim'], max_sim_pct)
-        valid_data_i = data_i[data_i.loc[:, 'question_sim'] <= similarity_cutoff_i]
-        similarity_cutoff_sample_data.append(valid_data_i)
-    similarity_cutoff_sample_data = pd.concat(similarity_cutoff_sample_data, axis=0)
-    # flatten ID data
-    # tmp debugging
-    # similarity_cutoff_sample_data.to_csv('sim_cutoff_data_tmp.gz', sep='\t', compression='gzip')
-    sample_id_vars = ['parent_id', 'group_category']
-    author_vars = ['question_id', 'id', 'author', 'author_group']
-    flat_sample_data = []
-    author_count = 2
-    for idx_i, row_i in similarity_cutoff_sample_data.iterrows():
-        for j in range(1, author_count+1):
-            row_j = row_i.loc[sample_id_vars + [f'{v}_{j}' for v in author_vars]]
-            row_j.rename({f'{v}_{j}' : v for v in author_vars}, inplace=True)
-            flat_sample_data.append(row_j)
-    flat_sample_data = pd.concat(flat_sample_data, axis=1).transpose()
-    # flat_sample_data = pd.melt(similarity_cutoff_sample_data, id_vars=['parent_id', 'question_id_1', 'question_id_2', 'author_1', 'author_2', 'group_category'], value_vars=['id_1', 'id_2'], var_name='id_type', value_name='id')
-    # flat_sample_data = pd.melt(flat_sample_data, id_vars=['parent_id', 'author_1', 'author_2', 'id', 'group_category'], value_vars=['question_id_1', 'question_id_2'], var_name='question_id_type', value_name='question_id')
-    # flat_sample_data = pd.melt(flat_sample_data, id_vars=['parent_id', 'id', 'question_id', 'group_category'], value_vars=['author_1', 'author_2'], var_name='author_id_type', value_name='author_id')
-    # flat_sample_data.drop('author_id_type', axis=1, inplace=True)
-    ## save to file
-    out_file = os.path.join(out_dir, f'paired_question_low_sim_simpct={max_sim_pct}_data.gz')
-    flat_sample_data.to_csv(out_file, sep='\t', index=False, compression='gzip')
+    return paired_sample_data
+
 
 if __name__=='__main__':
     main()
