@@ -8,6 +8,8 @@ scripts/data_processing/*.txt
 scripts/data_processing/runs/
 scripts/data_processing/debug_training.py
 scripts/data_processing/pointer-generator/
+scripts/data_processing/*.gz
+scripts/data_processing/*.tsv
 scripts/models/question_generation/
 scripts/models/runs/
 scripts/models/run_ner_no_trainer.*
