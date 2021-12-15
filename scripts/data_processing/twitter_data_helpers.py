@@ -1,5 +1,15 @@
 import requests
 import pandas as pd
+from tqdm import tqdm
+from itertools import combinations
+from sklearn.metrics.pairwise import cosine_distances, haversine_distances
+from math import radians
+from nltk.corpus import stopwords
+import re
+from nltk.tokenize.casual import TweetTokenizer
+from sklearn.feature_extraction.text import CountVectorizer
+import numpy as np
+from time import sleep
 def bearer_oauth(r, bearer_token):
     """
     Method required by bearer token authentication.
@@ -22,7 +32,6 @@ def get_timeline(api, user_id, max_results=1000, verbose=False, tweet_fields=['i
     # clean up
     timeline = pd.DataFrame(timeline)
     return timeline
-from time import sleep
 RATE_LIMIT_STATUS = 429
 MIN_SLEEP_TIME = 15 * 60 # 15 mins is rate limit time
 QUERY_SLEEP_TIME = 1.5
@@ -81,7 +90,6 @@ def get_tweet_replies(tweet_id, bearer_token,
     replies = pd.DataFrame(replies)
     return replies
 
-from tqdm import tqdm
 def get_user_tweets_and_replies(user_name, bearer_token, api, max_timeline_tweets=100, max_reply_tweets=25, verbose=False):
     user_data = api.get_user(username=user_name)
     user_id = user_data.data.id
@@ -112,9 +120,6 @@ def extract_location_data(location):
     else:
         return (None,)*6
     
-from itertools import combinations
-from sklearn.metrics.pairwise import cosine_distances, haversine_distances
-from math import radians
 EARTH_RADIUS = 6371000/1000  # multiply by Earth radius to get kilometers
 def compute_divergence(reply_users, user_data, user_data_type='description'):
     # convert user description/location to vector
@@ -135,3 +140,58 @@ def compute_divergence(reply_users, user_data, user_data_type='description'):
     ## compute mean pairwise divergence
     mean_user_divergence = user_divergence.loc[:, 'dist'].mean()
     return mean_user_divergence
+PUNCT = list(';:,>?!.()[]/\\"\'*@')
+USER_MATCHER = re.compile('@\w+')
+TXT_REPLACERS = [
+    [USER_MATCHER, '@USER'],
+]
+STOPS = stopwords.words('english') + PUNCT
+def compute_log_odds(data, text_var, group_var, word_categories=None):
+    group_vals = data.loc[:, group_var].dropna().unique()
+    group_word_counts = []
+    tokenizer = TweetTokenizer()
+    for i, (group_val_i, data_i) in enumerate(data.groupby(group_var)):
+        # get word counts
+        cv = CountVectorizer(min_df=0., max_df=1., tokenizer=tokenizer.tokenize, stop_words=STOPS)
+        clean_txt = data_i.loc[:, text_var]
+        for matcher, sub in TXT_REPLACERS:
+            clean_txt = clean_txt.apply(lambda x: matcher.sub(sub, x))
+        dtm = cv.fit_transform(clean_txt)
+        sorted_vocab = list(sorted(cv.vocabulary_.keys(), key=cv.vocabulary_.get))
+        word_counts_i = pd.DataFrame([np.array(dtm.sum(axis=0))[0]], index=[group_val_i]).transpose()
+        # normalize
+#         word_counts_i = word_counts_i / word_counts_i.sum()
+        # align vocab
+        word_counts_i.index = sorted_vocab
+        # optional: aggregate word categories
+        if(word_categories is not None):
+            word_category_counts_i = []
+            for cat_j, matcher_j in zip(word_categories.index, word_categories):
+                vocab_j = list(filter(lambda x: matcher_j.match(x), sorted_vocab))
+                if(len(vocab_j) > 0):
+                    count_j = word_counts_i.loc[vocab_j].sum()
+                    word_category_counts_i.append([cat_j, count_j])
+            cats_i, counts_i = zip(*word_category_counts_i)
+            word_counts_i = pd.DataFrame(counts_i, index=cats_i, columns=[group_val_i])
+        group_word_counts.append(word_counts_i)
+    group_word_counts = pd.concat(group_word_counts, axis=1)
+    # fill na
+    group_word_counts.fillna(0., inplace=True)
+    # smooth for log
+    smooth_val = 1
+    group_word_counts += smooth_val
+    # normalize
+    for group_val_i in group_vals:
+        group_word_counts = group_word_counts.assign(**{
+            group_val_i : group_word_counts.loc[:, group_val_i].values / group_word_counts.loc[:, group_val_i].sum()
+        })
+#     smooth_val = 1e-5
+#     group_word_counts += smooth_val
+    group_val_1, group_val_2 = group_vals
+    word_ratio = group_word_counts.loc[:, group_val_1] / group_word_counts.loc[:, group_val_2]
+    word_ratio.dropna(inplace=True)
+    word_ratio = word_ratio[~np.isinf(word_ratio)]
+    # convert to log b/c YOLO
+    word_ratio = np.log(word_ratio)
+    word_ratio.sort_values(inplace=True, ascending=False)
+    return (group_val_1, group_val_2), word_ratio
