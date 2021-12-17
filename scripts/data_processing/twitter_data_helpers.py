@@ -97,3 +97,41 @@ def get_user_tweets_and_replies(user_name, bearer_token, api, max_timeline_tweet
 #             print(f'collected {len(user_timeline_replies)} for {i+1}/{user_timeline.shape[0]}')
     user_timeline_replies = pd.concat(user_timeline_replies, axis=0)
     return user_timeline, user_timeline_replies
+
+def extract_location_data(location):
+    location_feat = location.geojson['features']
+    if(len(location_feat) > 0):
+        feat_properties = location_feat[0]['properties']
+        conf = feat_properties['accuracy']
+        country = feat_properties.get('country')
+        state = feat_properties.get('state')
+        city = feat_properties.get('city')
+        lat = feat_properties.get('lat')
+        lon = feat_properties.get('lng')
+        return conf, country, state, city, lat, lon
+    else:
+        return (None,)*6
+    
+from itertools import combinations
+from sklearn.metrics.pairwise import cosine_distances, haversine_distances
+from math import radians
+EARTH_RADIUS = 6371000/1000  # multiply by Earth radius to get kilometers
+def compute_divergence(reply_users, user_data, user_data_type='description'):
+    # convert user description/location to vector
+    # compute divergence between users in replies
+    user_divergence = []
+    for user_i, user_j in combinations(reply_users, 2):
+        if(user_data_type == 'description'):
+            dist_i_j = cosine_distances(user_data.loc[[user_i], :],
+                                        user_data.loc[[user_j], :])[0][0]
+        elif(user_data_type == 'location'):
+            # discrete locations
+#             dist_i_j = (user_data.loc[user_i, :]==user_data.loc[user_j, :]).astype(int)
+            # location lat/lon
+            dist_i_j = haversine_distances(user_data.loc[[user_i], :].apply(lambda x: pd.Series(map(radians, x)), axis=1),
+                                           user_data.loc[[user_j], :].apply(lambda x: pd.Series(map(radians, x)), axis=1))[0][0] * EARTH_RADIUS
+        user_divergence.append([user_i, user_j, dist_i_j])
+    user_divergence = pd.DataFrame(user_divergence, columns=['user1','user2','dist'])
+    ## compute mean pairwise divergence
+    mean_user_divergence = user_divergence.loc[:, 'dist'].mean()
+    return mean_user_divergence
