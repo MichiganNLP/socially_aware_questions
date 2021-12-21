@@ -24,11 +24,18 @@ import pandas as pd
 def keyword_score(pred, labels):
     pred = set(pred)
     labels = set(labels)
-    TP = pred & labels
-    FP = pred - labels
-    FN = labels - pred
-    prec = TP / (TP + FP)
-    rec = TP / (TP + FN)
+    TP = len(pred & labels)
+    FP = len(pred - labels)
+    FN = len(labels - pred)
+    # div by 0 err
+    try:
+        prec = TP / (TP + FP)
+    except ZeroDivisionError as e:
+        prec = 0.
+    try:
+        rec = TP / (TP + FN)
+    except ZeroDivisionError as e:
+        rec = 0.
     F1 = (prec + rec) / 2.
     return prec, rec, F1
 
@@ -280,7 +287,7 @@ def convert_keyword_to_output_label(input_tokens, keywords):
     return output_labels
 
 def build_dataset(tokenizer, inputs, outputs, max_length=100):
-    input_token_data = tokenizer(inputs, padding=True, max_length=max_length)
+    input_token_data = tokenizer(inputs, padding='max_length', max_length=max_length)
     input_tokens = [tokenizer.convert_ids_to_tokens(x) for x in input_token_data['input_ids']]
     output_ids = list(map(lambda x: convert_keyword_to_output_label(x[0], x[1]), zip(input_tokens, outputs)))
     data_dict = {
@@ -305,8 +312,7 @@ def extract_keywords_from_data(data, tokenizer=None):
     stops = set(stops)
     data = data.assign(**{
         'title_tokens': data.loc[:, 'title'].progress_apply(lambda x: tokenizer.tokenize(x)),
-        'question_tokens': data.loc[:, 'reply_question'].progress_apply(
-            lambda x: list(map(lambda y: stemmer.stem(y), tokenizer.tokenize(x)))),
+        'question_tokens': data.loc[:, 'reply_question'].progress_apply(lambda x: tokenizer.tokenize(x)),
     })
     # stem words
     data = data.assign(**{
