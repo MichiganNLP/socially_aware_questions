@@ -331,3 +331,17 @@ def extract_keywords_from_data(data, tokenizer=None):
             lambda x: [t1 for t1, t2 in zip(x.loc['title_tokens'], x.loc['title_tokens_clean']) if t2 in x.loc['title_question_overlap']], axis=1)
     })
     return data
+
+def compute_metrics(p, null_ids={101}):
+    predictions, labels, inputs = p
+    predictions = predictions.argmax(axis=1)
+    input_pred = [int(i) for i,o in zip(inputs, predictions) if o==1 and int(i) not in null_ids]
+    input_labels = [int(i) for i,l in zip(inputs, labels) if l==1]
+    prec, rec, F1 = keyword_score(input_pred, input_labels)
+    return {
+        'prec' : prec,
+        'rec' : rec,
+        'F1' : F1,
+        'pred_ids' : input_pred,
+        'label_ids' : input_labels,
+    }
