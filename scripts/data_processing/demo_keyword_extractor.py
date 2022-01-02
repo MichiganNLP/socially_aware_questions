@@ -70,7 +70,6 @@ class KeywordLossTrainer(Trainer):
             labels = inputs.pop("labels")
         else:
             labels = None
-        # tmp debugging
         outputs = model(**inputs)
         # Save past state if it exists
         # TODO: this needs to be fixed and made cleaner later.
@@ -92,6 +91,7 @@ class KeywordLossTrainer(Trainer):
                 clean_labels.append(labels_j)
             labels = torch.cat(clean_labels)
             loss = self.label_smoother(outputs, labels)
+            # TODO: change loss to keyword overlap!! this may backfire but YOLO
         else:
             # We don't use .loss here since the model may return tuples instead of ModelOutput.
             loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
