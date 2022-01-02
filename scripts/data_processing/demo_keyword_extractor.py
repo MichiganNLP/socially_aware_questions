@@ -286,14 +286,20 @@ def convert_keyword_to_output_label(input_tokens, keywords):
     output_labels = pd.Series(input_tokens).isin(keywords).astype(int).values
     return output_labels
 
-def build_dataset(tokenizer, inputs, outputs, max_length=100):
+def build_dataset(tokenizer, inputs, outputs, input_tokens_for_labels=None, max_length=100):
     input_token_data = tokenizer(inputs, padding='max_length', max_length=max_length)
-    input_tokens = [tokenizer.convert_ids_to_tokens(x) for x in input_token_data['input_ids']]
+#     if(input_tokens is None):
+#         input_tokens = [tokenizer.convert_ids_to_tokens(x) for x in input_token_data['input_ids']]
     output_ids = list(map(lambda x: convert_keyword_to_output_label(x[0], x[1]), zip(input_tokens, outputs)))
+    # set label to -100 if outside original input sequence 
+    # e.g. if WORD included in title and in article, only keep label 1 for WORD in title sequence
+    NULL_ID = -100
+    if(input_tokens_for_labels is None):
+        output_ids = [[y if i <= len(inputs) else NULL_ID for i, y in enumerate(labels)] for inputs, labels in zip(input_tokens_for_labels, output_ids)]
     data_dict = {
-    'input_ids' : input_token_data['input_ids'],
-    'attention_mask' : input_token_data['attention_mask'],
-    'labels' : output_ids,
+        'input_ids' : input_token_data['input_ids'],
+        'attention_mask' : input_token_data['attention_mask'],
+        'labels' : output_ids,
     }
     dataset = Dataset.from_dict(data_dict)
     dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
