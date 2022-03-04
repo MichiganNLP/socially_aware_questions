@@ -37,6 +37,9 @@ from praw import Reddit
 from psaw import PushshiftAPI
 # from datasets.arrow_dataset import Dataset
 from nlp.arrow_dataset import Dataset
+import matplotlib
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 def assign_label_by_cutoff_pct(data, label_var='gender', min_pct=0.75):
     """
@@ -1413,3 +1416,216 @@ def str2array(s):
     # Replace commas and spaces
     s=re.sub('[,\s]+', ', ', s)
     return np.array(literal_eval(s))
+
+# human evaluation data
+def fix_question_name(q_name_str, quality_num_matcher, subreddit_matcher, group_category_matcher):
+    q_combined_num = q_name_str.split('_')[0]
+#     print(f'combined num = {q_combined_num}')
+    q_combined_num_split = q_combined_num.split('.')
+    post_num, q_num = q_combined_num_split[:2] # some columns have 0.0.0 format??
+    if(quality_num_matcher.search(q_name_str) is not None):
+        quality_type = quality_num_matcher.search(q_name_str).group(0)
+    else:
+        quality_type = None
+    subreddit = subreddit_matcher.search(q_name_str).group(0)
+    group_category = group_category_matcher.search(q_name_str).group(0)
+    # update number
+    clean_num = f'{q_num}-{int(post_num)}'
+    return clean_num, quality_type, subreddit, group_category
+
+def clean_survey_data(data):
+    
+    ## fix annotation_2 cols (add subreddit + group info to reader group questions)
+    Q_col_matcher = re.compile('^\d\.\d')
+    data_cols = list(filter(lambda x: Q_col_matcher.match(x), data.columns))
+    clip_Q_col_matcher = re.compile('^\d\.\d[\.\d]*$')
+    subreddit_matcher = re.compile('(?<=subreddit=)([^_]+)')
+    group_category_matcher = re.compile('(?<=group_category=)([^_]+)')
+    # print(data_cols)
+    # apply subreddit/group category from previous question to bare question
+    for i in range(len(data_cols)):
+        col_i = data_cols[i]
+        if(clip_Q_col_matcher.match(col_i)):
+            subreddit_i = subreddit_matcher.search(data_cols[i-1]).group(0)
+            group_category_i = group_category_matcher.search(data_cols[i-1]).group(0)
+            clean_col_i = f'{col_i}_subreddit={subreddit_i}_group_category={group_category_i}'
+            data.rename(columns={col_i : clean_col_i}, inplace=True)
+    # print(data.columns[:100])
+    data_cols = list(filter(lambda x: Q_col_matcher.match(x), data.columns))
+    # remove invalid annotators
+    data = data.dropna(subset=['PROLIFIC_PID'])
+    PID_matcher = re.compile('\w{24}')
+    data = data[data.loc[:, 'PROLIFIC_PID'].apply(lambda x: PID_matcher.match(x) is not None)]
+    # print(data.loc[:, 'PROLIFIC_PID'])
+    ## flatten data => 1 rating per row
+    flat_data = pd.melt(data, id_vars=['ResponseId'], value_vars=data_cols, value_name='annotation_val', var_name='Q_name')
+    flat_data.dropna(subset=['annotation_val'], inplace=True)
+    # fix question names etc.
+    quality_num_matcher = re.compile('(?<=_)(\d)$')
+    flat_data = flat_data.assign(**{
+        'q_info_combined' : flat_data.loc[:, 'Q_name'].apply(lambda x: fix_question_name(x, quality_num_matcher, subreddit_matcher, group_category_matcher))
+    })
+    # fix q info
+    flat_data = flat_data.assign(**{
+        'Q_num' : flat_data.loc[:, 'q_info_combined'].apply(lambda x: x[0]),
+        'Q_rating_type' : flat_data.loc[:, 'q_info_combined'].apply(lambda x: x[1]),
+        'subreddit' : flat_data.loc[:, 'q_info_combined'].apply(lambda x: x[2]),
+        'group_category' : flat_data.loc[:, 'q_info_combined'].apply(lambda x: x[3]),
+    })
+    rating_type_lookup = {
+        '1' : 'Relevant',
+        '2' : 'Understandable',
+        '3' : 'Answerable',
+    }
+    flat_data = flat_data.assign(**{'Q_rating_type' : flat_data.loc[:, 'Q_rating_type'].apply(rating_type_lookup.get)})
+    flat_data.drop(['q_info_combined', 'Q_name'], axis=1, inplace=True)
+    flat_data.rename(columns={'Q_num' : 'Q_name'}, inplace=True)
+    flat_data = flat_data.assign(**{'annotation_round' : 2})
+    # fix annotation val for reader group prediction
+    flat_data = flat_data.assign(**{'annotation_val' : flat_data.loc[:, 'annotation_val'].apply(lambda x: x.split(':')[0])})
+    return flat_data
+def join_with_ground_truth_data(survey_data, ground_truth_dir):    
+    annotation_subreddits = survey_data.loc[:, 'subreddit'].unique()
+    annotation_reader_groups = survey_data.loc[:, 'group_category'].unique()
+    annotation_data_files_combined = list(map(lambda x: [os.path.join(ground_truth_dir, f'subreddit={x[0]}_group={x[1]}_annotation_data.tsv'), x[0], x[1]], product(annotation_subreddits, annotation_reader_groups)))
+    annotation_true_data = list(map(lambda x: pd.read_csv(x[0], sep='\t', index_col=False).assign(**{'subreddit' : x[1], 'group_category' : x[2]}), annotation_data_files_combined))
+    annotation_true_data = list(map(lambda x: x.assign(**{'index' : list(range(x.shape[0]))}), annotation_true_data))
+    annotation_true_data = pd.concat(annotation_true_data, axis=0)
+    ## flatten data
+    # question text
+    flat_annotation_true_data = pd.melt(annotation_true_data, id_vars=['subreddit', 'post_text', 'parent_id', 'index', 'reader_group', 'group_category'], value_vars=['Q1.1', 'Q1.2', 'Q1.3', 'Q2.1', 'Q2.2'], value_name='question_text', var_name='Q_name')
+    # question text type
+    question_text_type_true_data = pd.melt(annotation_true_data, id_vars=['subreddit', 'post_text', 'parent_id', 'index', 'reader_group', 'group_category'], value_vars=['Q1.1.type', 'Q1.2.type', 'Q1.3.type', 'Q2.1.type', 'Q2.2.type'], value_name='question_text_type', var_name='Q_name')
+    question_text_type_true_data = question_text_type_true_data.assign(**{
+        'Q_name' : question_text_type_true_data.loc[:, 'Q_name'].apply(lambda x: x.replace('.type', ''))
+    })
+    flat_annotation_true_data = pd.merge(flat_annotation_true_data, question_text_type_true_data,
+                                         on=['subreddit', 'post_text', 'parent_id', 'index', 'Q_name', 'reader_group', 'group_category'],
+                                         how='left')
+    # add labels for reader group questions
+    flat_annotation_true_data = flat_annotation_true_data.assign(**{
+        'Q_reader_group' : flat_annotation_true_data.loc[:, 'Q_name'].apply(lambda x: f'Q{x.split(".")[-1]}' if x.startswith('Q2') else None)
+    })
+    # fix Q name
+    # Q_num-idx
+    Q_name_lookup = {
+        '1.1' : '1',
+        '1.2' : '2',
+        '1.3' : '3',
+        '2.1' : '4',
+        '2.2' : '4',
+    }
+    flat_annotation_true_data = flat_annotation_true_data.assign(**{
+        'Q_name' : flat_annotation_true_data.apply(lambda x: f'{Q_name_lookup[x.loc["Q_name"].replace("Q", "")]}-{x.loc["index"]}', axis=1)
+    })
+    # for reader-group question: remove questions that aren't associated w/ default values (i.e. incorrect answers)
+    default_reader_group_vals = ['<EXPERT_PCT_1_AUTHOR>', '<US_AUTHOR>', '<RESPONSE_TIME_0_AUTHOR>']
+    question_text_types = ['target_text', 'reader_model', 'text_model']
+    valid_question_text_types = question_text_types + default_reader_group_vals
+    flat_annotation_true_data = flat_annotation_true_data[flat_annotation_true_data.loc[:, 'question_text_type'].isin(valid_question_text_types)]
+    flat_annotation_true_data.sort_values(['subreddit', 'group_category', 'index'], inplace=True, ascending=True)
+    ## combine true/annotated data
+    combined_annotation_data = pd.merge(survey_data, flat_annotation_true_data,
+                                        on=['subreddit', 'group_category', 'Q_name'], how='left')
+    # get annotation type
+    combined_annotation_data = combined_annotation_data.assign(**{
+        'annotation_type' : combined_annotation_data.apply(lambda x: 'reader_group' if x.loc['Q_reader_group'] is not None else 'quality', axis=1)
+    })
+    # split data by type, get numbers!!
+    combined_quality_annotation_data = combined_annotation_data[combined_annotation_data.loc[:, 'annotation_type']=='quality']
+    combined_group_annotation_data = combined_annotation_data[combined_annotation_data.loc[:, 'annotation_type']=='reader_group']
+    quality_num_lookup = {
+        'Very' : 5,
+        'Somewhat' : 4,
+        'Neutral' : 3,
+        'Not very' : 2,
+        'Not at all' : 1,
+    }
+    combined_quality_annotation_data = combined_quality_annotation_data.assign(**{
+        'annotation_num' : combined_quality_annotation_data.loc[:, 'annotation_val'].apply(quality_num_lookup.get)
+    })
+    ## let's also add a simplified quality score: was the annotation at least Somewhat "good"
+    combined_quality_annotation_data = combined_quality_annotation_data.assign(**{
+        'annotation_num_bin' : (combined_quality_annotation_data.loc[:, 'annotation_num'] >= 4).astype(int)
+    })
+    # group data
+    combined_group_annotation_data = combined_group_annotation_data.assign(**{
+        'annotation_correct' : (combined_group_annotation_data.loc[:, 'annotation_val']==combined_group_annotation_data.loc[:, 'Q_reader_group']).astype(int)
+    })
+    return combined_quality_annotation_data, combined_group_annotation_data
+
+def plot_quality_data(data):
+    model_var = 'question_text_type'
+    rating_type_var = 'Q_rating_type'
+    rating_types = data.loc[:, 'Q_rating_type']
+    rating_val_var = 'annotation_num'
+    # plot scores
+    ## overall
+    sns.violinplot(data=data, x='Q_rating_type', y='annotation_num')
+    plt.title('Annotation ratings')
+    plt.show()
+    ## per subreddit
+    annotation_subreddits = list(sorted(data.loc[:, 'subreddit'].unique()))
+    sns.violinplot(data=data, x='Q_rating_type', y='annotation_num', hue='subreddit', hue_order=annotation_subreddits)
+    plt.show()
+    ## per text type
+    text_type_order = ['target_text', 'text_model', 'reader_model']
+    sns.violinplot(data=data, x='Q_rating_type', y='annotation_num', hue='question_text_type', hue_order=text_type_order)
+    plt.show()
+    overall_annotation_score_tab = data.groupby([model_var, rating_type_var]).apply(lambda x: x.loc[:, rating_val_var].mean()).reset_index().pivot(index=model_var, columns=rating_type_var)
+#     display(overall_annotation_score_tab)
+    ## per subreddit
+    per_subreddit_scores = []
+    for subreddit_i, data_i in data.groupby('subreddit'):
+        sns.violinplot(data=data_i, x='Q_rating_type', y='annotation_num', hue='question_text_type', hue_order=text_type_order)
+        plt.title(f'subreddit={subreddit_i}')
+        plt.show()
+        print(f'scores for subreddit={subreddit_i}')
+        subreddit_annotation_score_tab_i = data_i.groupby([model_var, rating_type_var]).apply(lambda x: x.loc[:, rating_val_var].mean()).reset_index().pivot(index=model_var, columns=rating_type_var)
+#         display(subreddit_annotation_score_tab_i)
+        subreddit_annotation_score_tab_i = subreddit_annotation_score_tab_i.assign(**{'subreddit' : subreddit_i})
+        per_subreddit_scores.append(subreddit_annotation_score_tab_i)
+    per_subreddit_scores = pd.concat(per_subreddit_scores, axis=0)
+    ## per reader group
+    per_group_scores = []
+    for reader_group_i, data_i in data.groupby('group_category'):
+        sns.violinplot(data=data_i, x='Q_rating_type', y='annotation_num', hue='question_text_type', hue_order=text_type_order)
+        plt.title(f'reader group={reader_group_i}')
+        plt.show()
+        print(f'scores for group={reader_group_i}')
+        group_annotation_score_tab_i = data_i.groupby([model_var, rating_type_var]).apply(lambda x: x.loc[:, rating_val_var].mean()).reset_index().pivot(index=model_var, columns=rating_type_var)
+#         display(group_annotation_score_tab_i)
+        group_annotation_score_tab_i = group_annotation_score_tab_i.assign(**{'group' : reader_group_i})
+        per_group_scores.append(group_annotation_score_tab_i)
+    per_group_scores = pd.concat(per_group_scores, axis=0)
+    # show combined scores
+    display(overall_annotation_score_tab)
+    display(per_subreddit_scores)
+    display(per_group_scores)
+    
+def plot_group_data(data):
+    annotation_subreddits = list(sorted(data.loc[:, 'subreddit'].unique()))
+    # show aggregate % and distribution
+    print(data.loc[:, 'annotation_correct'].mean())
+    # per subreddit
+    display(data.groupby('subreddit').apply(lambda x: x.groupby('ResponseId').apply(lambda y: y.loc[:, 'annotation_correct'].mean()).mean()).reset_index())
+    # per reader category
+    display(data.groupby(['group_category']).apply(lambda x: x.groupby('ResponseId').apply(lambda y: y.loc[:, 'annotation_correct'].mean()).mean()).reset_index())
+    # per subreddit, per reader category
+    display(data.groupby(['group_category', 'subreddit']).apply(lambda x: x.groupby('ResponseId').apply(lambda y: y.loc[:, 'annotation_correct'].mean()).mean()).reset_index().pivot(index=['subreddit'], columns=['group_category'], values=0))
+    ## per subreddit
+    plt.figure(figsize=(10,4))
+    sns.barplot(data=data, x='subreddit', y='annotation_correct', order=annotation_subreddits)
+    plt.show()
+    ## per reader group
+    plt.figure(figsize=(10,4))
+    sns.barplot(data=data, x='group_category', y='annotation_correct')
+    plt.show()
+    ## per subreddit, per reader group
+    plt.figure(figsize=(20,4))
+    sns.barplot(data=data, x='subreddit', y='annotation_correct', hue='group_category', order=annotation_subreddits)
+    plt.show()
+    ## per annotator lol
+    plt.figure(figsize=(30,4))
+    sns.barplot(data=data, x='ResponseId', y='annotation_correct')
+    plt.show()
