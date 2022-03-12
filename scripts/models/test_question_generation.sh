@@ -152,8 +152,10 @@ GENERATION_PARAMS=../../data/model_cache/sample_generation_params.json
 #POST_SUBGROUP_FILE=../../data/reddit_data/paired_question_low_sim_simpct=25_data.gz
 #POST_SUBGROUP_FILE=../../data/reddit_data/paired_question_low_sim_simpct=10_data.gz
 #POST_SUBGROUP_FILE=../../data/reddit_data/paired_question_low_sim_simpct=5_data.gz
+POST_SUBGROUP_FILE=../../data/reddit_data/paired_question_low_sim_simpct=10_data_simtype=word_embed.gz
+#POST_SUBGROUP_FILE=../../data/reddit_data/paired_question_low_sim_simpct=5_data_simtype=word_embed.gz
 # reader-specific posts
-POST_SUBGROUP_FILE=../../data/reddit_data/group_classification_model/question_post_data/reader_group_cutoff_pct=95.gz
+#POST_SUBGROUP_FILE=../../data/reddit_data/group_classification_model/question_post_data/reader_group_cutoff_pct=95.gz
 
 ## queue server
 python test_question_generation.py $TEST_DATA --train_data $TRAIN_DATA --model_file $MODEL_FILE --model_cache_dir $MODEL_CACHE_DIR --model_type $MODEL_TYPE --out_dir $OUT_DIR --post_metadata $POST_METADATA --generation_params $GENERATION_PARAMS --post_subgroup_file $POST_SUBGROUP_FILE
