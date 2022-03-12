@@ -18,6 +18,7 @@ import os
 import pytz
 import requests
 from rouge_score.rouge_scorer import RougeScorer
+from scipy.stats import wilcoxon
 from sklearn.metrics.pairwise import cosine_similarity
 from torch.utils.data import ConcatDataset
 from transformers import BartTokenizer, LongformerTokenizer
@@ -1554,10 +1555,27 @@ def join_with_ground_truth_data(survey_data, ground_truth_dir):
     })
     return combined_quality_annotation_data, combined_group_annotation_data
 
+def test_diff_quality_scores(data, score_var='Q_rating_type'):
+    model_vars = list(filter(lambda x: x.endswith('_model'), data.columns))
+    model_1, model_2 = ['text_model', 'reader_model']
+    # pair data FML
+    score_vars = data.loc[:, score_var].unique()
+    sig_diff_data = []
+    p_val_cutoff = 0.05
+    for score_var_i in score_vars:
+        data_i = data[data.loc[:, score_var]==score_var_i].sort_values(['ResponseId', 'index', 'Q_name'])
+        model_1_scores = data_i[data_i.loc[:, 'question_text_type']==model_1].loc[:, 'annotation_num'].values
+        model_2_scores = data_i[data_i.loc[:, 'question_text_type']==model_2].loc[:, 'annotation_num'].values
+        test_stat, p_val = wilcoxon(model_1_scores, model_2_scores)
+#         if(p_val < p_val_cutoff):
+        sig_diff_data.append([score_var_i, test_stat, p_val])
+    sig_diff_data = pd.DataFrame(sig_diff_data, columns=[score_var, 'test_stat', 'p_val'])
+    sig_diff_data = sig_diff_data.assign(**{'test_stat' : sig_diff_data.loc[:, 'test_stat'].astype(int)})
+    return sig_diff_data
+
 def plot_quality_data(data):
     model_var = 'question_text_type'
     rating_type_var = 'Q_rating_type'
-    rating_types = data.loc[:, 'Q_rating_type']
     rating_val_var = 'annotation_num'
     # plot scores
     ## overall
@@ -1602,6 +1620,13 @@ def plot_quality_data(data):
     display(overall_annotation_score_tab)
     display(per_subreddit_scores)
     display(per_group_scores)
+    # get significant differences between models
+    overall_sig_diff_data = test_diff_quality_scores(data)
+    subreddit_sig_diff_data = data.groupby('subreddit').apply(lambda x: test_diff_quality_scores(x)).reset_index().drop('level_1', axis=1)
+    group_sig_diff_data = data.groupby('group_category').apply(lambda x: test_diff_quality_scores(x)).reset_index().drop('level_1', axis=1)
+    display(overall_sig_diff_data)
+    display(subreddit_sig_diff_data)
+    display(group_sig_diff_data)
     
 def plot_group_data(data):
     annotation_subreddits = list(sorted(data.loc[:, 'subreddit'].unique()))
