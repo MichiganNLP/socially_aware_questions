@@ -152,7 +152,8 @@ GENERATION_PARAMS=../../data/model_cache/sample_generation_params.json
 #POST_SUBGROUP_FILE=../../data/reddit_data/paired_question_low_sim_simpct=25_data.gz
 #POST_SUBGROUP_FILE=../../data/reddit_data/paired_question_low_sim_simpct=10_data.gz
 #POST_SUBGROUP_FILE=../../data/reddit_data/paired_question_low_sim_simpct=5_data.gz
-#POST_SUBGROUP_FILE
+POST_SUBGROUP_FILE=../../data/reddit_data/paired_question_low_sim_simpct=10_data_simtype=word_embed.gz
+#POST_SUBGROUP_FILE=../../data/reddit_data/paired_question_low_sim_simpct=5_data_simtype=word_embed.gz
 # reader-specific posts
 #POST_SUBGROUP_FILE=../../data/reddit_data/group_classification_model/question_post_data/reader_group_cutoff_pct=95.gz
 
