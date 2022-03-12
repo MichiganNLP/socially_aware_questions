@@ -23,7 +23,10 @@ from sklearn.metrics.pairwise import cosine_distances
 
 from author_aware_model import AuthorTextGenerationModel
 from author_group_attention_model import AuthorGroupAttentionModelConditionalGeneration
-from scripts.data_processing.data_helpers import load_vectors
+import sys
+if('..' not in sys.path):
+    sys.path.append('..')
+from data_processing.data_helpers import load_vectors
 
 
 class DataArguments(TrainingArguments):
