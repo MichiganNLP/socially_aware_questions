@@ -14,7 +14,6 @@ import sys
 if('..' not in sys.path):
     sys.path.append('..')
 from data_processing.data_helpers import load_vectors
-
 np.random.seed(123)
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
@@ -60,11 +59,12 @@ def main():
     # similarity_cutoff_sample_data.to_csv('sim_cutoff_data_tmp.gz', sep='\t', compression='gzip')
     sample_id_vars = ['parent_id', 'group_category']
     author_vars = ['question_id', 'id', 'author', 'author_group']
+    sim_vars = ['question_sim']
     flat_sample_data = []
     author_count = 2
     for idx_i, row_i in similarity_cutoff_sample_data.iterrows():
         for j in range(1, author_count+1):
-            row_j = row_i.loc[sample_id_vars + [f'{v}_{j}' for v in author_vars]]
+            row_j = row_i.loc[sample_id_vars + [f'{v}_{j}' for v in author_vars] + sim_vars]
             row_j.rename({f'{v}_{j}' : v for v in author_vars}, inplace=True)
             flat_sample_data.append(row_j)
     flat_sample_data = pd.concat(flat_sample_data, axis=1).transpose()
