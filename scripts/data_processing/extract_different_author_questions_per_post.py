@@ -4,14 +4,17 @@ reader groups for the same post that are
 highly different (based on semantic representations).
 """
 import os
-import sys
 from argparse import ArgumentParser
-
 import torch
-
+from nltk import WordPunctTokenizer
 from data_helpers import load_sample_data, add_author_tokens
 import pandas as pd
 import numpy as np
+import sys
+if('..' not in sys.path):
+    sys.path.append('..')
+from data_processing.data_helpers import load_vectors
+
 np.random.seed(123)
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
@@ -23,16 +26,18 @@ def main():
     parser.add_argument('--filter_data_file', default=None)
     parser.add_argument('--remove_data', dest='remove_data', action='store_true')
     parser.add_argument('--max_sim_pct', type=int, default=25)
+    parser.add_argument('--sim_type', default='sentence_embed') # sentence_embed, word_embed
     args = vars(parser.parse_args())
     out_dir = args['out_dir']
     filter_data_file = args['filter_data_file']
     remove_data = args['remove_data']
     max_sim_pct = args['max_sim_pct']
+    sim_type = args['sim_type']
 
     ## load all data
     paired_sample_data_file = os.path.join(out_dir, 'paired_question_sim_score_data.gz')
     if(not os.path.exists(paired_sample_data_file)):
-        paired_sample_data = generate_paired_sample_data(filter_data_file, remove_data)
+        paired_sample_data = generate_paired_sample_data(filter_data_file, remove_data, sim_type=sim_type)
         ## save for future use!
         # limit cols
         paired_sample_data_cols = ['question_1', 'author_group_1', 'id_1', 'question_id_1', 'author_1',
@@ -68,11 +73,19 @@ def main():
     # flat_sample_data = pd.melt(flat_sample_data, id_vars=['parent_id', 'id', 'question_id', 'group_category'], value_vars=['author_1', 'author_2'], var_name='author_id_type', value_name='author_id')
     # flat_sample_data.drop('author_id_type', axis=1, inplace=True)
     ## save to file
-    out_file = os.path.join(out_dir, f'paired_question_low_sim_simpct={max_sim_pct}_data.gz')
+    out_file = os.path.join(out_dir, f'paired_question_low_sim_simpct={max_sim_pct}_data_simtype={sim_type}.gz')
     flat_sample_data.to_csv(out_file, sep='\t', index=False, compression='gzip')
 
 
-def generate_paired_sample_data(filter_data_file, remove_data):
+def generate_paired_sample_data(filter_data_file, remove_data, sim_type='sentence_embed'):
+    """
+    Generate parirs of questions that have low similarity.
+
+    :param filter_data_file:
+    :param remove_data:
+    :param sim_type:
+    :return:
+    """
     filter_data = None
     if (filter_data_file is not None):
         filter_data = torch.load(filter_data_file).data.to_pandas()
@@ -159,12 +172,23 @@ def generate_paired_sample_data(filter_data_file, remove_data):
     paired_sample_data = pd.merge(paired_sample_data, post_question_data.loc[:, ['parent_id', 'post']], on='parent_id', how='left')
     paired_sample_data.drop_duplicates(['parent_id', 'group_category'], inplace=True)
     ## compute sentence representations
-    sentence_encoder = SentenceTransformer('paraphrase-distilroberta-base-v1')
+    if(sim_type == 'sentence_embed'):
+        sentence_encoder = SentenceTransformer('paraphrase-distilroberta-base-v1')
+    elif(sim_type == 'word_embed'):
+        word_embeds = load_vectors()
     question_vars = ['question_1', 'question_2']
     for question_var in question_vars:
-        question_embed = sentence_encoder.encode(paired_sample_data.loc[:, question_var].values.tolist())
+        if(sim_type == 'sentence_embed'):
+            question_embed = sentence_encoder.encode(paired_sample_data.loc[:, question_var].values.tolist())
+            # reshape
+            question_embed = [question_embed[i, :] for i in range(len(question_embed))]
+        elif(sim_type == 'word_embed'):
+            tokenizer = WordPunctTokenizer()
+            embed_vocab = set(word_embeds.index)
+            question_tokens = paired_sample_data.loc[:, question_var].apply(lambda x: [y.lower() for y in tokenizer.tokenize(x) if y in embed_vocab])
+            question_embed = question_tokens.apply(lambda x: word_embeds.loc[x, :].mean(axis=0).values).values
         paired_sample_data = paired_sample_data.assign(**{
-            f'{question_var}_embed': [question_embed[i, :] for i in range(len(question_embed))]
+            f'{question_var}_embed': question_embed
         })
     ## compute similarity
     paired_sample_data = paired_sample_data.assign(**{

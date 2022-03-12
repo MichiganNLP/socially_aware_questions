@@ -1,4 +1,3 @@
-import gzip
 import os
 import pickle
 import re
@@ -24,6 +23,7 @@ from sklearn.metrics.pairwise import cosine_distances
 
 from author_aware_model import AuthorTextGenerationModel
 from author_group_attention_model import AuthorGroupAttentionModelConditionalGeneration
+from scripts.data_processing.data_helpers import load_vectors
 
 
 class DataArguments(TrainingArguments):
@@ -57,23 +57,6 @@ class DataArguments(TrainingArguments):
     n_gpu: Optional[int] = field(
         default=1,
     )
-
-def load_vectors(embed_file):
-    """
-    Load word embedding vectors from file
-
-    :param fname:
-    :return:
-    """
-    data = {}
-    for i, line in enumerate(gzip.open(embed_file, 'rt')):
-        # skip first line
-        if(i > 0):
-            tokens = line.rstrip().split(' ')
-            data[tokens[0]] = map(float, tokens[1:])
-    # convert to dataframe
-    data = pd.DataFrame(data).transpose()
-    return data
 
 def generate_predictions(model, data, tokenizer,
                          generation_params=[],

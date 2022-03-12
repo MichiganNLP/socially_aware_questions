@@ -1654,3 +1654,21 @@ def plot_group_data(data):
     plt.figure(figsize=(30,4))
     sns.barplot(data=data, x='ResponseId', y='annotation_correct')
     plt.show()
+
+
+def load_vectors(embed_file='../../data/embeddings/wiki-news-300d-1M.vec.gz'):
+    """
+    Load word embedding vectors from file
+
+    :param fname:
+    :return:
+    """
+    data = {}
+    for i, line in enumerate(gzip.open(embed_file, 'rt')):
+        # skip first line
+        if(i > 0):
+            tokens = line.rstrip().split(' ')
+            data[tokens[0]] = map(float, tokens[1:])
+    # convert to dataframe
+    data = pd.DataFrame(data).transpose()
+    return data
