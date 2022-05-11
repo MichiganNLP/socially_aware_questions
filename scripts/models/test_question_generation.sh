@@ -4,8 +4,8 @@
 #SBATCH --output=/home/%u/logs/%x-%j.log
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --mem-per-gpu=10g
-#SBATCH --time=1:00:00
+#SBATCH --mem-per-gpu=40g
+#SBATCH --time=4:00:00
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --account=mihalcea0

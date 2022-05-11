@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem-per-gpu=10g
-#SBATCH --time=1:00:00
+#SBATCH --time=5:00:00
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --account=mihalcea0
@@ -21,11 +21,11 @@ POST_SUBGROUP_NAME=diff_questions
 OUT_DIR=../../data/reddit_data/
 
 ## queue server
-#python compare_model_performance.py $TEST_DATA --model_output_files "${MODEL_OUTPUT_FILES[@]}" --model_names "${MODEL_NAMES[@]}" --out_dir $OUT_DIR --post_subgroup_file $POST_SUBGROUP_FILE --post_subgroup_name $POST_SUBGROUP_NAME
+python compare_model_performance.py $TEST_DATA --model_output_files "${MODEL_OUTPUT_FILES[@]}" --model_names "${MODEL_NAMES[@]}" --out_dir $OUT_DIR --post_subgroup_file $POST_SUBGROUP_FILE --post_subgroup_name $POST_SUBGROUP_NAME
 ## regular server
 # set GPU
-export CUDA_VISIBLE_DEVICES=0
-(python compare_model_performance.py $TEST_DATA --model_output_files "${MODEL_OUTPUT_FILES[@]}" --model_names "${MODEL_NAMES[@]}" --out_dir $OUT_DIR --post_subgroup_file $POST_SUBGROUP_FILE --post_subgroup_name $POST_SUBGROUP_NAME)&
-PID=$!
-MAX_MEMORY=50000000000 # 10G
-prlimit --pid $PID --as=$MAX_MEMORY
+#export CUDA_VISIBLE_DEVICES=0
+#(python compare_model_performance.py $TEST_DATA --model_output_files "${MODEL_OUTPUT_FILES[@]}" --model_names "${MODEL_NAMES[@]}" --out_dir $OUT_DIR --post_subgroup_file $POST_SUBGROUP_FILE --post_subgroup_name $POST_SUBGROUP_NAME)&
+#PID=$!
+#MAX_MEMORY=50000000000 # 10G
+#prlimit --pid $PID --as=$MAX_MEMORY
