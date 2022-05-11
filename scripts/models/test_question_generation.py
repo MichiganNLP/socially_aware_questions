@@ -10,6 +10,7 @@ import pickle
 from argparse import ArgumentParser
 from itertools import product
 
+from nltk import WordPunctTokenizer
 from stop_words import get_stop_words
 from torch import Tensor
 from tqdm import tqdm
@@ -58,8 +59,7 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
     ], axis=1).transpose()
     generation_score_data.index = ['mean', 'sd']
     # compute diversity = % unique data
-    diversity_score = len(set(pred_data)) / len(pred_data)
-    diversity_score = pd.DataFrame([diversity_score, 0.], index=['mean', 'sd'], columns=['diversity'])
+    diversity_score = compute_diversity_scores(pred_data)
     generation_score_data = pd.concat([generation_score_data, diversity_score], axis=1)
     # compute redundancy = copying from train data
     if(train_data is not None):
@@ -74,6 +74,33 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
     # fix score format
     generation_score_data = generation_score_data.reset_index().rename(columns={'index': 'stat'})
     return full_generation_score_data, generation_score_data
+
+def compute_diversity_scores(pred_data):
+    """
+    Compute diversity scores in generated text.
+
+    :param pred_data:
+    :return:
+    """
+    # total diversity
+    diversity_score = len(set(pred_data)) / len(pred_data)
+    diversity_score = pd.DataFrame([diversity_score, 0.], index=['mean', 'sd'], columns=['diversity'])
+    # n-gram type/token diversity
+    word_tokenizer = WordPunctTokenizer()
+    pred_data_tokens = list(map(lambda x: word_tokenizer.tokenize(x.lower()), pred_data))
+    n_gram_lens = [1, 2]
+    type_token_data = []
+    for n_gram_len_i in n_gram_lens:
+        pred_data_token_ngrams = list(map(lambda x: [' '.join(x[i:(i+n_gram_len_i)]) for i in range(len(x)-n_gram_len_i)], pred_data_tokens))
+        n_gram_types_i = set([y for x in pred_data_token_ngrams for y in x])
+        type_token_i = len(n_gram_types_i) / sum(map(len, pred_data_token_ngrams))
+        type_token_data.append([f'type_token_{n_gram_len_i}', type_token_i])
+    type_token_data = pd.DataFrame(type_token_data, columns=[0, 'mean']).set_index(0).transpose()
+    diversity_score = pd.concat([
+        diversity_score,
+        type_token_data,
+    ], axis=1).fillna(0.)
+    return diversity_score
 
 def get_subreddit_group_generation_scores(pred_data, test_data,
                                           model, model_type='bart',
