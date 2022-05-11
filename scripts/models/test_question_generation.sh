@@ -51,6 +51,7 @@ OUT_DIR=../../data/reddit_data/text_only_model/ # generate
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/question_generation_model/checkpoint-275500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/
 #MODEL_TYPE='bart_author_attention'
+## START hyperparameter tuning
 # author group attention: hyperparameters
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_location\=encoder_config\=attnconcat/question_generation_model/checkpoint-97000/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_location\=encoder_config\=attnconcat/
@@ -104,6 +105,7 @@ OUT_DIR=../../data/reddit_data/text_only_model/ # generate
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_weight\=0.9_location\=decoder/
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_weight\=0.1_location\=encoder_config\=attnprob/question_generation_model/checkpoint-97000/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=1_weight\=0.1_location\=encoder_config\=attnprob/
+## END hyperparameter tuning
 # author attention: fine-tuning
 #MODEL_FILE=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_location\=decoder_finetune\=AUTHORS/question_generation_model/checkpoint-56500/pytorch_model.bin
 #OUT_DIR=../../data/reddit_data/author_text_data/author_attention_data/author_attention_layer\=5_location\=decoder_finetune\=AUTHORS/
