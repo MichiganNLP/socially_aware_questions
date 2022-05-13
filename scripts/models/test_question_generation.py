@@ -205,8 +205,8 @@ def compute_perplexity(model, model_type, sample_size, test_data, return_log_lik
         # except Exception as e:
         #     print(f'could not process batch {data_dict_i} because of error {e}')
     log_likelihoods = torch.stack(log_likelihoods)
-    perplexity = torch.exp(log_likelihoods).mean()
-    perplexity_std = torch.exp(log_likelihoods).std()
+    perplexity = float(torch.exp(log_likelihoods).mean())
+    perplexity_std = float(torch.exp(log_likelihoods).std())
     perplexity_data = pd.DataFrame([perplexity, perplexity_std],
                                    columns=['PPL'], index=['mean', 'sd'])
     if(return_log_likelihoods):
