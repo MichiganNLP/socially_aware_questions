@@ -64,9 +64,7 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
     # compute redundancy = copying from train data
     if(train_data is not None):
         train_data_text = set(train_data['target_text'])
-        pred_data_overlap = list(filter(lambda x: x in train_data_text, pred_data))
-        redundancy_score = len(pred_data_overlap) / len(pred_data)
-        redundancy_score = pd.DataFrame([redundancy_score, 0.], index=['mean', 'sd'], columns=['redundancy'])
+        redundancy_score = compute_redundancy_score(pred_data, train_data_text)
         generation_score_data = pd.concat([generation_score_data, redundancy_score], axis=1)
     # compute perplexity!
     perplexity_data = compute_perplexity(model, model_type, sample_size, test_data)
@@ -74,6 +72,34 @@ def get_generation_scores(pred_data, test_data, model, model_type='bart', word_e
     # fix score format
     generation_score_data = generation_score_data.reset_index().rename(columns={'index': 'stat'})
     return full_generation_score_data, generation_score_data
+
+
+def compute_redundancy_score(pred_data, train_data):
+    """
+    Compute redundancy scores:
+    - % questions already in training data
+    - % 1-grams already in training data
+
+    :param pred_data:
+    :param train_data:
+    :return:
+    """
+    pred_data_overlap = list(filter(lambda x: x in train_data, pred_data))
+    # % questions
+    question_redundancy_score = len(pred_data_overlap) / len(pred_data)
+    question_redundancy_score = pd.DataFrame([question_redundancy_score, 0.], index=['mean', 'sd'], columns=['redundancy'])
+    # % 1-grams
+    word_tokenizer = WordPunctTokenizer()
+    train_data_word_types = {y for x in list(map(lambda x: word_tokenizer.tokenize(x.lower()), train_data)) for y in x}
+    pred_data_word_types = {y for x in list(map(lambda x: word_tokenizer.tokenize(x.lower()), pred_data)) for y in x}
+    # print(f'train data word types = {train_data_word_types}; pred data word types = {pred_data_word_types}')
+    word_redundancy_score = len(pred_data_word_types & train_data_word_types) / len(pred_data_word_types)
+    word_redundancy_score = pd.DataFrame([word_redundancy_score, 0.], index=['mean', 'sd'], columns=['word_redundancy'])
+    redundancy_score = pd.concat([
+        question_redundancy_score,
+        word_redundancy_score,
+    ], axis=1)
+    return redundancy_score
 
 def compute_diversity_scores(pred_data):
     """
