@@ -1,3 +1,3 @@
-# Audience Aware NLP
+# Socially-aware question generation
 
-This project tries to predict readers' responses to long-form, one-directional text posts (e.g. advice).
+This predicts question-askers' responses to long-form, one-directional text posts (e.g. advice) by generating questions based partly on social information, e.g. question-asker location.
